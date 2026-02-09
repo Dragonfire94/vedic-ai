@@ -4,7 +4,8 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 
-API = "http://127.0.0.1:8000"
+import os
+API = os.getenv("API_URL", "http://127.0.0.1:8000")
 
 st.set_page_config(page_title="Vedic AI Dashboard", layout="wide")
 st.title("Vedic AI Dashboard")
