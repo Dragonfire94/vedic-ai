@@ -705,26 +705,37 @@ def parse_markdown_to_flowables(text: str, styles):
         
         # Heading
         if line.startswith('### '):
-            flowables.append(Paragraph(line[4:], styles['KoreanHeading2']))
+            clean_line = line[4:].replace('**', '')  # Remove bold markers from headings
+            flowables.append(Paragraph(clean_line, styles['KoreanHeading2']))
         elif line.startswith('## '):
-            flowables.append(Paragraph(line[3:], styles['KoreanHeading1']))
+            clean_line = line[3:].replace('**', '')
+            flowables.append(Paragraph(clean_line, styles['KoreanHeading1']))
         elif line.startswith('# '):
-            flowables.append(Paragraph(line[2:], styles['KoreanTitle']))
-        # List
-        elif line.startswith('- ') or line.startswith('* '):
-            flowables.append(Paragraph('• ' + line[2:], styles['KoreanBody']))
-        # Bold
-        elif '**' in line:
-            line = line.replace('**', '<b>').replace('**', '</b>')
-            flowables.append(Paragraph(line, styles['KoreanBody']))
+            clean_line = line[2:].replace('**', '')
+            flowables.append(Paragraph(clean_line, styles['KoreanTitle']))
         # Section markers
         elif line.startswith('[') and line.endswith(']'):
             flowables.append(Spacer(1, 0.3*cm))
-            flowables.append(Paragraph(f"<b>{line}</b>", styles['KoreanHeading1']))
+            clean_line = line.replace('**', '')
+            flowables.append(Paragraph(f"<b>{clean_line}</b>", styles['KoreanHeading1']))
+        # List
+        elif line.startswith('- ') or line.startswith('* '):
+            clean_line = convert_markdown_bold(line[2:])
+            flowables.append(Paragraph('• ' + clean_line, styles['KoreanBody']))
         else:
-            flowables.append(Paragraph(line, styles['KoreanBody']))
+            # Regular paragraph
+            clean_line = convert_markdown_bold(line)
+            flowables.append(Paragraph(clean_line, styles['KoreanBody']))
     
     return flowables
+
+def convert_markdown_bold(text: str) -> str:
+    """Convert **bold** to <b>bold</b> safely"""
+    import re
+    # Replace **text** with <b>text</b>
+    # Use regex to properly match pairs
+    result = re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', text)
+    return result
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: PDF 생성
