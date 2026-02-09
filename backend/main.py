@@ -872,6 +872,219 @@ def generate_pdf(
     )
 
 # ─────────────────────────────────────────────────────────────────────────────
+# BTR (Birth Time Rectification) 엔드포인트
+# ─────────────────────────────────────────────────────────────────────────────
+from fastapi import Body
+
+# BTR 질문 데이터 로드
+BTR_QUESTIONS_PATH = os.path.join(os.path.dirname(__file__), "btr_questions.json")
+BTR_QUESTIONS = {}
+try:
+    if os.path.exists(BTR_QUESTIONS_PATH):
+        with open(BTR_QUESTIONS_PATH, "r", encoding="utf-8") as f:
+            BTR_QUESTIONS = json.load(f)
+        print(f"[INFO] BTR questions loaded: {BTR_QUESTIONS_PATH}")
+    else:
+        print(f"[WARN] BTR questions file not found: {BTR_QUESTIONS_PATH}")
+except Exception as e:
+    print(f"[WARN] BTR questions load failed: {e}")
+
+# BTR 엔진 import
+try:
+    from btr_engine import (
+        analyze_birth_time,
+        refine_time_bracket,
+        generate_time_brackets,
+        calculate_vimshottari_dasha,
+        get_dasha_at_date,
+    )
+    BTR_ENGINE_AVAILABLE = True
+    print("[INFO] BTR engine loaded successfully")
+except ImportError as e:
+    BTR_ENGINE_AVAILABLE = False
+    print(f"[WARN] BTR engine not available: {e}")
+
+
+def _get_age_group(age: int) -> str:
+    """나이 → 연령대 그룹 키"""
+    if age < 30:
+        return "20s"
+    elif age < 50:
+        return "30s_40s"
+    else:
+        return "50s_plus"
+
+
+@app.get("/btr/questions")
+def get_btr_questions(
+    age: int = Query(..., ge=10, le=120, description="나이"),
+    language: str = Query("ko", description="언어 (ko/en)")
+):
+    """
+    BTR 질문 반환 (연령대별)
+
+    - 공통 질문 10개 + 연령대별 분기 질문 3개
+    - 총 13개 질문 반환
+    """
+    if not BTR_QUESTIONS:
+        raise HTTPException(status_code=500, detail="BTR 질문 데이터가 로드되지 않았습니다.")
+
+    common = BTR_QUESTIONS.get("common_questions", [])
+    age_group = _get_age_group(age)
+    age_specific = BTR_QUESTIONS.get("age_group_questions", {}).get(age_group, [])
+
+    all_questions = common + age_specific
+
+    # 언어별 텍스트 선택
+    formatted = []
+    for q in all_questions:
+        text_key = "text_ko" if language == "ko" else "text_en"
+        options_formatted = {}
+        for opt_key, opt_val in q.get("options", {}).items():
+            opt_text_key = "text_ko" if language == "ko" else "text_en"
+            options_formatted[opt_key] = opt_val.get(opt_text_key, opt_val.get("text_ko", ""))
+
+        formatted.append({
+            "id": q["id"],
+            "text": q.get(text_key, q.get("text_ko", "")),
+            "text_ko": q.get("text_ko", ""),
+            "text_en": q.get("text_en", ""),
+            "type": q["type"],
+            "options": options_formatted,
+            "event_type": q.get("event_type", ""),
+            "weight": q.get("weight", 1.0),
+            "dasha_lords": q.get("dasha_lords", []),
+            "house_triggers": q.get("house_triggers", []),
+        })
+
+    return {
+        "age": age,
+        "age_group": age_group,
+        "language": language,
+        "total_questions": len(formatted),
+        "questions": formatted,
+    }
+
+
+@app.post("/btr/analyze")
+def analyze_btr(
+    year: int = Query(..., description="출생 년도"),
+    month: int = Query(..., ge=1, le=12, description="출생 월"),
+    day: int = Query(..., ge=1, le=31, description="출생 일"),
+    lat: float = Query(..., description="위도"),
+    lon: float = Query(..., description="경도"),
+    events: list = Body(..., description="이벤트 리스트"),
+):
+    """
+    BTR 분석 실행
+
+    events 예시:
+    [
+        {
+            "type": "marriage",
+            "year": 2015,
+            "month": 6,
+            "weight": 0.8,
+            "dasha_lords": ["Venus", "Jupiter"],
+            "house_triggers": [7]
+        }
+    ]
+
+    Returns:
+        Top 3 후보 시간대 + 신뢰도
+    """
+    if not BTR_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
+
+    if not events:
+        raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
+
+    # 미래 이벤트 검증
+    current_year = datetime.now().year
+    for ev in events:
+        if ev.get("year") and ev["year"] > current_year:
+            raise HTTPException(
+                status_code=400,
+                detail=f"미래 이벤트는 사용할 수 없습니다: {ev['year']}"
+            )
+
+    try:
+        birth_date = {"year": year, "month": month, "day": day}
+
+        candidates = analyze_birth_time(
+            birth_date=birth_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=8,
+            top_n=3,
+        )
+
+        return {
+            "status": "ok",
+            "birth_date": birth_date,
+            "lat": lat,
+            "lon": lon,
+            "num_events": len(events),
+            "candidates": candidates,
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"BTR 분석 오류: {str(e)}")
+
+
+@app.post("/btr/refine")
+def refine_btr(
+    year: int = Query(..., description="출생 년도"),
+    month: int = Query(..., ge=1, le=12, description="출생 월"),
+    day: int = Query(..., ge=1, le=31, description="출생 일"),
+    lat: float = Query(..., description="위도"),
+    lon: float = Query(..., description="경도"),
+    bracket_start: float = Query(..., description="브래킷 시작 시간"),
+    bracket_end: float = Query(..., description="브래킷 종료 시간"),
+    events: list = Body(..., description="이벤트 리스트"),
+):
+    """
+    선택된 브래킷 2차 정밀화 (30분 단위)
+
+    Returns:
+        세분화된 6개 후보
+    """
+    if not BTR_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
+
+    if not events:
+        raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
+
+    try:
+        birth_date = {"year": year, "month": month, "day": day}
+        bracket = {"start": bracket_start, "end": bracket_end}
+
+        refined = refine_time_bracket(
+            date=birth_date,
+            bracket=bracket,
+            events=events,
+            lat=lat,
+            lon=lon,
+            sub_intervals=6,
+        )
+
+        return {
+            "status": "ok",
+            "birth_date": birth_date,
+            "original_bracket": bracket,
+            "refined_candidates": refined,
+        }
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"BTR 정밀화 오류: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 실행
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":

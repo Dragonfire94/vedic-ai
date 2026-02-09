@@ -1,0 +1,406 @@
+{
+  "version": "1.0",
+  "description": "BTR (Birth Time Rectification) 질문 데이터",
+  "common_questions": [
+    {
+      "id": "Q1",
+      "text_ko": "주변 사람들이 당신의 첫인상을 어떻게 묘사하나요?",
+      "text_en": "How do people describe their first impression of you?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "강한 카리스마, 존재감", "text_en": "Strong charisma, presence"},
+        "B": {"text_ko": "차갑고 거리감 있는", "text_en": "Cool and distant"},
+        "C": {"text_ko": "친근하고 따뜻한", "text_en": "Friendly and warm"},
+        "D": {"text_ko": "지적이고 분석적인", "text_en": "Intellectual and analytical"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q2",
+      "text_ko": "스트레스를 받으면 주로 어떻게 반응하나요?",
+      "text_en": "How do you typically react to stress?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "행동으로 해소 (운동, 활동)", "text_en": "Action (exercise, activity)"},
+        "B": {"text_ko": "혼자 고립 (고독 선호)", "text_en": "Isolation (prefer solitude)"},
+        "C": {"text_ko": "대화로 풀기 (소통)", "text_en": "Talking it out (communication)"},
+        "D": {"text_ko": "회피하거나 잊으려 함", "text_en": "Avoidance or distraction"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q3",
+      "text_ko": "당신의 에너지 타입은 어떤가요?",
+      "text_en": "What is your energy type?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "폭발적 (순간 집중형)", "text_en": "Explosive (burst focus)"},
+        "B": {"text_ko": "안정적 (꾸준한)", "text_en": "Stable (consistent)"},
+        "C": {"text_ko": "변동이 큰 (기분에 따라)", "text_en": "Fluctuating (mood-dependent)"},
+        "D": {"text_ko": "깊고 지속적인", "text_en": "Deep and sustained"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q4",
+      "text_ko": "중요한 결정을 내릴 때 주로 어떤 방식을 사용하나요?",
+      "text_en": "How do you usually make important decisions?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "직감적으로", "text_en": "Intuitively"},
+        "B": {"text_ko": "논리적 분석", "text_en": "Logical analysis"},
+        "C": {"text_ko": "타인과 의논/타협", "text_en": "Discussion/compromise with others"},
+        "D": {"text_ko": "신중하게 오래 고민", "text_en": "Careful, prolonged deliberation"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q5",
+      "text_ko": "사회적 상황에서 당신의 역할은?",
+      "text_en": "What is your role in social situations?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "리더/주도자", "text_en": "Leader/initiator"},
+        "B": {"text_ko": "전문가/조언자", "text_en": "Expert/advisor"},
+        "C": {"text_ko": "중재자/화합", "text_en": "Mediator/harmonizer"},
+        "D": {"text_ko": "관찰자/경청자", "text_en": "Observer/listener"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q6",
+      "text_ko": "감정을 어떻게 표현하나요?",
+      "text_en": "How do you express emotions?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "직설적으로", "text_en": "Directly"},
+        "B": {"text_ko": "절제하며", "text_en": "With restraint"},
+        "C": {"text_ko": "풍부하게", "text_en": "Richly/expressively"},
+        "D": {"text_ko": "은유적/간접적으로", "text_en": "Metaphorically/indirectly"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q7",
+      "text_ko": "큰 변화가 왔을 때 어떻게 대응하나요?",
+      "text_en": "How do you respond to major changes?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "즉각 실행", "text_en": "Immediate action"},
+        "B": {"text_ko": "저항/거부", "text_en": "Resistance/rejection"},
+        "C": {"text_ko": "유연하게 적응", "text_en": "Flexible adaptation"},
+        "D": {"text_ko": "신중하게 관찰 후 대응", "text_en": "Careful observation before responding"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q8",
+      "text_ko": "가까운 관계에서 당신의 패턴은?",
+      "text_en": "What is your pattern in close relationships?",
+      "type": "multiple_choice",
+      "options": {
+        "A": {"text_ko": "주도적", "text_en": "Dominant/leading"},
+        "B": {"text_ko": "독립적", "text_en": "Independent"},
+        "C": {"text_ko": "협력적", "text_en": "Cooperative"},
+        "D": {"text_ko": "의존적", "text_en": "Dependent"}
+      },
+      "event_type": "personality",
+      "weight": 1.0,
+      "dasha_lords": [],
+      "house_triggers": [1, 7],
+      "ml_trainable": true,
+      "weight_range": [0.5, 2.0]
+    },
+    {
+      "id": "Q9",
+      "text_ko": "첫 중요한 직업/학업 경험은 언제였나요?",
+      "text_en": "When was your first significant career/academic experience?",
+      "type": "yesno_date",
+      "options": {
+        "A": {"text_ko": "초등 졸업 전 (6-12세)", "text_en": "Before elementary graduation (6-12)"},
+        "B": {"text_ko": "중고등학교 시기 (13-18세)", "text_en": "Middle/high school (13-18)"},
+        "C": {"text_ko": "대학/성인 초기 (19-25세)", "text_en": "College/early adult (19-25)"},
+        "D": {"text_ko": "25세 이후", "text_en": "After 25"}
+      },
+      "event_type": "education",
+      "weight": 1.3,
+      "dasha_lords": ["Mercury", "Jupiter"],
+      "house_triggers": [1, 2, 4, 9],
+      "ml_trainable": true,
+      "weight_range": [0.5, 10.0]
+    },
+    {
+      "id": "Q10",
+      "text_ko": "첫 독립적 재정 활동(취직/사업)은 언제였나요?",
+      "text_en": "When was your first independent financial activity (job/business)?",
+      "type": "yesno_date",
+      "options": {
+        "A": {"text_ko": "15세 이전", "text_en": "Before 15"},
+        "B": {"text_ko": "15-25세", "text_en": "15-25"},
+        "C": {"text_ko": "25-35세", "text_en": "25-35"},
+        "D": {"text_ko": "35세 이후", "text_en": "After 35"}
+      },
+      "event_type": "career",
+      "weight": 1.3,
+      "dasha_lords": ["Sun", "Saturn"],
+      "house_triggers": [2, 6, 10],
+      "ml_trainable": true,
+      "weight_range": [1.0, 5.0]
+    }
+  ],
+  "age_group_questions": {
+    "20s": [
+      {
+        "id": "Q11_20",
+        "text_ko": "첫 연애나 중요한 관계는 언제 시작했나요?",
+        "text_en": "When did your first romance or significant relationship start?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "20세 이전", "text_en": "Before 20"},
+          "B": {"text_ko": "20-25세", "text_en": "20-25"},
+          "C": {"text_ko": "아직 없음", "text_en": "Not yet"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "relationship",
+        "weight": 1.3,
+        "dasha_lords": ["Venus", "Mars"],
+        "house_triggers": [5, 7, 11],
+        "ml_trainable": true,
+        "weight_range": [1.0, 8.0]
+      },
+      {
+        "id": "Q12_20",
+        "text_ko": "대학 입학이나 독립한 시기는?",
+        "text_en": "When did you enter college or become independent?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "18세 이전", "text_en": "Before 18"},
+          "B": {"text_ko": "18-20세", "text_en": "18-20"},
+          "C": {"text_ko": "20세 이후", "text_en": "After 20"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "education",
+        "weight": 1.3,
+        "dasha_lords": ["Mercury", "Jupiter", "Rahu"],
+        "house_triggers": [4, 9, 12],
+        "ml_trainable": true,
+        "weight_range": [0.5, 6.0]
+      },
+      {
+        "id": "Q13_20",
+        "text_ko": "최근 3년 이내 가장 중요한 사건은?",
+        "text_en": "What was the most significant event in the last 3 years?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "커리어 전환/첫 취직", "text_en": "Career change/first job"},
+          "B": {"text_ko": "건강 이슈", "text_en": "Health issue"},
+          "C": {"text_ko": "관계 변화", "text_en": "Relationship change"},
+          "D": {"text_ko": "거주지 이동", "text_en": "Relocation"}
+        },
+        "event_type": "career_change",
+        "weight": 1.5,
+        "dasha_lords": ["Sun", "Saturn", "Rahu"],
+        "house_triggers": [1, 6, 10],
+        "ml_trainable": true,
+        "weight_range": [2.5, 8.0]
+      }
+    ],
+    "30s_40s": [
+      {
+        "id": "Q11_30",
+        "text_ko": "결혼(또는 중요한 파트너십)은 언제였나요?",
+        "text_en": "When did you get married (or enter a significant partnership)?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "25세 이전", "text_en": "Before 25"},
+          "B": {"text_ko": "25-30세", "text_en": "25-30"},
+          "C": {"text_ko": "30세 이후", "text_en": "After 30"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "marriage",
+        "weight": 1.3,
+        "dasha_lords": ["Venus", "Jupiter"],
+        "house_triggers": [7, 2, 11],
+        "ml_trainable": true,
+        "weight_range": [1.0, 8.0]
+      },
+      {
+        "id": "Q12_30",
+        "text_ko": "자녀 출산(또는 가족 구성)은 언제였나요?",
+        "text_en": "When did you have children (or form your family)?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "25세 이전", "text_en": "Before 25"},
+          "B": {"text_ko": "25-35세", "text_en": "25-35"},
+          "C": {"text_ko": "35세 이후", "text_en": "After 35"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "childbirth",
+        "weight": 1.3,
+        "dasha_lords": ["Jupiter", "Moon"],
+        "house_triggers": [5, 9, 11],
+        "ml_trainable": true,
+        "weight_range": [0.5, 6.0]
+      },
+      {
+        "id": "Q13_30",
+        "text_ko": "최근 3년 이내 가장 중요한 사건은?",
+        "text_en": "What was the most significant event in the last 3 years?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "커리어 전환", "text_en": "Career change"},
+          "B": {"text_ko": "건강 이슈", "text_en": "Health issue"},
+          "C": {"text_ko": "관계 변화 (이혼, 재혼 등)", "text_en": "Relationship change (divorce, remarriage)"},
+          "D": {"text_ko": "부동산/거주지 변화", "text_en": "Property/relocation change"}
+        },
+        "event_type": "career_change",
+        "weight": 1.5,
+        "dasha_lords": ["Sun", "Saturn", "Rahu"],
+        "house_triggers": [1, 6, 10],
+        "ml_trainable": true,
+        "weight_range": [2.5, 8.0]
+      }
+    ],
+    "50s_plus": [
+      {
+        "id": "Q11_50",
+        "text_ko": "은퇴 또는 주요 직업 전환은 언제였나요?",
+        "text_en": "When did you retire or make a major career transition?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "50세 이전", "text_en": "Before 50"},
+          "B": {"text_ko": "50-60세", "text_en": "50-60"},
+          "C": {"text_ko": "60세 이후", "text_en": "After 60"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "career_change",
+        "weight": 1.3,
+        "dasha_lords": ["Saturn", "Sun", "Ketu"],
+        "house_triggers": [10, 6, 12],
+        "ml_trainable": true,
+        "weight_range": [1.0, 6.0]
+      },
+      {
+        "id": "Q12_50",
+        "text_ko": "중요한 건강 문제가 있었던 시기는?",
+        "text_en": "When did you experience a significant health issue?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "40세 이전", "text_en": "Before 40"},
+          "B": {"text_ko": "40-55세", "text_en": "40-55"},
+          "C": {"text_ko": "55세 이후", "text_en": "After 55"},
+          "D": {"text_ko": "해당 없음", "text_en": "N/A"}
+        },
+        "event_type": "health",
+        "weight": 1.3,
+        "dasha_lords": ["Saturn", "Mars", "Ketu"],
+        "house_triggers": [1, 6, 8],
+        "ml_trainable": true,
+        "weight_range": [0.5, 6.0]
+      },
+      {
+        "id": "Q13_50",
+        "text_ko": "최근 3년 이내 가장 중요한 사건은?",
+        "text_en": "What was the most significant event in the last 3 years?",
+        "type": "yesno_date",
+        "options": {
+          "A": {"text_ko": "건강 관련", "text_en": "Health-related"},
+          "B": {"text_ko": "가족 사건 (자녀 결혼, 손주 등)", "text_en": "Family event (child's marriage, grandchild)"},
+          "C": {"text_ko": "재정/부동산 변화", "text_en": "Financial/property change"},
+          "D": {"text_ko": "영적/종교적 전환", "text_en": "Spiritual/religious transition"}
+        },
+        "event_type": "family",
+        "weight": 1.5,
+        "dasha_lords": ["Moon", "Jupiter", "Ketu"],
+        "house_triggers": [4, 5, 9, 12],
+        "ml_trainable": true,
+        "weight_range": [2.5, 8.0]
+      }
+    ]
+  },
+  "feature_map": {
+    "Q1": {
+      "A": {"Aries": 8, "Leo": 7, "Scorpio": 5, "Sagittarius": 3, "Capricorn": -3, "Pisces": -2},
+      "B": {"Capricorn": 8, "Aquarius": 6, "Virgo": 4, "Scorpio": 3, "Leo": -2, "Cancer": -3},
+      "C": {"Cancer": 8, "Libra": 7, "Pisces": 5, "Taurus": 4, "Scorpio": -2, "Capricorn": -3},
+      "D": {"Virgo": 8, "Gemini": 7, "Aquarius": 5, "Scorpio": 3, "Aries": -2, "Sagittarius": -1}
+    },
+    "Q2": {
+      "A": {"Aries": 8, "Scorpio": 6, "Leo": 5, "Sagittarius": 4, "Libra": -2, "Pisces": -1},
+      "B": {"Capricorn": 8, "Scorpio": 6, "Virgo": 5, "Cancer": 3, "Leo": -2, "Gemini": -2},
+      "C": {"Gemini": 8, "Libra": 7, "Cancer": 5, "Leo": 3, "Capricorn": -2, "Scorpio": -2},
+      "D": {"Pisces": 8, "Sagittarius": 5, "Taurus": 4, "Libra": 3, "Aries": -3, "Scorpio": -1}
+    },
+    "Q3": {
+      "A": {"Aries": 8, "Leo": 6, "Scorpio": 5, "Sagittarius": 4, "Taurus": -3, "Virgo": -2},
+      "B": {"Taurus": 8, "Capricorn": 7, "Virgo": 5, "Cancer": 3, "Aries": -2, "Gemini": -2},
+      "C": {"Gemini": 8, "Cancer": 6, "Pisces": 5, "Libra": 4, "Taurus": -2, "Capricorn": -2},
+      "D": {"Scorpio": 8, "Capricorn": 6, "Pisces": 5, "Aquarius": 4, "Aries": -2, "Gemini": -1}
+    },
+    "Q4": {
+      "A": {"Sagittarius": 8, "Aries": 6, "Pisces": 5, "Scorpio": 4, "Virgo": -3, "Gemini": -1},
+      "B": {"Virgo": 8, "Aquarius": 7, "Gemini": 5, "Capricorn": 4, "Pisces": -2, "Aries": -2},
+      "C": {"Libra": 8, "Cancer": 6, "Gemini": 5, "Taurus": 3, "Scorpio": -2, "Aries": -2},
+      "D": {"Capricorn": 8, "Taurus": 6, "Scorpio": 5, "Cancer": 4, "Aries": -3, "Sagittarius": -1}
+    },
+    "Q5": {
+      "A": {"Leo": 8, "Aries": 7, "Scorpio": 5, "Sagittarius": 4, "Cancer": -2, "Pisces": -2},
+      "B": {"Virgo": 8, "Aquarius": 6, "Scorpio": 5, "Capricorn": 4, "Leo": -1, "Aries": -2},
+      "C": {"Libra": 8, "Cancer": 6, "Pisces": 5, "Gemini": 4, "Aries": -2, "Scorpio": -2},
+      "D": {"Pisces": 8, "Capricorn": 6, "Scorpio": 5, "Taurus": 4, "Leo": -3, "Aries": -2}
+    },
+    "Q6": {
+      "A": {"Aries": 8, "Leo": 7, "Sagittarius": 5, "Scorpio": 4, "Libra": -2, "Virgo": -2},
+      "B": {"Capricorn": 8, "Virgo": 6, "Aquarius": 5, "Scorpio": 4, "Cancer": -2, "Leo": -1},
+      "C": {"Cancer": 8, "Leo": 6, "Pisces": 5, "Libra": 4, "Capricorn": -3, "Virgo": -2},
+      "D": {"Pisces": 8, "Scorpio": 6, "Libra": 5, "Aquarius": 4, "Aries": -2, "Leo": -1}
+    },
+    "Q7": {
+      "A": {"Aries": 8, "Leo": 6, "Sagittarius": 5, "Scorpio": 3, "Taurus": -3, "Cancer": -2},
+      "B": {"Taurus": 8, "Capricorn": 6, "Leo": 4, "Scorpio": 3, "Gemini": -3, "Sagittarius": -2},
+      "C": {"Gemini": 8, "Libra": 7, "Pisces": 5, "Sagittarius": 4, "Taurus": -2, "Scorpio": -1},
+      "D": {"Capricorn": 8, "Virgo": 6, "Scorpio": 5, "Cancer": 4, "Aries": -2, "Gemini": -1}
+    },
+    "Q8": {
+      "A": {"Leo": 8, "Aries": 7, "Scorpio": 5, "Sagittarius": 3, "Libra": -2, "Pisces": -2},
+      "B": {"Aquarius": 8, "Sagittarius": 6, "Aries": 5, "Virgo": 4, "Cancer": -3, "Libra": -1},
+      "C": {"Libra": 8, "Cancer": 6, "Taurus": 5, "Pisces": 4, "Aries": -2, "Scorpio": -2},
+      "D": {"Cancer": 8, "Pisces": 6, "Taurus": 5, "Libra": 4, "Aries": -3, "Aquarius": -2}
+    }
+  }
+}

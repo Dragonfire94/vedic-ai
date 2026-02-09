@@ -16,6 +16,12 @@ def api_get(path, params=None, timeout=60):
     r.raise_for_status()
     return r
 
+def api_post(path, json_data=None, params=None, timeout=60):
+    url = f"{API}{path}"
+    r = requests.post(url, json=json_data, params=params or {}, timeout=timeout)
+    r.raise_for_status()
+    return r
+
 def show_error(e: Exception, context: str = ""):
     msg = f"{context}\n{str(e)}".strip()
     st.error(msg)
@@ -167,7 +173,7 @@ if st.session_state.pdf_bytes:
 else:
     st.info("PDF not generated yet.")
 
-tabs = st.tabs(["Chart View", "AI Reading", "Raw JSON"])
+tabs = st.tabs(["Chart View", "AI Reading", "BTR Analysis", "Raw JSON"])
 
 with tabs[0]:
     chart = st.session_state.chart
@@ -236,6 +242,185 @@ with tabs[1]:
             st.info("Empty reading")
 
 with tabs[2]:
+    st.header("🔮 생시 보정 (Birth Time Rectification)")
+
+    # 나이 입력
+    btr_age = st.number_input("나이", 15, 120, 30, key="btr_age")
+
+    # 질문 가져오기
+    if st.button("질문 불러오기", key="btr_load_q"):
+        try:
+            with st.spinner("질문 로딩 중..."):
+                lang = inputs.get("language", "ko")
+                resp = api_get("/btr/questions", params={"age": btr_age, "language": lang}, timeout=15)
+                data = resp.json()
+                st.session_state.btr_questions = data.get("questions", [])
+                st.session_state.btr_age_group = data.get("age_group", "")
+            st.success(f"질문 {len(st.session_state.btr_questions)}개 로드됨 (연령대: {st.session_state.get('btr_age_group', '')})")
+        except Exception as e:
+            show_error(e, "BTR 질문 로딩 오류")
+
+    # 질문 폼
+    if "btr_questions" in st.session_state and st.session_state.btr_questions:
+        st.divider()
+        st.subheader("📋 이벤트 입력")
+        st.caption("'예'를 선택한 질문의 연도를 입력하세요. 월을 추가하면 정확도가 향상됩니다.")
+
+        events = []
+
+        for q in st.session_state.btr_questions:
+            qid = q["id"]
+            qtext = q.get("text_ko", q.get("text", ""))
+            qtype = q.get("type", "multiple_choice")
+
+            if qtype == "yesno_date":
+                st.markdown(f"**{qid}. {qtext}**")
+
+                answer = st.radio(
+                    "해당 사항이 있나요?",
+                    ["예", "아니오"],
+                    key=f"radio_{qid}",
+                    horizontal=True,
+                )
+
+                if answer == "예":
+                    col_y, col_m = st.columns(2)
+                    with col_y:
+                        ev_year = st.number_input("년도 (필수)", 1950, 2026, 2010, key=f"year_{qid}")
+                    with col_m:
+                        ev_month = st.number_input("월 (0=미입력)", 0, 12, 0, key=f"month_{qid}")
+
+                    events.append({
+                        "type": q.get("event_type", "unknown"),
+                        "year": ev_year,
+                        "month": ev_month if ev_month > 0 else None,
+                        "weight": q.get("weight", 1.0),
+                        "dasha_lords": q.get("dasha_lords", []),
+                        "house_triggers": q.get("house_triggers", []),
+                    })
+
+                st.markdown("---")
+
+            elif qtype == "multiple_choice":
+                # 성향 질문은 표시만 (현재는 이벤트 기반 분석에 미사용)
+                st.markdown(f"**{qid}. {qtext}**")
+                options = q.get("options", {})
+                opt_labels = [f"{k}. {v}" for k, v in options.items()]
+                st.radio("선택", opt_labels, key=f"mc_{qid}", horizontal=True)
+                st.markdown("---")
+
+        st.session_state.btr_events = events
+
+    # 분석 실행
+    if st.button("🚀 생시 분석 시작", key="btr_run"):
+        btr_events = st.session_state.get("btr_events", [])
+        if not btr_events:
+            st.warning("이벤트를 하나 이상 입력해주세요. (사건 질문에서 '예'를 선택)")
+        else:
+            with st.spinner("BTR 분석 중... (최대 30초)"):
+                try:
+                    resp = api_post(
+                        "/btr/analyze",
+                        json_data=btr_events,
+                        params={
+                            "year": inputs["year"],
+                            "month": inputs["month"],
+                            "day": inputs["day"],
+                            "lat": inputs["lat"],
+                            "lon": inputs["lon"],
+                        },
+                        timeout=60,
+                    )
+                    st.session_state.btr_result = resp.json()
+                    st.success("분석 완료!")
+                except Exception as e:
+                    show_error(e, "BTR 분석 오류")
+
+    # 결과 표시
+    if "btr_result" in st.session_state and st.session_state.btr_result:
+        result = st.session_state.btr_result
+        candidates = result.get("candidates", [])
+
+        if not candidates:
+            st.warning("분석 결과가 없습니다.")
+        else:
+            st.subheader("🎯 분석 결과 (Top 3)")
+
+            for i, cand in enumerate(candidates, 1):
+                confidence = cand.get("confidence", 0)
+                grade = cand.get("confidence_grade", "C-")
+                asc = cand.get("ascendant", "—")
+                time_range = cand.get("time_range", "—")
+                matched = cand.get("matched_events", 0)
+                total = cand.get("total_events", 0)
+                score = cand.get("score", 0)
+                msg = cand.get("grade_message", "")
+
+                # 색상 결정
+                if confidence >= 80:
+                    color = "🟢"
+                elif confidence >= 60:
+                    color = "🟡"
+                else:
+                    color = "🔴"
+
+                with st.expander(f"{color} 후보 {i}: {time_range} — {asc} (신뢰도 {grade} {confidence:.0f}%)", expanded=(i == 1)):
+                    col1, col2, col3, col4 = st.columns(4)
+                    col1.metric("상승궁", asc)
+                    col2.metric("매칭", f"{matched}/{total}")
+                    col3.metric("점수", f"{score:.1f}")
+                    col4.metric("신뢰도", f"{grade} ({confidence:.0f}%)")
+
+                    if cand.get("moon_nakshatra"):
+                        st.caption(f"🌙 Moon Nakshatra: {cand['moon_nakshatra']}")
+                    if cand.get("ascendant_degree") is not None:
+                        st.caption(f"📐 상승 도수: {cand['ascendant_degree']:.1f}°")
+                    if msg:
+                        st.info(msg)
+
+                    # 정밀화 버튼
+                    if st.button(f"🔍 이 시간대 정밀 분석", key=f"refine_{i}"):
+                        btr_events = st.session_state.get("btr_events", [])
+                        if btr_events:
+                            with st.spinner("정밀 분석 중..."):
+                                try:
+                                    resp = api_post(
+                                        "/btr/refine",
+                                        json_data=btr_events,
+                                        params={
+                                            "year": inputs["year"],
+                                            "month": inputs["month"],
+                                            "day": inputs["day"],
+                                            "lat": inputs["lat"],
+                                            "lon": inputs["lon"],
+                                            "bracket_start": cand.get("bracket_start", 0),
+                                            "bracket_end": cand.get("bracket_end", 3),
+                                        },
+                                        timeout=60,
+                                    )
+                                    refined = resp.json()
+                                    st.session_state[f"btr_refined_{i}"] = refined
+                                    st.success("정밀 분석 완료!")
+                                except Exception as e:
+                                    show_error(e, "BTR 정밀화 오류")
+
+                    # 정밀화 결과 표시
+                    refined_key = f"btr_refined_{i}"
+                    if refined_key in st.session_state and st.session_state[refined_key]:
+                        refined = st.session_state[refined_key]
+                        refined_cands = refined.get("refined_candidates", [])
+                        if refined_cands:
+                            st.markdown("#### 정밀 분석 결과")
+                            for j, rc in enumerate(refined_cands, 1):
+                                rc_conf = rc.get("confidence", 0)
+                                st.markdown(
+                                    f"**{j}.** {rc.get('time_range', '—')} — "
+                                    f"{rc.get('ascendant', '—')} "
+                                    f"(점수: {rc.get('score', 0):.1f}, "
+                                    f"신뢰도: {rc_conf:.0f}%)"
+                                )
+
+with tabs[3]:
     if isinstance(st.session_state.health, dict):
         st.markdown("**health**")
         st.json(st.session_state.health)

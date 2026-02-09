@@ -1,0 +1,1014 @@
+"""
+BTR (Birth Time Rectification) 엔진
+- Vimshottari Dasha 120년 시스템
+- 이벤트 매칭 + 4단계 Fallback
+- 스코어링 + 신뢰도 계산
+"""
+
+import math
+import logging
+from typing import List, Dict, Optional, Tuple, Any
+from datetime import datetime
+
+import swisseph as swe
+
+logger = logging.getLogger("btr_engine")
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 상수
+# ─────────────────────────────────────────────────────────────────────────────
+
+RASI_NAMES = [
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+]
+
+# Vimshottari Dasha 행성 순서 및 주기 (년)
+DASHA_ORDER = ["Ketu", "Venus", "Sun", "Moon", "Mars", "Rahu", "Jupiter", "Saturn", "Mercury"]
+DASHA_YEARS = {
+    "Ketu": 7, "Venus": 20, "Sun": 6, "Moon": 10, "Mars": 7,
+    "Rahu": 18, "Jupiter": 16, "Saturn": 19, "Mercury": 17
+}
+DASHA_TOTAL = 120  # 총 120년
+
+# 27 나크샤트라 → Dasha Lord 매핑
+# 나크샤트라는 0번부터 순서대로 9개 행성 순환
+NAKSHATRA_NAMES = [
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+    "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+    "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+    "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishta", "Shatabhisha",
+    "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
+]
+
+# 나크샤트라 인덱스 → Dasha Lord
+NAKSHATRA_DASHA_LORD = {}
+for i, nak_name in enumerate(NAKSHATRA_NAMES):
+    NAKSHATRA_DASHA_LORD[i] = DASHA_ORDER[i % 9]
+
+# Fallback 설정
+FALLBACK_CONFIG = {
+    0: {"antardasha_buffer_months": 3, "confidence_penalty": 0},
+    1: {"antardasha_buffer_months": 12, "confidence_penalty": -1},
+    2: {"mahadasha_only": True, "confidence_penalty": -1},
+    3: {"mahadasha_buffer_years": 2, "confidence_penalty": -2},
+    4: {"skip_validation": True, "confidence_penalty": -3},
+}
+
+# 신뢰도 등급
+CONFIDENCE_GRADES = [
+    (95, "A+"), (90, "A"), (85, "A-"),
+    (80, "B+"), (75, "B"), (70, "B-"),
+    (65, "C+"), (60, "C"), (0, "C-"),
+]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 헬퍼 함수
+# ─────────────────────────────────────────────────────────────────────────────
+
+def normalize_360(deg: float) -> float:
+    """각도를 0~360 범위로 정규화"""
+    deg = deg % 360.0
+    if deg < 0:
+        deg += 360.0
+    return deg
+
+
+def get_rasi_index(lon: float) -> int:
+    """경도 → 라시 인덱스 (0~11)"""
+    return int(normalize_360(lon) / 30.0) % 12
+
+
+def get_nakshatra_index(lon: float) -> int:
+    """경도 → 나크샤트라 인덱스 (0~26)"""
+    return int(normalize_360(lon) / (360.0 / 27))
+
+
+def get_nakshatra_fraction(lon: float) -> float:
+    """
+    현재 나크샤트라 내 진행 비율 (0.0 ~ 1.0)
+    이미 지나간 비율을 반환
+    """
+    nak_span = 360.0 / 27  # 13.3333...
+    lon = normalize_360(lon)
+    nak_idx = int(lon / nak_span)
+    deg_in_nak = lon - (nak_idx * nak_span)
+    return deg_in_nak / nak_span
+
+
+def jd_to_year_frac(jd: float) -> float:
+    """Julian Day → 연도 (소수점 포함)"""
+    # 근사값: 1년 ≈ 365.25일
+    return 2000.0 + (jd - 2451545.0) / 365.25
+
+
+def year_frac_to_jd(year_frac: float) -> float:
+    """연도 (소수점 포함) → Julian Day"""
+    return 2451545.0 + (year_frac - 2000.0) * 365.25
+
+
+def date_to_jd(year: int, month: int, day: int) -> float:
+    """날짜 → Julian Day (UTC noon)"""
+    return swe.julday(year, month, day, 12.0)
+
+
+def log_sum_exp(scores: List[float]) -> float:
+    """
+    LogSumExp 함수 - 수치 안정성을 위한 로그합
+    ln(Σ exp(x_i))
+
+    Parameters:
+        scores: 점수 리스트
+    Returns:
+        LogSumExp 값
+    """
+    if not scores:
+        return 0.0
+    max_s = max(scores)
+    return max_s + math.log(sum(math.exp(s - max_s) for s in scores))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 시간 브래킷 생성
+# ─────────────────────────────────────────────────────────────────────────────
+
+def generate_time_brackets(
+    date: Dict[str, int],
+    num_brackets: int = 8,
+    bracket_hours: float = 3.0
+) -> List[Dict[str, float]]:
+    """
+    1차 브래킷 생성: 24시간을 N개 구간으로 나눔
+
+    Parameters:
+        date: {"year": int, "month": int, "day": int}
+        num_brackets: 브래킷 수 (기본 8)
+        bracket_hours: 각 브래킷 시간 (기본 3시간)
+
+    Returns:
+        [{"start": 0.0, "end": 3.0, "mid": 1.5}, ...]
+    """
+    brackets = []
+    for i in range(num_brackets):
+        start = i * bracket_hours
+        end = start + bracket_hours
+        if end > 24.0:
+            end = 24.0
+        mid = (start + end) / 2.0
+        brackets.append({
+            "start": round(start, 2),
+            "end": round(end, 2),
+            "mid": round(mid, 2),
+        })
+    return brackets
+
+
+def refine_time_bracket(
+    date: Dict[str, int],
+    bracket: Dict[str, float],
+    events: List[Dict],
+    lat: float,
+    lon: float,
+    sub_intervals: int = 6
+) -> List[Dict]:
+    """
+    2차 정밀화: 선택된 브래킷을 30분 단위로 세분화
+
+    Parameters:
+        date: {"year": int, "month": int, "day": int}
+        bracket: {"start": float, "end": float}
+        events: 이벤트 리스트
+        lat, lon: 위도/경도
+        sub_intervals: 세분화 수 (기본 6 → 30분 단위)
+
+    Returns:
+        정렬된 후보 리스트 (score 내림차순)
+    """
+    start = bracket["start"]
+    end = bracket["end"]
+    step = (end - start) / sub_intervals
+
+    candidates = []
+    for i in range(sub_intervals):
+        sub_start = start + i * step
+        sub_end = sub_start + step
+        sub_mid = (sub_start + sub_end) / 2.0
+
+        # 차트 계산
+        chart = _compute_chart_for_time(date, sub_mid, lat, lon)
+        if chart is None:
+            continue
+
+        # 이벤트 매칭
+        score, matched, total, confidence, fallback_penalties = _score_candidate(
+            date, sub_mid, chart, events, lat, lon
+        )
+
+        candidates.append({
+            "time_range": f"{_hour_to_str(sub_start)}-{_hour_to_str(sub_end)}",
+            "mid_hour": round(sub_mid, 2),
+            "score": round(score, 2),
+            "confidence": round(confidence, 1),
+            "ascendant": chart["ascendant"],
+            "ascendant_degree": chart["asc_degree_in_sign"],
+            "matched_events": matched,
+            "total_events": total,
+            "moon_nakshatra": chart.get("moon_nakshatra", ""),
+        })
+
+    # 점수 내림차순 정렬
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+    return candidates
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Vimshottari Dasha 계산
+# ─────────────────────────────────────────────────────────────────────────────
+
+def calculate_vimshottari_dasha(
+    birth_jd: float,
+    birth_moon_lon: float
+) -> List[Dict]:
+    """
+    120년 Vimshottari Dasha 시스템 계산
+
+    Parameters:
+        birth_jd: 출생 Julian Day
+        birth_moon_lon: 출생 시 달의 sidereal 경도
+
+    Returns:
+        마하다샤 리스트:
+        [
+            {
+                "lord": "Venus",
+                "start_jd": jd1,
+                "end_jd": jd2,
+                "duration_years": 20.0,
+                "antardashas": [
+                    {"lord": "Venus", "start_jd": ..., "end_jd": ..., "duration_years": ...},
+                    ...
+                ]
+            },
+            ...
+        ]
+    """
+    moon_lon = normalize_360(birth_moon_lon)
+
+    # 1. 나크샤트라 인덱스 + 남은 비율 계산
+    nak_idx = get_nakshatra_index(moon_lon)
+    fraction_elapsed = get_nakshatra_fraction(moon_lon)
+    fraction_remaining = 1.0 - fraction_elapsed
+
+    # 2. 시작 다샤 로드 결정
+    start_lord = NAKSHATRA_DASHA_LORD[nak_idx]
+    start_idx = DASHA_ORDER.index(start_lord)
+
+    # 3. 첫 마하다샤의 남은 기간 계산
+    first_dasha_total_years = DASHA_YEARS[start_lord]
+    first_dasha_remaining_years = first_dasha_total_years * fraction_remaining
+
+    # 4. 전체 마하다샤 시퀀스 구축
+    mahadashas = []
+    current_jd = birth_jd
+
+    for cycle in range(2):  # 최대 2사이클 (240년 - 충분)
+        for i in range(9):
+            lord_idx = (start_idx + i) % 9
+            lord = DASHA_ORDER[lord_idx]
+            total_years = DASHA_YEARS[lord]
+
+            # 첫 다샤만 남은 기간 적용
+            if cycle == 0 and i == 0:
+                duration_years = first_dasha_remaining_years
+            else:
+                duration_years = total_years
+
+            duration_days = duration_years * 365.25
+            end_jd = current_jd + duration_days
+
+            # 안타르다샤 계산
+            antardashas = _calculate_antardashas(lord, current_jd, end_jd, duration_years)
+
+            mahadashas.append({
+                "lord": lord,
+                "start_jd": current_jd,
+                "end_jd": end_jd,
+                "duration_years": round(duration_years, 4),
+                "antardashas": antardashas,
+            })
+
+            current_jd = end_jd
+
+            # 120년 넘으면 중단
+            if (current_jd - birth_jd) / 365.25 > 130:
+                break
+        if (current_jd - birth_jd) / 365.25 > 130:
+            break
+
+    return mahadashas
+
+
+def _calculate_antardashas(
+    maha_lord: str,
+    maha_start_jd: float,
+    maha_end_jd: float,
+    maha_duration_years: float
+) -> List[Dict]:
+    """
+    안타르다샤(부차 주기) 계산
+
+    마하다샤 내에서 9개 행성이 순환. 시작 행성은 마하다샤 로드.
+    안타르다샤 기간 = (마하다샤 기간 × 안타르 로드 주기) / 120
+
+    Parameters:
+        maha_lord: 마하다샤 로드
+        maha_start_jd: 마하다샤 시작 JD
+        maha_end_jd: 마하다샤 종료 JD
+        maha_duration_years: 마하다샤 기간 (년)
+
+    Returns:
+        안타르다샤 리스트
+    """
+    start_idx = DASHA_ORDER.index(maha_lord)
+    antardashas = []
+    current_jd = maha_start_jd
+
+    for i in range(9):
+        antar_lord_idx = (start_idx + i) % 9
+        antar_lord = DASHA_ORDER[antar_lord_idx]
+        antar_total_years = DASHA_YEARS[antar_lord]
+
+        # 안타르다샤 기간 = (마하다샤 기간 × 안타르 로드 주기) / 120
+        antar_duration_years = (maha_duration_years * antar_total_years) / DASHA_TOTAL
+        antar_duration_days = antar_duration_years * 365.25
+        end_jd = current_jd + antar_duration_days
+
+        antardashas.append({
+            "lord": antar_lord,
+            "start_jd": current_jd,
+            "end_jd": end_jd,
+            "duration_years": round(antar_duration_years, 4),
+        })
+
+        current_jd = end_jd
+
+    return antardashas
+
+
+def get_dasha_at_date(
+    birth_jd: float,
+    birth_moon_lon: float,
+    event_year: int,
+    event_month: Optional[int] = None
+) -> Dict:
+    """
+    특정 날짜의 다샤 상태 반환
+
+    Parameters:
+        birth_jd: 출생 Julian Day
+        birth_moon_lon: 출생 시 달의 sidereal 경도
+        event_year: 이벤트 연도
+        event_month: 이벤트 월 (선택)
+
+    Returns:
+        {
+            "mahadasha": {"lord": "Venus", "start_jd": ..., "end_jd": ...},
+            "antardasha": {"lord": "Jupiter", "start_jd": ..., "end_jd": ...},
+        }
+    """
+    month = event_month if event_month and event_month > 0 else 6
+    event_jd = date_to_jd(event_year, month, 15)
+
+    mahadashas = calculate_vimshottari_dasha(birth_jd, birth_moon_lon)
+
+    result = {"mahadasha": None, "antardasha": None}
+
+    for md in mahadashas:
+        if md["start_jd"] <= event_jd <= md["end_jd"]:
+            result["mahadasha"] = {
+                "lord": md["lord"],
+                "start_jd": md["start_jd"],
+                "end_jd": md["end_jd"],
+            }
+            # 안타르다샤 탐색
+            for ad in md["antardashas"]:
+                if ad["start_jd"] <= event_jd <= ad["end_jd"]:
+                    result["antardasha"] = {
+                        "lord": ad["lord"],
+                        "start_jd": ad["start_jd"],
+                        "end_jd": ad["end_jd"],
+                    }
+                    break
+            break
+
+    return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 이벤트 매칭
+# ─────────────────────────────────────────────────────────────────────────────
+
+def match_event_to_chart(
+    chart: Dict,
+    event: Dict,
+    birth_jd: float,
+    birth_moon_lon: float,
+    tolerance_months: int = 3
+) -> Tuple[float, int]:
+    """
+    이벤트와 차트 매칭
+
+    Parameters:
+        chart: 차트 데이터 (행성 위치, 하우스 등)
+        event: 이벤트 데이터
+        birth_jd: 출생 Julian Day
+        birth_moon_lon: 출생 시 달 경도
+        tolerance_months: 허용 오차 (월)
+
+    Returns:
+        (score, fallback_level)
+        score: 매칭 점수 (0.0~1.0)
+        fallback_level: 사용된 fallback 레벨 (0~4)
+    """
+    event_year = event.get("year")
+    event_month = event.get("month")
+    event_weight = event.get("weight", 1.0)
+    dasha_lords = event.get("dasha_lords", [])
+    house_triggers = event.get("house_triggers", [])
+
+    if not event_year:
+        return 0.0, 4
+
+    # 다샤 상태 조회
+    dasha_state = get_dasha_at_date(birth_jd, birth_moon_lon, event_year, event_month)
+    maha = dasha_state.get("mahadasha")
+    antar = dasha_state.get("antardasha")
+
+    if not maha:
+        return 0.0, 4
+
+    # 4단계 Fallback 매칭
+    for level in range(5):
+        matched, score = _try_match_at_level(
+            level, maha, antar, dasha_lords, house_triggers,
+            chart, event_weight, event_year, event_month,
+            birth_jd, birth_moon_lon, tolerance_months
+        )
+        if matched:
+            return score, level
+
+    return 0.0, 4
+
+
+def _try_match_at_level(
+    level: int,
+    maha: Dict,
+    antar: Optional[Dict],
+    dasha_lords: List[str],
+    house_triggers: List[int],
+    chart: Dict,
+    event_weight: float,
+    event_year: int,
+    event_month: Optional[int],
+    birth_jd: float,
+    birth_moon_lon: float,
+    tolerance_months: int
+) -> Tuple[bool, float]:
+    """
+    특정 Fallback 레벨에서 매칭 시도
+
+    Returns:
+        (matched: bool, score: float)
+    """
+    maha_lord = maha["lord"]
+    antar_lord = antar["lord"] if antar else None
+
+    if level == 0:
+        # 기본: Mahadasha + Antardasha 모두 확인 (±3개월)
+        maha_match = maha_lord in dasha_lords if dasha_lords else True
+        antar_match = antar_lord in dasha_lords if (dasha_lords and antar_lord) else True
+        house_match = _check_house_triggers(chart, house_triggers)
+
+        if maha_match and antar_match:
+            score = event_weight
+            if house_match:
+                score += 0.2
+            return True, score
+        return False, 0.0
+
+    elif level == 1:
+        # Level 1: Antardasha 버퍼 확장 (±12개월)
+        maha_match = maha_lord in dasha_lords if dasha_lords else True
+        # 넓은 범위의 안타르다샤 확인
+        antar_match = _check_antardasha_extended(
+            birth_jd, birth_moon_lon, event_year, event_month,
+            dasha_lords, buffer_months=12
+        )
+        if maha_match and antar_match:
+            score = event_weight * 0.9  # 약간 감점
+            if _check_house_triggers(chart, house_triggers):
+                score += 0.15
+            return True, score
+        return False, 0.0
+
+    elif level == 2:
+        # Level 2: Mahadasha만 (Antardasha 무시)
+        maha_match = maha_lord in dasha_lords if dasha_lords else True
+        if maha_match:
+            score = event_weight * 0.7
+            if _check_house_triggers(chart, house_triggers):
+                score += 0.1
+            return True, score
+        return False, 0.0
+
+    elif level == 3:
+        # Level 3: Mahadasha ±2년 버퍼
+        for offset in range(-2, 3):
+            check_year = event_year + offset
+            dasha_state_ext = get_dasha_at_date(
+                birth_jd, birth_moon_lon, check_year, event_month
+            )
+            maha_ext = dasha_state_ext.get("mahadasha")
+            if maha_ext and maha_ext["lord"] in dasha_lords:
+                score = event_weight * 0.5
+                return True, score
+        return False, 0.0
+
+    elif level == 4:
+        # Level 4: 검증 스킵 (패널티 적용)
+        return True, event_weight * 0.2
+
+    return False, 0.0
+
+
+def _check_antardasha_extended(
+    birth_jd: float,
+    birth_moon_lon: float,
+    event_year: int,
+    event_month: Optional[int],
+    dasha_lords: List[str],
+    buffer_months: int = 12
+) -> bool:
+    """확장된 범위에서 안타르다샤 매칭 확인"""
+    base_month = event_month if event_month and event_month > 0 else 6
+
+    for offset in range(-buffer_months, buffer_months + 1):
+        check_month = base_month + offset
+        check_year = event_year
+        while check_month < 1:
+            check_month += 12
+            check_year -= 1
+        while check_month > 12:
+            check_month -= 12
+            check_year += 1
+
+        dasha_state = get_dasha_at_date(birth_jd, birth_moon_lon, check_year, check_month)
+        antar = dasha_state.get("antardasha")
+        if antar and antar["lord"] in dasha_lords:
+            return True
+
+    return False
+
+
+def _check_house_triggers(chart: Dict, house_triggers: List[int]) -> bool:
+    """
+    하우스 트리거 확인
+    차트에서 해당 하우스에 행성이 배치되어 있는지 확인
+
+    Parameters:
+        chart: 차트 데이터 (planet_houses 포함)
+        house_triggers: 확인할 하우스 번호 리스트
+
+    Returns:
+        하우스 활성화 여부
+    """
+    if not house_triggers:
+        return False
+
+    planet_houses = chart.get("planet_houses", {})
+    for house_num in house_triggers:
+        planets_in_house = [p for p, h in planet_houses.items() if h == house_num]
+        if planets_in_house:
+            return True
+    return False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Fallback 시스템
+# ─────────────────────────────────────────────────────────────────────────────
+
+def apply_fallback(
+    event: Dict,
+    chart: Dict,
+    birth_jd: float,
+    birth_moon_lon: float,
+    level: int = 0
+) -> Tuple[bool, float, int]:
+    """
+    4단계 Fallback 적용
+
+    Parameters:
+        event: 이벤트 데이터
+        chart: 차트 데이터
+        birth_jd: 출생 Julian Day
+        birth_moon_lon: 출생 시 달 경도
+        level: 시작 fallback 레벨
+
+    Returns:
+        (matched, score, fallback_level)
+    """
+    score, fallback_level = match_event_to_chart(
+        chart, event, birth_jd, birth_moon_lon
+    )
+    return score > 0, score, fallback_level
+
+
+def get_fallback_penalty(level: int) -> float:
+    """
+    Fallback 레벨별 Confidence Penalty 반환
+
+    Parameters:
+        level: Fallback 레벨 (0~4)
+
+    Returns:
+        페널티 값 (0 ~ -3)
+    """
+    config = FALLBACK_CONFIG.get(level, {})
+    return config.get("confidence_penalty", 0)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 스코어링 + 신뢰도
+# ─────────────────────────────────────────────────────────────────────────────
+
+def calculate_confidence(
+    total_score: float,
+    max_possible_score: float,
+    num_events: int,
+    matched_events: int,
+    fallback_penalties: List[int]
+) -> float:
+    """
+    Confidence score 계산 (0~100)
+
+    Parameters:
+        total_score: 총 획득 점수
+        max_possible_score: 최대 가능 점수
+        num_events: 총 이벤트 수
+        matched_events: 매칭된 이벤트 수
+        fallback_penalties: Fallback 레벨 리스트
+
+    Returns:
+        Confidence score (0~100)
+
+    사용 예시:
+        conf = calculate_confidence(8.5, 10.0, 5, 4, [0, 0, 1, 0, 2])
+    """
+    if max_possible_score <= 0 or num_events <= 0:
+        return 0.0
+
+    # 기본 점수 비율
+    score_ratio = total_score / max_possible_score
+
+    # 이벤트 매칭 비율
+    match_ratio = matched_events / num_events
+
+    # 기본 confidence (0~100)
+    base_confidence = (score_ratio * 0.6 + match_ratio * 0.4) * 100
+
+    # Fallback penalty 적용
+    total_penalty = sum(get_fallback_penalty(level) for level in fallback_penalties)
+    # 등급당 ~5점 감소
+    penalty_score = total_penalty * 5
+
+    confidence = max(0.0, min(100.0, base_confidence + penalty_score))
+    return confidence
+
+
+def get_confidence_grade(confidence: float) -> str:
+    """
+    Confidence score → 등급 변환
+
+    Parameters:
+        confidence: 0~100
+
+    Returns:
+        등급 문자열 (A+, A, A-, B+, B, B-, C+, C, C-)
+    """
+    for threshold, grade in CONFIDENCE_GRADES:
+        if confidence >= threshold:
+            return grade
+    return "C-"
+
+
+def get_grade_message(grade: str, language: str = "ko") -> str:
+    """등급별 사용자 메시지"""
+    messages_ko = {
+        "A+": "매우 높은 확신으로 추정된 생시입니다.",
+        "A": "높은 확신으로 추정된 생시입니다.",
+        "A-": "준수한 확신으로 추정된 생시입니다.",
+        "B+": "양호한 추정입니다.",
+        "B": "적절한 확신으로 추정된 생시입니다. 추가 검증 권장.",
+        "B-": "낮은 확신입니다. 추가 정보가 도움됩니다.",
+        "C+": "불확실한 추정입니다. 전문가 상담 권장.",
+        "C": "매우 불확실합니다. 더 많은 이벤트 정보가 필요합니다.",
+        "C-": "신뢰하기 어려운 추정입니다. 정보 부족.",
+    }
+    messages_en = {
+        "A+": "Very high confidence estimation.",
+        "A": "High confidence estimation.",
+        "A-": "Good confidence estimation.",
+        "B+": "Fair estimation.",
+        "B": "Moderate confidence. Additional verification recommended.",
+        "B-": "Low confidence. More information would help.",
+        "C+": "Uncertain estimation. Expert consultation recommended.",
+        "C": "Very uncertain. More event data needed.",
+        "C-": "Unreliable estimation. Insufficient data.",
+    }
+    msgs = messages_ko if language == "ko" else messages_en
+    return msgs.get(grade, msgs.get("C-", ""))
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 차트 계산 (내부용)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _compute_chart_for_time(
+    date: Dict[str, int],
+    hour_float: float,
+    lat: float,
+    lon: float
+) -> Optional[Dict]:
+    """
+    특정 시간의 차트 계산 (BTR 내부용)
+
+    Parameters:
+        date: {"year": int, "month": int, "day": int}
+        hour_float: 시간 (소수점, KST)
+        lat, lon: 위도/경도
+
+    Returns:
+        {
+            "ascendant": "Leo",
+            "asc_longitude": 130.5,
+            "asc_degree_in_sign": 10.5,
+            "moon_longitude": 85.3,
+            "moon_nakshatra": "Pushya",
+            "planet_houses": {"Sun": 4, "Moon": 11, ...},
+            "jd": float,
+        }
+    """
+    try:
+        import pytz
+
+        year = date["year"]
+        month = date["month"]
+        day = date["day"]
+
+        # KST → UTC 변환
+        hour_int = int(hour_float)
+        minute = int((hour_float - hour_int) * 60)
+        tz = pytz.timezone("Asia/Seoul")
+        local_dt = datetime(year, month, day, hour_int, minute)
+        local_dt = tz.localize(local_dt)
+        utc_dt = local_dt.astimezone(pytz.utc)
+
+        jd = swe.julday(
+            utc_dt.year, utc_dt.month, utc_dt.day,
+            utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+        )
+
+        # Ascendant 계산
+        cusps, ascmc = swe.houses(jd, lat, lon, b'W')
+        asc_lon = normalize_360(ascmc[0])
+
+        # Sidereal 보정
+        ayanamsa = swe.get_ayanamsa_ut(jd)
+        asc_lon_sid = normalize_360(asc_lon - ayanamsa)
+
+        asc_rasi_idx = get_rasi_index(asc_lon_sid)
+        asc_deg_in_sign = asc_lon_sid - (asc_rasi_idx * 30)
+
+        # 행성 계산 (Whole Sign)
+        planet_houses = {}
+        moon_lon = None
+
+        planet_ids = {
+            "Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS,
+            "Mercury": swe.MERCURY, "Jupiter": swe.JUPITER,
+            "Venus": swe.VENUS, "Saturn": swe.SATURN,
+        }
+
+        for name, pid in planet_ids.items():
+            res, _ = swe.calc_ut(jd, pid, swe.FLG_SIDEREAL)
+            p_lon = normalize_360(res[0])
+            p_rasi = get_rasi_index(p_lon)
+            house = ((p_rasi - asc_rasi_idx) % 12) + 1
+            planet_houses[name] = house
+
+            if name == "Moon":
+                moon_lon = p_lon
+
+        # Rahu/Ketu
+        rahu_res, _ = swe.calc_ut(jd, swe.MEAN_NODE, swe.FLG_SIDEREAL)
+        rahu_lon = normalize_360(rahu_res[0])
+        ketu_lon = normalize_360(rahu_lon + 180)
+        planet_houses["Rahu"] = ((get_rasi_index(rahu_lon) - asc_rasi_idx) % 12) + 1
+        planet_houses["Ketu"] = ((get_rasi_index(ketu_lon) - asc_rasi_idx) % 12) + 1
+
+        # Moon nakshatra
+        moon_nak_idx = get_nakshatra_index(moon_lon) if moon_lon else 0
+        moon_nak_name = NAKSHATRA_NAMES[moon_nak_idx] if moon_lon else ""
+
+        return {
+            "ascendant": RASI_NAMES[asc_rasi_idx],
+            "asc_rasi_index": asc_rasi_idx,
+            "asc_longitude": round(asc_lon_sid, 4),
+            "asc_degree_in_sign": round(asc_deg_in_sign, 2),
+            "moon_longitude": round(moon_lon, 4) if moon_lon else 0.0,
+            "moon_nakshatra": moon_nak_name,
+            "planet_houses": planet_houses,
+            "jd": jd,
+        }
+
+    except Exception as e:
+        logger.error(f"Chart computation failed for {date} {hour_float}h: {e}")
+        return None
+
+
+def _hour_to_str(hour_float: float) -> str:
+    """시간(소수점) → 'HH:MM' 문자열"""
+    h = int(hour_float) % 24
+    m = int((hour_float % 1) * 60)
+    return f"{h:02d}:{m:02d}"
+
+
+def _score_candidate(
+    date: Dict[str, int],
+    mid_hour: float,
+    chart: Dict,
+    events: List[Dict],
+    lat: float,
+    lon: float
+) -> Tuple[float, int, int, float, List[int]]:
+    """
+    후보 시간에 대한 종합 스코어 계산
+
+    Returns:
+        (total_score, matched_events, total_events, confidence, fallback_levels)
+    """
+    birth_jd = chart["jd"]
+    birth_moon_lon = chart["moon_longitude"]
+
+    total_score = 0.0
+    matched_count = 0
+    max_possible = 0.0
+    fallback_levels = []
+    event_scores = []
+
+    for event in events:
+        event_weight = event.get("weight", 1.0)
+        max_possible += event_weight + 0.2  # weight + max house bonus
+
+        score, fb_level = match_event_to_chart(
+            chart, event, birth_jd, birth_moon_lon
+        )
+
+        if score > 0:
+            matched_count += 1
+            event_scores.append(score)
+        else:
+            event_scores.append(-0.5 * event_weight)
+
+        fallback_levels.append(fb_level)
+        total_score += score
+
+    # Confidence 계산
+    confidence = calculate_confidence(
+        total_score, max_possible,
+        len(events), matched_count,
+        fallback_levels
+    )
+
+    return total_score, matched_count, len(events), confidence, fallback_levels
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 메인 BTR 함수
+# ─────────────────────────────────────────────────────────────────────────────
+
+def analyze_birth_time(
+    birth_date: Dict[str, int],
+    events: List[Dict],
+    lat: float,
+    lon: float,
+    num_brackets: int = 8,
+    top_n: int = 3
+) -> List[Dict]:
+    """
+    메인 BTR 분석 함수
+
+    1. 8개 브래킷 생성 (24시간 → 3시간 단위)
+    2. 각 브래킷 중간점에서 차트 계산
+    3. 모든 이벤트와 매칭
+    4. Fallback 적용
+    5. 스코어 계산
+    6. Top-N 반환
+
+    Parameters:
+        birth_date: {"year": 1990, "month": 1, "day": 15}
+        events: 이벤트 리스트
+            [
+                {
+                    "type": "marriage",
+                    "year": 2015,
+                    "month": 6,
+                    "weight": 0.8,
+                    "dasha_lords": ["Venus", "Jupiter"],
+                    "house_triggers": [7]
+                }
+            ]
+        lat: 위도
+        lon: 경도
+        num_brackets: 브래킷 수 (기본 8)
+        top_n: 반환할 상위 후보 수 (기본 3)
+
+    Returns:
+        [
+            {
+                "time_range": "0:00-3:00",
+                "mid_hour": 1.5,
+                "score": 8.5,
+                "confidence": 85.0,
+                "confidence_grade": "A-",
+                "ascendant": "Leo",
+                "ascendant_degree": 15.3,
+                "matched_events": 7,
+                "total_events": 8,
+                "moon_nakshatra": "Pushya",
+                "grade_message": "준수한 확신으로 추정된 생시입니다."
+            },
+            ...
+        ]
+
+    사용 예시:
+        result = analyze_birth_time(
+            birth_date={"year": 1990, "month": 1, "day": 15},
+            events=[{"type": "marriage", "year": 2015, "month": 6,
+                     "weight": 0.8, "dasha_lords": ["Venus", "Jupiter"],
+                     "house_triggers": [7]}],
+            lat=37.5665, lon=126.978
+        )
+    """
+    if not events:
+        raise ValueError("이벤트가 하나 이상 필요합니다.")
+
+    current_year = datetime.now().year
+    for ev in events:
+        if ev.get("year") and ev["year"] > current_year:
+            raise ValueError(f"미래 이벤트는 사용할 수 없습니다: {ev['year']}")
+
+    # 1. 브래킷 생성
+    brackets = generate_time_brackets(birth_date, num_brackets=num_brackets)
+    logger.info(f"Generated {len(brackets)} brackets for {birth_date}")
+
+    # 2. 각 브래킷 평가
+    candidates = []
+    for bracket in brackets:
+        mid_hour = bracket["mid"]
+        chart = _compute_chart_for_time(birth_date, mid_hour, lat, lon)
+        if chart is None:
+            continue
+
+        score, matched, total, confidence, fb_levels = _score_candidate(
+            birth_date, mid_hour, chart, events, lat, lon
+        )
+
+        grade = get_confidence_grade(confidence)
+        candidates.append({
+            "time_range": f"{_hour_to_str(bracket['start'])}-{_hour_to_str(bracket['end'])}",
+            "bracket_start": bracket["start"],
+            "bracket_end": bracket["end"],
+            "mid_hour": round(mid_hour, 2),
+            "score": round(score, 2),
+            "confidence": round(confidence, 1),
+            "confidence_grade": grade,
+            "ascendant": chart["ascendant"],
+            "ascendant_degree": chart["asc_degree_in_sign"],
+            "matched_events": matched,
+            "total_events": total,
+            "moon_nakshatra": chart.get("moon_nakshatra", ""),
+            "grade_message": get_grade_message(grade),
+        })
+
+    # 3. 정렬 및 Top-N
+    candidates.sort(key=lambda x: x["score"], reverse=True)
+
+    # 모든 점수가 0인 경우
+    if all(c["score"] <= 0 for c in candidates):
+        logger.warning("All candidates scored 0 or below")
+        for c in candidates:
+            c["grade_message"] = "이벤트 정보가 부족하여 정확한 추정이 어렵습니다."
+
+    return candidates[:top_n]
