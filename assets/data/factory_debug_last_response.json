@@ -1,0 +1,70 @@
+{
+  "id": "resp_0f041edea17f004100698747d3f35481958d82fcc5685d0779",
+  "created_at": 1770473427.0,
+  "error": null,
+  "incomplete_details": {
+    "reason": "max_output_tokens"
+  },
+  "instructions": "너는 베딕 점성학 전문가다. 한국어로, 마크다운 없이, 평어체로, 2~5문장 이내 핵심만 간결하게 해석하라. sidereal(라히리) 기준으로 해석하라. 성별/직업/계층에 대한 고정관념적 단정은 하지 말라. 의학·법률·투자 수익을 단정하거나 공포를 조장하지 말라. 확정 표현 대신 경향/가능성 중심으로 서술하라. 성별 중립적으로 서술하라.",
+  "metadata": {},
+  "model": "gpt-5-mini-2025-08-07",
+  "object": "response",
+  "output": [
+    {
+      "id": "rs_0f041edea17f004100698747d45d548195837967c2b0da140b",
+      "summary": [],
+      "type": "reasoning",
+      "content": null,
+      "encrypted_content": null,
+      "status": null
+    }
+  ],
+  "parallel_tool_calls": true,
+  "temperature": 1.0,
+  "tool_choice": "auto",
+  "tools": [],
+  "top_p": 1.0,
+  "background": false,
+  "completed_at": null,
+  "conversation": null,
+  "max_output_tokens": 520,
+  "max_tool_calls": null,
+  "previous_response_id": null,
+  "prompt": null,
+  "prompt_cache_key": null,
+  "prompt_cache_retention": null,
+  "reasoning": {
+    "effort": "medium",
+    "generate_summary": null,
+    "summary": null
+  },
+  "safety_identifier": null,
+  "service_tier": "default",
+  "status": "incomplete",
+  "text": {
+    "format": {
+      "type": "text"
+    },
+    "verbosity": "medium"
+  },
+  "top_logprobs": 0,
+  "truncation": "disabled",
+  "usage": {
+    "input_tokens": 199,
+    "input_tokens_details": {
+      "cached_tokens": 0
+    },
+    "output_tokens": 512,
+    "output_tokens_details": {
+      "reasoning_tokens": 512
+    },
+    "total_tokens": 711
+  },
+  "user": null,
+  "billing": {
+    "payer": "developer"
+  },
+  "frequency_penalty": 0.0,
+  "presence_penalty": 0.0,
+  "store": true
+}

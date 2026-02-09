@@ -1,0 +1,2294 @@
+# 베딕 점성학 생시보정 엔진
+# 풀 스펙 기술 설계서
+
+> **작성일**: 2026-02-09
+> **문서 타입**: 통합 마스터 문서 (Full Specification)
+
+---
+
+## 목차
+
+0. [문서 개요](#0-문서-개요)
+1. [주요 변경 사항 요약](#1-주요-변경-사항-요약)
+2. [시스템 철학](#2-시스템-철학)
+3. [점성학 모델 구조](#3-점성학-모델-구조)
+4. [엔진 아키텍처](#4-엔진-아키텍처)
+5. [시간 표본 생성](#5-시간-표본-생성)
+6. [질문 시스템](#6-질문-시스템)
+7. [Feature Mapping](#7-feature-mapping)
+8. [스코어링 시스템](#8-스코어링-시스템)
+9. [사건 검증 시스템](#9-사건-검증-시스템)
+10. [도수 추정 및 Cusp 처리](#10-도수-추정-및-cusp-처리)
+11. [신뢰도 등급 시스템](#11-신뢰도-등급-시스템)
+12. [UX 플로우](#12-ux-플로우)
+13. [로깅 시스템](#13-로깅-시스템)
+14. [FactoryData 구조](#14-factorydata-구조)
+15. [용어 사전](#15-용어-사전)
+16. [Phase 로드맵](#16-phase-로드맵)
+17. [성능 최적화](#17-성능-최적화)
+18. [Phase 3 준비사항](#18-phase-3-준비사항)
+19. [Breaking Changes 및 마이그레이션](#19-breaking-changes-및-마이그레이션)
+20. [개발팀 전달사항](#20-개발팀-전달사항)
+21. [구현 체크리스트](#21-구현-체크리스트)
+22. [테스트 전략](#22-테스트-전략)
+23. [보안 및 개인정보 보호](#23-보안-및-개인정보-보호)
+24. [부록](#24-부록)
+
+---
+
+## 0. 문서 개요
+
+### 0.1 문서 성격
+
+이 문서는 **상용 베딕 점성학 생시보정 엔진의 전체 기술 설계서**다.
+
+> 👉 **제품 아키텍처 + 알고리즘 설계 + 데이터 구조 + UX 설계**를 포함하는 **엔진 백서**다.
+
+**대상 독자**:
+- 총책임 개발자
+- 엔진 구현 팀
+- 향후 ML 엔지니어
+- QA 엔지니어
+- 점성학 전문가
+
+### 0.2 문서 활용 가이드 (역할별)
+
+**총책임 개발자**:
+- Section 0(문서 개요), Section 20(개발팀 전달사항), Section 21(체크리스트)
+- Breaking Changes(Section 19), 전체 아키텍처(Section 4)
+- Phase 로드맵(Section 16)
+
+**백엔드 엔지니어**:
+- 스코어링 시스템(Section 8), 사건 검증(Section 9), 도수 추정(Section 10)
+- 로그 함수 Base 명시(Section 8.1), Event Rules JSON 스키마(Section 9.1)
+- Fallback 시스템(Section 9.4)
+
+**프론트엔드 엔지니어**:
+- UX 플로우(Section 12), 질문 시스템(Section 6), GDPR 동의 플로우(Section 12.2)
+
+**데이터 엔지니어**:
+- FactoryData 구조(Section 14), Event Rules JSON(Section 9.1), 세션 로그(Section 13.1)
+- 금지 필드 목록 및 자동 검증 로직(Section 23)
+
+**QA 엔지니어**:
+- 테스트 전략(Section 22), 벤치마크 스크립트(Section 18.4)
+- 테스트 케이스 확장(Section 22.3)
+
+**ML 엔지니어**:
+- Phase 3 준비사항(Section 18 전체)
+- ml_trainable 필드(Section 9.1), weight_range(Section 18.2)
+- Fallback 로그 활용(Section 18.5)
+
+**점성학 전문가**:
+- 질문 시스템(Section 6), Feature Mapping(Section 7), 용어 사전(Section 15)
+
+---
+
+## 1. 주요 변경 사항 요약
+
+### Quick Delta Overview
+
+이 섹션은 최신 설계의 핵심 개선 사항을 요약한다.
+
+#### 1.1 로그 함수 명시화
+
+**변경 전**: 모호한 `log()` 표기
+**변경 후**: 자연로그 `ln()` 명시 + 선택 이유 상세 설명
+
+**ln 선택 이유** (vs log10 비교):
+- **Gradient 안정성**: ln(x)의 미분 = 1/x (깔끔), log10(x)의 미분 = 1/(x·ln(10)) (불필요한 상수)
+- **ML 프레임워크 표준**: PyTorch, TensorFlow 모두 자연로그 기본 사용
+- **Softmax 최적화**: exp(ln(x)) = x 수치 안정성 보장
+- **Phase 3 준비**: ML 전환 시 코드 호환성 문제 없음
+
+#### 1.2 Event Rules JSON화
+
+**변경 전**: 코드에 하드코딩된 사건 규칙
+**변경 후**: JSON 데이터 기반 + ml_trainable 필드
+
+**신규 필드**:
+- `ml_trainable`: Phase 3에서 학습할 파라미터 플래그
+- `weight_range`: [min, max] 가중치 탐색 범위
+
+#### 1.3 Fallback 시스템
+
+**신규 도입**: 4단계 적응형 Fallback
+- Level 1: Antardasha Buffer 6개월 → 12개월
+- Level 2: Mahadasha만 매칭
+- Level 3: Mahadasha Buffer ±2년
+- Level 4: 사건 검증 스킵
+
+**Confidence Penalty**:
+- Level 1: -1 (B+ → B)
+- Level 2: -1 (B → B-)
+- Level 3: -2 (B- → C+)
+
+#### 1.4 GDPR 강화
+
+**신규 금지 필드**:
+- `birth_place_coords` (위도/경도 위치 추적 리스크)
+- `ip_address` (IP는 수집 금지)
+
+**UI 개선**:
+- JavaScript 필수 체크 검증
+- 명시적 동의 체크박스
+- CSRF 보호
+
+#### 1.5 테스트 인프라
+
+**추가 사항**:
+- `test_cases.json` fallback 트리거 케이스 예시
+- 벤치마크 비교 스크립트
+- Phase 2.5 구현 우선순위 가이드
+
+#### 1.6 Breaking Changes 에러 메시지
+
+**개선 전**: 추상적인 에러 설명
+**개선 후**: 구체적인 해결 방법 포함
+
+예시:
+```
+RuntimeError: FactoryData migration incomplete
+Missing required section: 'event_rules'
+
+This is a breaking change. To fix:
+1. Backup: cp FactoryData.json FactoryData.backup.json
+2. Run: python scripts/migrate_factory_data.py --add-event-rules
+3. Verify: python scripts/validate_factory_data.py
+
+Engine startup aborted.
+```
+
+---
+
+## 2. 시스템 철학
+
+### 2.1 생시보정의 본질
+
+생시보정은 **확률 추론 엔진**이다.
+
+- 상승궁을 직접 맞추는 것이 아니라
+- **사용자 삶의 패턴 → 점성학 구조로 역추론**한다.
+
+### 2.2 왜 상승궁 중심인가
+
+상승궁은:
+- 차트의 기준점
+- 하우스 구조 결정
+- 외모/성향/사건 흐름 반영
+
+따라서: **상승궁 정확도 = 전체 리딩 정확도**
+
+### 2.3 FactoryData의 역할
+
+FactoryData는 **점성학 지식 그래프**이다.
+
+**기능**:
+- 피처 사전
+- 설명 생성
+- 점수 계산
+- ML 학습 기반
+
+### 2.4 핵심 설계 원칙
+
+생시보정 엔진은:
+
+1. **확률 모델** — 결정론이 아닌 확률 분포 기반
+2. **설명 가능한 점성학** — 모든 결과에 근거 제시
+3. **사용자 신뢰** — 신뢰도 등급 + 투명한 설명
+
+---
+
+## 3. 점성학 모델 구조
+
+### 3.1 모델 계층
+
+```
+Ascendant Layer
+→ House Layer
+→ Planet State Layer
+→ Event Pattern Layer
+```
+
+초기 엔진은 **Ascendant 중심**으로 동작한다.
+
+### 3.2 사건 검증 논리
+
+사건은:
+- 하우스 활성화
+- 다샤 타이밍
+- 행성 영향
+
+을 통해 검증한다.
+
+---
+
+## 4. 엔진 아키텍처
+
+### 4.1 전체 파이프라인
+
+```
+User Input
+→ Time Candidate Generator (2단계: Coarse → Fine)
+→ Adaptive Question Engine
+→ Feature Mapper (2단계: Static Base → Contextual)
+→ Scoring Engine (체감효용 적용)
+→ Event Validator (다샤 매칭 + 로그합)
+→ Degree Estimator (Circular Mean)
+→ Cusp Detector + Tiebreaker
+→ Confidence Grader
+→ Explanation Engine
+→ Result Renderer
+→ Feedback Collector
+→ Logging System
+```
+
+### 4.2 성능 목표
+
+| 단계 | 목표 | 비고 |
+|------|------|------|
+| 표본 생성 (Coarse+Fine) | < 2초 | ephemeris 계산 포함 |
+| 스코어링 (전체 표본) | < 500ms | 100표본 기준 |
+| 다샤 계산 (전체 표본 × 사건 5개) | < 3초 | Mahadasha만, Antardasha는 Phase 2 |
+| 도수 추정 + 결과 생성 | < 200ms | |
+| **전체 파이프라인** | **< 6초** | 질문 응답 시간 제외 |
+
+### 4.3 캐싱 정책
+
+- 동일 생년월일 + 동일 시간범위의 **표본(planet_positions)은 캐싱**
+- 질문 응답이 바뀌면 스코어링만 재계산 (표본 재생성 불필요)
+
+---
+
+## 5. 시간 표본 생성
+
+### 5.1 2단계 표본 생성 (Coarse → Fine)
+
+#### Phase A: Coarse Scan
+
+```python
+interval = 5분
+candidates = generate(start_time, end_time, interval)
+# → ~36개 표본 (3시간 범위 기준)
+```
+
+각 표본에 대해 `asc_sign` 계산 → **sign 전환점(cusp boundary)** 탐지
+
+#### Phase B: Fine Scan (cusp 근처)
+
+```python
+cusp_detected_at = [t₁, t₂, ...]   # sign이 바뀌는 시점
+
+for each cusp_time in cusp_detected_at:
+    fine_candidates = generate(
+        cusp_time - 15min, 
+        cusp_time + 15min, 
+        interval=1분
+    )
+    candidates += fine_candidates
+```
+
+#### 최종 표본 수
+
+- 기본: ~36개
+- cusp당 추가: ~30개
+- 일반적 3시간 범위(cusp 1~2개): **총 60~100개 표본**
+
+### 5.2 표본 데이터 구조
+
+```json
+{
+  "candidate_id": "C_0042",
+  "time": "1994-12-18T14:35:00+09:00",
+  "asc_sign": "Virgo",
+  "asc_degree_in_sign": 14.23,
+  "asc_abs_longitude": 164.23,
+  "planet_positions": {
+    "Sun": { 
+      "sign": "Sagittarius", 
+      "degree": 25.8, 
+      "house": 4 
+    },
+    "Moon": { 
+      "sign": "Cancer", 
+      "degree": 12.1, 
+      "house": 11 
+    },
+    "Mars": {
+      "sign": "Leo", 
+      "degree": 8.5, 
+      "house": 12,
+      "dignity": "neutral", 
+      "aspected_by": ["Saturn"]
+    }
+  },
+  "nakshatra_moon": {
+    "name": "Pushya",
+    "degree_in_nakshatra": 8.2
+  },
+  "score_personality": 0.0,
+  "score_event": 0.0,
+  "score_total": 0.0,
+  "is_cusp_zone": false
+}
+```
+
+---
+
+## 6. 질문 시스템
+
+### 6.1 질문 구조
+
+- **성향 질문 8개** (Q1–Q8): 상승궁 판별
+- **사건 질문 5개** (Q9–Q13): 시간 검증
+- **Cusp Tiebreaker** (선택적): cusp 감지 시 1~2개 추가
+
+### 6.2 질문 가중치 (Reliability Weight)
+
+```
+Q1–Q8:  R = 1.0
+Q9–Q13: R = 1.3
+```
+
+### 6.3 적응형 질문 분기 (Adaptive Question Routing)
+
+#### 목적
+
+모든 사용자에게 동일한 질문을 던지는 대신, **정보 이득(Information Gain)** 기반으로 변별력 높은 질문을 우선 선택한다.
+
+#### 정보 이득 계산
+
+현재 후보 확률 분포를 P라 하면:
+
+```
+H(P) = -Σ P[asc] × log₂(P[asc])    // 현재 엔트로피
+
+// 질문 Qk의 각 옵션 j에 대해:
+P_after(Qk, j) = 해당 옵션의 feature 반영 후 갱신된 분포
+H_after(Qk) = Σ_j  P(option_j) × H(P_after(Qk, j))
+
+IG(Qk) = H(P) - H_after(Qk)
+```
+
+#### 선택 규칙
+
+- **Q1–Q3**: 고정 출제 (초기 분포 형성 필수)
+- **Q4–Q8**: IG 내림차순 정렬 후 **상위 3개만 출제**
+- **조기 종료 조건**: Top-1 확률 ≥ 0.65이면 성향 질문 중단 → 사건 질문으로 이동
+
+#### P(option_j) 추정
+
+사전 통계가 없는 초기에는 균등 분포(1/4) 가정. 로그 누적 후 실제 응답 빈도로 교체 가능.
+
+#### UX 영향
+
+- 최소 질문 수: 3(성향) + 5(사건) = **8문항**
+- 최대 질문 수: 8(성향) + 5(사건) = **13문항**
+- 평균 기대: **6(성향) + 5(사건) = 11문항**
+
+### 6.4 성향 질문 텍스트 (Q1–Q8)
+
+#### Q1 첫인상
+- A. 강한 카리스마
+- B. 차갑고 거리감
+- C. 친근함
+- D. 똑똑함
+
+#### Q2 스트레스 반응
+- A. 행동
+- B. 고립
+- C. 대화
+- D. 회피
+
+#### Q3 에너지 타입
+- A. 폭발적
+- B. 안정적
+- C. 변동 큼
+- D. 깊음
+
+#### Q4 의사결정
+- A. 직감
+- B. 분석
+- C. 타협
+- D. 신중함
+
+#### Q5 사회적 역할
+- A. 리더
+- B. 전문가
+- C. 중재자
+- D. 관찰자
+
+#### Q6 감정 표현
+- A. 직설적
+- B. 절제
+- C. 풍부
+- D. 은유적
+
+#### Q7 변화 대응
+- A. 즉각 실행
+- B. 저항
+- C. 유연한 적응
+- D. 신중한 관찰
+
+#### Q8 관계 패턴
+- A. 주도
+- B. 독립
+- C. 협력
+- D. 의존
+
+### 6.5 사건 질문 텍스트 (Q9–Q13)
+
+#### Q9 첫 중요한 직업/학업 경험
+- A. 초등 졸업 전 (6-12세)
+- B. 중고등학교 시기 (13-18세)
+- C. 대학/성인 초기 (19-25세)
+- D. 25세 이후
+- **입력**: 연도 (필수), 월 (선택)
+
+#### Q10 첫 독립적 재정 활동
+- A. 용돈/아르바이트 (15세 이전)
+- B. 첫 정규직/사업 (15-25세)
+- C. 주요 재정 전환 (25-35세)
+- D. 35세 이후
+- **입력**: 연도 (필수), 월 (선택)
+
+#### Q11 주요 관계 형성 (연애/결혼/파트너십)
+- A. 첫 연애 (20세 이전)
+- B. 중요한 관계 시작 (20-30세)
+- C. 결혼/동거 (30세 이후)
+- D. 해당 없음
+- **입력**: 연도 (필수), 월 (선택)
+
+#### Q12 가족/거주지 변화
+- A. 유년기 이사 (10세 이전)
+- B. 독립/대학 (18-25세)
+- C. 결혼/출산 (25세 이후)
+- D. 해당 없음
+- **입력**: 연도 (필수), 월 (선택)
+
+#### Q13 최근 중요 사건 (3년 이내)
+- A. 커리어 전환
+- B. 건강 이슈
+- C. 관계 변화
+- D. 거주지 이동
+- **입력**: 연도 (필수), 월 (필수 권장)
+
+> 💡 **UX 팁** (선택적 적용 - 데이터 검증 필요):
+> Q13 입력 시 "월/일을 입력하시면 정확도가 향상될 수 있습니다." 팁 표시
+
+### 6.6 Cusp Tiebreaker 질문 (Q14-Q15)
+
+Cusp 경계에서 상승궁이 애매할 때 출제:
+
+#### Q14 신체적 특징
+- A. 키가 큰 편
+- B. 근육질/운동 체형
+- C. 날씬하고 민첩
+- D. 중간 체격
+
+#### Q15 위기 상황 대처
+- A. 즉각 대응
+- B. 신중한 계획
+- C. 유연한 타협
+- D. 회피/관망
+
+---
+
+## 7. Feature Mapping
+
+### 7.1 2단계 매핑 전략
+
+#### 7.1.1 Static Base Mapping
+
+모든 질문의 옵션을 12개 상승궁에 매핑:
+
+```python
+FeatureMap = {
+    "Q1_A": { "Aries": +8, "Leo": +7, "Scorpio": +5 },
+    "Q1_B": { "Capricorn": +8, "Aquarius": +6, "Virgo": +4 },
+    # ...
+}
+```
+
+#### 7.1.2 Context-Aware Mapping (Phase 2)
+
+행성 배치에 따라 점수 조정:
+
+```python
+if Mars in Asc:
+    FeatureMap["Q1_A"]["Virgo"] += 3  # 원래 낮았던 점수 상향
+
+if Moon in 1H:
+    FeatureMap["Q2_C"]["Cancer"] += 4  # 대화형 반응 강화
+```
+
+### 7.2 Feature 점수 범위
+
+- **Base Score**: -10 ~ +10
+- **Context Bonus**: 0 ~ +5
+
+### 7.3 FactoryData 구조 (Feature Map)
+
+```json
+{
+  "feature_map": {
+    "Q1": {
+      "question_text": "첫인상이 어떤가요?",
+      "reliability_weight": 1.0,
+      "options": {
+        "A": {
+          "label": "강한 카리스마",
+          "mapping": {
+            "Aries": 8,
+            "Leo": 7,
+            "Scorpio": 5,
+            "Sagittarius": 3
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+---
+
+## 8. 스코어링 시스템
+
+### 8.1 로그 함수 명시 (자연로그)
+
+**중요**: 모든 로그 계산은 **자연로그 ln (base e)**를 사용한다.
+
+#### 수식 표기
+
+```
+점수 = Σ feature_score × R(q) × U(q)
+신뢰도 = ln(1 + normalized_score)
+```
+
+**Python 구현**:
+```python
+import math
+
+# 올바른 표기
+confidence = math.log(1 + normalized_score)
+
+# 잘못된 표기 (사용 금지)
+confidence = math.log10(1 + normalized_score)  # ❌
+```
+
+#### ln 선택 이유 (상세)
+
+**1. Gradient 안정성**
+
+자연로그의 미분:
+```
+d/dx ln(x) = 1/x
+```
+
+상용로그의 미분:
+```
+d/dx log₁₀(x) = 1/(x·ln(10)) ≈ 1/(x·2.303)
+```
+
+→ ln은 역전파 계산이 깔끔하고, 추가 상수가 없어 수치 안정성이 높다.
+
+**2. Softmax 최적화**
+
+Softmax 함수:
+```python
+P(asc) = exp(score[asc]) / Σ exp(score[i])
+```
+
+ln과 exp는 역함수 관계:
+```
+exp(ln(x)) = x
+ln(exp(x)) = x
+```
+
+→ 수치 언더플로우/오버플로우 방지에 최적
+
+**3. ML 프레임워크 표준**
+
+- PyTorch: `torch.log()` = 자연로그
+- TensorFlow: `tf.math.log()` = 자연로그
+- NumPy: `np.log()` = 자연로그
+
+→ Phase 3 ML 전환 시 코드 호환성 보장
+
+### 8.2 체감효용 함수 (Utility Function)
+
+#### 목적
+
+사용자가 입력한 정보의 신뢰도를 반영:
+- **연도만** 입력: 낮은 효용
+- **연도+월** 입력: 높은 효용
+- **연도+월+일** 입력: 최고 효용
+
+#### 수식
+
+```
+U(q) = base_utility × completeness_factor
+
+completeness_factor:
+- 연도만: 0.7
+- 연도+월: 0.9
+- 연도+월+일: 1.0
+```
+
+#### 코드 예시
+
+```python
+def calculate_utility(question_input):
+    if 'day' in question_input:
+        return 1.0
+    elif 'month' in question_input:
+        return 0.9
+    else:
+        return 0.7
+```
+
+### 8.3 스코어 정규화
+
+#### 목적
+
+- 각 후보의 점수를 0~1 범위로 정규화
+- 확률 분포로 변환
+
+#### 수식
+
+```
+normalized_score[i] = (raw_score[i] - min_score) / (max_score - min_score)
+```
+
+#### Softmax 변환 (Phase 3)
+
+```python
+import numpy as np
+
+def softmax(scores):
+    exp_scores = np.exp(scores - np.max(scores))  # 안정성 위해 최댓값 빼기
+    return exp_scores / np.sum(exp_scores)
+```
+
+### 8.4 스코어링 파이프라인
+
+```
+1. Feature Score 계산 (Base + Context)
+2. Reliability Weight 적용 (R(q))
+3. Utility 적용 (U(q))
+4. 전체 합산
+5. 정규화
+6. ln 변환 (신뢰도 계산용)
+```
+
+---
+
+## 9. 사건 검증 시스템
+
+### 9.1 Event Rules JSON 스키마
+
+#### 구조
+
+```json
+{
+  "event_rules": {
+    "Q9_A": {
+      "question_id": "Q9",
+      "option_id": "A",
+      "event_type": "education",
+      "description": "초등 졸업 전 중요한 학업 경험",
+      "houses": [1, 2, 4, 9],
+      "planets": ["Mercury", "Jupiter"],
+      "base_weight": 1.3,
+      "weight_range": [0.5, 10.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    }
+  }
+}
+```
+
+#### 필드 설명
+
+| 필드 | 타입 | 설명 |
+|------|------|------|
+| `question_id` | string | 질문 ID (Q9-Q13) |
+| `option_id` | string | 옵션 ID (A-D) |
+| `event_type` | string | 사건 카테고리 (education, career, relationship 등) |
+| `description` | string | 사건 설명 |
+| `houses` | array | 활성화되어야 할 하우스 목록 |
+| `planets` | array | 관련 행성 |
+| `base_weight` | float | 기본 가중치 (1.3) |
+| `weight_range` | array | [min, max] ML 학습 시 탐색 범위 |
+| `ml_trainable` | boolean | Phase 3에서 학습할지 여부 |
+| `fallback_levels` | array | 허용 Fallback 레벨 |
+
+#### 예시 (전체)
+
+```json
+{
+  "event_rules": {
+    "Q9_A": {
+      "question_id": "Q9",
+      "option_id": "A",
+      "event_type": "education",
+      "houses": [1, 2, 4, 9],
+      "planets": ["Mercury", "Jupiter"],
+      "base_weight": 1.3,
+      "weight_range": [0.5, 10.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    },
+    "Q10_B": {
+      "question_id": "Q10",
+      "option_id": "B",
+      "event_type": "career",
+      "houses": [2, 6, 10],
+      "planets": ["Sun", "Saturn"],
+      "base_weight": 1.3,
+      "weight_range": [1.0, 5.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    },
+    "Q11_B": {
+      "question_id": "Q11",
+      "option_id": "B",
+      "event_type": "relationship",
+      "houses": [5, 7, 11],
+      "planets": ["Venus", "Mars"],
+      "base_weight": 1.3,
+      "weight_range": [1.0, 8.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2]
+    },
+    "Q12_C": {
+      "question_id": "Q12",
+      "option_id": "C",
+      "event_type": "family",
+      "houses": [4, 5, 11],
+      "planets": ["Moon", "Jupiter"],
+      "base_weight": 1.3,
+      "weight_range": [0.5, 6.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    },
+    "Q13_A": {
+      "question_id": "Q13",
+      "option_id": "A",
+      "event_type": "career_change",
+      "houses": [1, 6, 10],
+      "planets": ["Sun", "Saturn", "Rahu"],
+      "base_weight": 1.5,
+      "weight_range": [2.5, 8.0],
+      "ml_trainable": true,
+      "fallback_levels": [1]
+    }
+  }
+}
+```
+
+### 9.2 Vimshottari Dasha 계산
+
+#### Mahadasha 주기 (기본값)
+
+| 행성 | 주기 (년) |
+|------|-----------|
+| Ketu | 7 |
+| Venus | 20 |
+| Sun | 6 |
+| Moon | 10 |
+| Mars | 7 |
+| Rahu | 18 |
+| Jupiter | 16 |
+| Saturn | 19 |
+| Mercury | 17 |
+
+**Total**: 120년 (순환)
+
+#### Nakshatra → Mahadasha 매핑
+
+Moon Nakshatra에 따라 출생 시 Mahadasha가 결정됨.
+
+예시:
+- Ashwini, Magha, Mula → Ketu
+- Bharani, Purva Phalguni, Purva Ashadha → Venus
+- Krittika, Uttara Phalguni, Uttara Ashadha → Sun
+- ...
+
+#### Antardasha 계산 (Phase 2)
+
+Mahadasha 내에서 세분화:
+
+```
+Antardasha 기간 = (Mahadasha 기간 × Antardasha 행성 주기) / 120
+```
+
+예: Venus Mahadasha (20년) 내 Sun Antardasha:
+```
+(20 × 6) / 120 = 1년
+```
+
+### 9.3 사건 매칭 로직
+
+#### 기본 매칭 (Mahadasha)
+
+```python
+def match_event(event_year, candidate):
+    dasha_info = calculate_dasha(candidate)
+    mahadasha_planet = dasha_info['mahadasha']
+    
+    rule = EventRules[event_type]
+    if mahadasha_planet in rule['planets']:
+        return True
+    return False
+```
+
+#### 엄격 매칭 (Antardasha, Phase 2)
+
+```python
+def strict_match_event(event_year, event_month, candidate):
+    dasha_info = calculate_dasha(candidate, include_antardasha=True)
+    
+    mahadasha = dasha_info['mahadasha']
+    antardasha = dasha_info['antardasha']
+    
+    rule = EventRules[event_type]
+    
+    if mahadasha in rule['planets'] and antardasha in rule['planets']:
+        return True
+    return False
+```
+
+### 9.4 Fallback 시스템 (4단계 적응형)
+
+#### 목적
+
+사건 매칭 실패 시 점진적으로 조건을 완화하여 **일부 후보라도 살림**.
+
+#### Fallback 레벨
+
+| 레벨 | 조건 | Confidence Penalty |
+|------|------|-------------------|
+| 0 (기본) | Antardasha ±3개월 Buffer | 0 |
+| 1 | Antardasha ±6개월 → ±12개월 Buffer | -1 (B+ → B) |
+| 2 | Mahadasha만 매칭 (Antardasha 무시) | -1 (B → B-) |
+| 3 | Mahadasha ±2년 Buffer | -2 (B- → C+) |
+| 4 | 사건 검증 스킵 | -3 (C+ → C-) |
+
+#### Fallback 트리거 조건
+
+```python
+def apply_fallback(candidates, event_rules):
+    level = 0
+    max_level = 4
+    
+    while level <= max_level:
+        matched = filter_candidates(candidates, event_rules, level)
+        
+        if len(matched) >= MIN_CANDIDATES:  # 최소 5개
+            return matched, level
+        
+        level += 1
+    
+    # Fallback 4도 실패 시
+    return candidates, 4  # 사건 검증 완전 스킵
+```
+
+#### YAML 설정 예시
+
+```yaml
+fallback_config:
+  level_1:
+    antardasha_buffer_months: 12
+    confidence_penalty: -1
+  level_2:
+    use_mahadasha_only: true
+    confidence_penalty: -1
+  level_3:
+    mahadasha_buffer_years: 2
+    confidence_penalty: -2
+  level_4:
+    skip_event_validation: true
+    confidence_penalty: -3
+```
+
+#### 로그 기록
+
+```json
+{
+  "event_id": "Q10_2016",
+  "fallback_used": true,
+  "fallback_level": 1,
+  "original_buffer": "±3 months",
+  "adjusted_buffer": "±12 months",
+  "candidates_before": 0,
+  "candidates_after": 8,
+  "confidence_penalty": -1
+}
+```
+
+### 9.5 로그 합산 (Log-Sum Aggregation)
+
+#### 목적
+
+여러 사건의 검증 점수를 합산할 때 **극단값에 덜 민감**하게.
+
+#### 수식
+
+```
+log_sum_score = ln(Σ exp(event_score[i]))
+```
+
+이는 **LogSumExp** 함수와 동일:
+```
+LSE(x₁, x₂, ..., xₙ) = ln(exp(x₁) + exp(x₂) + ... + exp(xₙ))
+```
+
+#### 장점
+
+- 일부 사건 실패해도 다른 사건이 보상
+- 수치 안정성 (언더플로우 방지)
+
+#### 수치 안정성 구현
+
+```python
+import numpy as np
+
+def log_sum_exp(scores):
+    max_score = np.max(scores)
+    return max_score + np.log(np.sum(np.exp(scores - max_score)))
+```
+
+### 9.6 사건 점수 계산
+
+#### 개별 사건 점수
+
+```
+match → +50
+미스매치 → -50
+```
+
+#### 전체 사건 점수
+
+```python
+event_scores = []
+
+for event in events:
+    if match_event(event, candidate):
+        event_scores.append(+50 * event_weight)
+    else:
+        event_scores.append(-50 * event_weight)
+
+total_event_score = log_sum_exp(event_scores)
+```
+
+---
+
+## 10. 도수 추정 및 Cusp 처리
+
+### 10.1 Circular Mean (원형 평균)
+
+#### 목적
+
+각도의 평균을 구할 때 **360° 경계 문제** 해결.
+
+예: 359°와 1°의 평균 → 180° (X), 0° (O)
+
+#### 수식
+
+```
+각도를 단위 벡터로 변환:
+x = cos(θ)
+y = sin(θ)
+
+평균 벡터:
+x̄ = Σ(w[i] × x[i]) / Σw[i]
+ȳ = Σ(w[i] × y[i]) / Σw[i]
+
+평균 각도:
+θ̄ = atan2(ȳ, x̄)
+```
+
+#### Python 구현
+
+```python
+import numpy as np
+
+def circular_mean(angles_deg, weights):
+    angles_rad = np.deg2rad(angles_deg)
+    
+    x = np.sum(weights * np.cos(angles_rad)) / np.sum(weights)
+    y = np.sum(weights * np.sin(angles_rad)) / np.sum(weights)
+    
+    mean_rad = np.arctan2(y, x)
+    mean_deg = np.rad2deg(mean_rad)
+    
+    if mean_deg < 0:
+        mean_deg += 360
+    
+    return mean_deg
+```
+
+### 10.2 Cusp 감지 (Sign Boundary Detection)
+
+#### 정의
+
+Cusp: 상승궁이 **별자리 경계(0°/30°)**에 가까운 상태
+
+#### 감지 조건
+
+```python
+def is_cusp(asc_degree_in_sign):
+    return (asc_degree_in_sign < 3.0) or (asc_degree_in_sign > 27.0)
+```
+
+#### Cusp Zone 플래그
+
+표본 생성 시 `is_cusp_zone` 필드 추가:
+
+```json
+{
+  "candidate_id": "C_0042",
+  "asc_degree_in_sign": 1.2,
+  "is_cusp_zone": true
+}
+```
+
+### 10.3 Cusp Tiebreaker
+
+#### 조건
+
+Top-2 후보가 **인접 별자리**이고 점수 차이가 **5% 이내**일 때 출제.
+
+예:
+- 후보 1: Virgo (score = 82)
+- 후보 2: Leo (score = 80)
+- 차이: 2.4% → Tiebreaker 출제
+
+#### Tiebreaker 질문
+
+Q14 (신체 특징), Q15 (위기 대처) 중 1~2개.
+
+#### 매핑 예시
+
+```json
+{
+  "Q14_A": { "Leo": +10, "Virgo": -5 },
+  "Q14_B": { "Aries": +10, "Taurus": -5 }
+}
+```
+
+#### 재스코어링
+
+Tiebreaker 응답 후 **Top-2 후보에만** 점수 추가 → 재정렬.
+
+---
+
+## 11. 신뢰도 등급 시스템
+
+### 11.1 신뢰도 등급 정의
+
+| 등급 | 점수 범위 | 설명 |
+|------|-----------|------|
+| **A+** | 95-100 | 매우 높은 확신 (사건 완벽 매칭 + 성향 일치) |
+| **A** | 90-94 | 높은 확신 |
+| **A-** | 85-89 | 준수한 확신 |
+| **B+** | 80-84 | 양호 |
+| **B** | 75-79 | 보통 |
+| **B-** | 70-74 | 낮은 확신 |
+| **C+** | 65-69 | 불확실 (Fallback 사용) |
+| **C** | 60-64 | 매우 불확실 |
+| **C-** | < 60 | 신뢰 불가 |
+
+### 11.2 등급 판정 로직
+
+```python
+def grade_confidence(score, fallback_level):
+    base_grade = calculate_base_grade(score)
+    
+    # Fallback Penalty
+    penalty = {
+        0: 0,
+        1: -1,  # B+ → B
+        2: -1,  # B → B-
+        3: -2,  # B- → C+
+        4: -3   # C+ → C-
+    }
+    
+    final_grade = base_grade + penalty[fallback_level]
+    return final_grade
+```
+
+### 11.3 사용자 메시지
+
+```python
+grade_messages = {
+    "A+": "매우 높은 확신으로 추정된 생시입니다.",
+    "A": "높은 확신으로 추정된 생시입니다.",
+    "B": "적절한 확신으로 추정된 생시입니다. 추가 검증 권장.",
+    "C+": "불확실한 추정입니다. 전문가 상담 권장.",
+    "C-": "신뢰하기 어려운 추정입니다. 더 많은 정보 필요."
+}
+```
+
+---
+
+## 12. UX 플로우
+
+### 12.1 전체 플로우
+
+```
+1. GDPR 동의 화면
+   ↓ (동의)
+2. 기본 정보 입력 (생년월일, 출생지, 시간 범위)
+   ↓
+3. 성향 질문 (Q1-Q8, 적응형 분기)
+   ↓ (조기 종료 가능)
+4. 사건 질문 (Q9-Q13)
+   ↓
+5. Cusp Tiebreaker (조건부)
+   ↓
+6. 결과 화면 (추정 생시 + 신뢰도 + 설명)
+   ↓
+7. 피드백 수집
+   ↓
+8. 세션 종료
+```
+
+### 12.2 GDPR 동의 플로우
+
+#### HTML 예시
+
+```html
+<div class="gdpr-container">
+  <h2>개인정보 처리 방침</h2>
+  <div class="gdpr-content">
+    <p>당사는 생시보정 서비스 제공을 위해 다음 정보를 수집합니다:</p>
+    <ul>
+      <li>생년월일 (필수)</li>
+      <li>출생 도시/국가 (필수)</li>
+      <li>질문 응답 (필수)</li>
+    </ul>
+    <p><strong>수집하지 않는 정보:</strong></p>
+    <ul>
+      <li>IP 주소</li>
+      <li>정밀 위치 정보 (위도/경도)</li>
+      <li>기기 식별자</li>
+    </ul>
+    <p>데이터는 서비스 개선 목적으로만 사용되며, 24시간 후 자동 삭제됩니다.</p>
+  </div>
+  
+  <div class="gdpr-checkbox">
+    <input type="checkbox" id="consent-checkbox" name="consent" required>
+    <label for="consent-checkbox">
+      위 개인정보 처리 방침을 읽고 이해했으며, 이에 동의합니다.
+    </label>
+  </div>
+  
+  <div class="gdpr-actions">
+    <button onclick="acceptGDPR()">동의하고 계속</button>
+    <button onclick="rejectGDPR()">거부</button>
+  </div>
+</div>
+```
+
+#### JavaScript 검증
+
+```javascript
+function acceptGDPR() {
+    const checkbox = document.getElementById('consent-checkbox');
+    
+    if (!checkbox.checked) {
+        alert('개인정보 처리 방침에 동의하셔야 계속할 수 있습니다.');
+        return;
+    }
+    
+    // 백엔드에 동의 기록
+    fetch('/api/gdpr/consent', {
+        method: 'POST',
+        headers: { 
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': getCsrfToken()
+        },
+        body: JSON.stringify({
+            consent: true,
+            timestamp: new Date().toISOString(),
+            user_agent: navigator.userAgent
+        })
+    }).then(response => {
+        if (response.ok) {
+            window.location.href = '/birth-time-rectification';
+        } else {
+            alert('오류가 발생했습니다. 잠시 후 다시 시도해주세요.');
+        }
+    }).catch(error => {
+        console.error('GDPR consent error:', error);
+        alert('네트워크 오류가 발생했습니다.');
+    });
+}
+
+function rejectGDPR() {
+    alert('동의하지 않으면 서비스를 이용할 수 없습니다.');
+    window.location.href = '/';
+}
+
+function getCsrfToken() {
+    return document.querySelector('meta[name="csrf-token"]')?.content || '';
+}
+```
+
+#### CSS 예시
+
+```css
+.gdpr-container {
+    max-width: 600px;
+    margin: 50px auto;
+    padding: 30px;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.gdpr-content {
+    max-height: 400px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 4px;
+}
+
+.gdpr-checkbox {
+    margin: 20px 0;
+}
+
+.gdpr-checkbox input[type="checkbox"] {
+    margin-right: 10px;
+}
+
+.gdpr-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.gdpr-actions button {
+    padding: 12px 30px;
+    font-size: 16px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.gdpr-actions button:first-child {
+    background: #4CAF50;
+    color: white;
+}
+
+.gdpr-actions button:last-child {
+    background: #f44336;
+    color: white;
+}
+```
+
+### 12.3 질문 UI 예시
+
+```html
+<div class="question-container">
+  <h3>Q1. 첫인상이 어떤가요?</h3>
+  <div class="options">
+    <label>
+      <input type="radio" name="q1" value="A">
+      A. 강한 카리스마
+    </label>
+    <label>
+      <input type="radio" name="q1" value="B">
+      B. 차갑고 거리감
+    </label>
+    <label>
+      <input type="radio" name="q1" value="C">
+      C. 친근함
+    </label>
+    <label>
+      <input type="radio" name="q1" value="D">
+      D. 똑똑함
+    </label>
+  </div>
+</div>
+```
+
+### 12.4 결과 화면 예시
+
+```html
+<div class="result-container">
+  <h2>추정 생시: 14:32 (±5분)</h2>
+  <div class="confidence">
+    <span class="grade">신뢰도: A-</span>
+    <p>높은 확신으로 추정된 생시입니다.</p>
+  </div>
+  
+  <div class="chart-info">
+    <h3>상승궁: Virgo (처녀자리)</h3>
+    <p>상승 도수: 14.5°</p>
+  </div>
+  
+  <div class="explanation">
+    <h3>추정 근거</h3>
+    <ul>
+      <li>Q1 응답(A)과 Virgo 성향 일치 (+8점)</li>
+      <li>2016년 커리어 사건 → Mahadasha: Saturn (일치)</li>
+      <li>2023년 최근 사건 → Antardasha: Mercury (일치)</li>
+    </ul>
+  </div>
+  
+  <div class="feedback">
+    <h3>피드백</h3>
+    <p>추정 결과가 정확했나요?</p>
+    <button onclick="submitFeedback('accurate')">정확함</button>
+    <button onclick="submitFeedback('inaccurate')">부정확함</button>
+  </div>
+</div>
+```
+
+---
+
+## 13. 로깅 시스템
+
+### 13.1 세션 로그 구조
+
+```json
+{
+  "session_id": "S_20260209_142356",
+  "timestamp_start": "2026-02-09T14:23:56+09:00",
+  "timestamp_end": "2026-02-09T14:28:42+09:00",
+  "input": {
+    "birth_date": "1994-12-18",
+    "birth_city": "Seoul",
+    "birth_country": "KR",
+    "time_range_start": "13:00",
+    "time_range_end": "16:00"
+  },
+  "questions": {
+    "Q1": "A",
+    "Q2": "B",
+    "Q9": {"option": "A", "year": 2014},
+    "Q13": {"option": "A", "year": 2023, "month": 6}
+  },
+  "candidates_generated": 87,
+  "candidates_after_filter": 12,
+  "fallback_events": [
+    {
+      "question_id": "Q10",
+      "fallback_level": 1,
+      "buffer_extended": "±12 months"
+    }
+  ],
+  "result": {
+    "estimated_time": "14:32:00+09:00",
+    "asc_sign": "Virgo",
+    "asc_degree": 14.5,
+    "confidence_grade": "A-",
+    "confidence_score": 87.3
+  },
+  "performance": {
+    "candidate_generation_ms": 1845,
+    "scoring_ms": 423,
+    "dasha_calculation_ms": 2156,
+    "total_ms": 4982
+  },
+  "feedback": {
+    "accuracy_rating": "accurate",
+    "user_comment": null
+  }
+}
+```
+
+### 13.2 로그 보관 정책
+
+- **즉시 삭제 항목**: IP 주소, 정밀 위치 정보
+- **24시간 보관**: 세션 로그 (개인정보 제거 후)
+- **영구 보관**: 익명화된 통계 데이터
+
+### 13.3 로그 분석 목적
+
+- 정확도 통계
+- Fallback 사용 빈도
+- Phase 3 ML 학습 데이터
+- 질문 개선 (IG 분석)
+
+---
+
+## 14. FactoryData 구조
+
+### 14.1 전체 스키마
+
+```json
+{
+  "version": "2.0",
+  "last_updated": "2026-02-09",
+  "feature_map": { ... },
+  "event_rules": { ... },
+  "dasha_config": { ... },
+  "nakshatra_mappings": { ... },
+  "karaka_info": { ... },
+  "glossary": { ... }
+}
+```
+
+### 14.2 Feature Map
+
+Section 7 참조.
+
+### 14.3 Event Rules
+
+Section 9.1 참조.
+
+### 14.4 Nakshatra Mappings
+
+```json
+{
+  "nakshatra_mappings": {
+    "Ashwini": { "ruling_planet": "Ketu", "degree_start": 0.0, "degree_end": 13.33 },
+    "Bharani": { "ruling_planet": "Venus", "degree_start": 13.33, "degree_end": 26.67 },
+    "Krittika": { "ruling_planet": "Sun", "degree_start": 26.67, "degree_end": 40.0 }
+  }
+}
+```
+
+### 14.5 Karaka Info
+
+```json
+{
+  "karaka_info": {
+    "Sun": {
+      "natural_significations": ["Father", "Authority", "Career", "Soul"],
+      "house_rulership": ["Leo"],
+      "friendly_planets": ["Moon", "Mars", "Jupiter"],
+      "enemy_planets": ["Saturn", "Venus"]
+    },
+    "Moon": {
+      "natural_significations": ["Mother", "Emotions", "Mind", "Public"],
+      "house_rulership": ["Cancer"],
+      "friendly_planets": ["Sun", "Mercury"],
+      "enemy_planets": []
+    }
+  }
+}
+```
+
+---
+
+## 15. 용어 사전
+
+### 15.1 Karaka (행성별 상징)
+
+| 행성 | 자연적 상징 (Natural Karaka) |
+|------|------------------------------|
+| **Sun** | Father, Authority, Career, Soul, Government |
+| **Moon** | Mother, Emotions, Mind, Public, Mental Health |
+| **Mars** | Siblings, Courage, Energy, Property, Accidents |
+| **Mercury** | Education, Communication, Intelligence, Business |
+| **Jupiter** | Guru, Wisdom, Children, Fortune, Expansion |
+| **Venus** | Spouse, Love, Luxury, Arts, Vehicles |
+| **Saturn** | Longevity, Hardship, Discipline, Servants, Death |
+| **Rahu** | Obsession, Foreign, Technology, Innovation |
+| **Ketu** | Moksha, Spirituality, Liberation, Past Life |
+
+### 15.2 Dasha
+
+**Dasha**: 행성 주기 시스템. 인생의 특정 시기를 특정 행성이 "통치"한다.
+
+- **Mahadasha**: 주요 주기 (7-20년)
+- **Antardasha**: 부차 주기 (Mahadasha 내 세분화)
+- **Vimshottari**: 가장 널리 쓰이는 120년 주기 체계
+
+### 15.3 Nakshatra
+
+**Nakshatra**: 달의 별자리 (27개). 각 13°20' 크기.
+
+달이 출생 시 위치한 Nakshatra에 따라 Mahadasha 시작점이 결정됨.
+
+### 15.4 Ascendant (상승궁)
+
+**Lagna**: 출생 시간에 동쪽 지평선에 떠오르는 별자리.
+
+차트의 **1하우스 시작점**이며, 전체 하우스 구조를 결정한다.
+
+### 15.5 Cusp
+
+**Cusp**: 별자리 경계. 상승궁이 cusp 근처에 있으면 불확실성 증가.
+
+### 15.6 Dignity (행성 품위)
+
+| 상태 | 설명 |
+|------|------|
+| **Exalted** | 최고 강도 (예: Sun in Aries) |
+| **Own Sign** | 자기 별자리 (예: Sun in Leo) |
+| **Friendly** | 우호적 별자리 |
+| **Neutral** | 중립 |
+| **Enemy** | 적대적 별자리 |
+| **Debilitated** | 최저 강도 (예: Sun in Libra) |
+
+---
+
+## 16. Phase 로드맵
+
+### Phase 1 (현재)
+
+**목표**: MVP 엔진 완성
+
+- [x] 2단계 표본 생성
+- [x] 적응형 질문
+- [x] Feature Mapping (Static)
+- [x] 스코어링 (ln 명시)
+- [x] 사건 검증 (Mahadasha)
+- [x] Circular Mean 도수 추정
+- [x] Cusp 감지 + Tiebreaker
+- [x] 신뢰도 등급
+- [x] GDPR UI
+- [x] 로깅 시스템
+- [x] Event Rules JSON
+
+### Phase 2
+
+**목표**: 정확도 향상
+
+- [ ] Antardasha 계산 (사건 검증 엄격화)
+- [ ] Context-Aware Mapping (행성 배치 기반)
+- [ ] Fallback 시스템 실전 검증
+- [ ] weight_range 세밀 조정
+- [ ] 벤치마크 비교 (vs Phase 1)
+- [ ] A/B 테스트 (페널티 가변화)
+
+**예상 기간**: 2-3개월
+
+### Phase 3
+
+**목표**: ML 전환
+
+- [ ] 가중치 학습 (ml_trainable 필드 기반)
+- [ ] 신경망 모델 도입
+- [ ] Fallback 로그 활용 (사건 타입별 오류 패턴)
+- [ ] 자동 질문 최적화 (IG 기반)
+- [ ] 대규모 데이터셋 구축 (10,000+ 세션)
+
+**예상 기간**: 6-12개월
+
+### Phase 2.5 (중간 개선)
+
+**우선순위**:
+
+1. 벤치마크 비교 스크립트 (즉시)
+2. weight_range 세밀 조정 (데이터 수집 후)
+3. Fallback 로그 분석 (질문 개선)
+4. Q13 기본 가중치 상향 검토 (데이터 검증 후)
+5. 페널티 가변화 A/B 테스트
+6. 엣지 케이스 테스트 확대
+
+---
+
+## 17. 성능 최적화
+
+### 17.1 표본 생성 최적화
+
+- **Coarse Scan 캐싱**: 동일 생년월일+시간범위 재사용
+- **Fine Scan 조건부**: cusp 탐지 시에만 실행
+- **병렬 계산**: ephemeris 계산 멀티스레딩
+
+### 17.2 스코어링 최적화
+
+- **벡터화**: NumPy/Pandas 사용
+- **점진적 갱신**: 질문 추가 시 전체 재계산 불필요
+- **캐싱**: 동일 응답 패턴 재사용
+
+### 17.3 다샤 계산 최적화
+
+- **Mahadasha 우선**: Antardasha는 Phase 2
+- **조기 종료**: 사건 미스매치 시 즉시 탈락
+- **사전 계산**: 출생 Nakshatra → Mahadasha 테이블 캐싱
+
+---
+
+## 18. Phase 3 준비사항
+
+### 18.1 ml_trainable 필드
+
+Event Rules JSON의 `ml_trainable: true` 필드는 **Phase 3에서 학습할 파라미터**를 표시한다.
+
+학습 대상:
+- `base_weight`: 사건 가중치
+- `feature_map` 점수: 질문 옵션별 상승궁 점수
+
+### 18.2 weight_range 설정
+
+현재 기본값:
+```json
+{
+  "weight_range": [0.5, 10.0]
+}
+```
+
+Phase 2.5에서 사건 타입별로 조정:
+
+| 사건 타입 | 권장 범위 | 이유 |
+|-----------|-----------|------|
+| Q13 (최근) | [2.5, 8.0] | 기억 정확도 높음 |
+| Q9 (초기) | [0.3, 5.0] | 기억 불확실성 큼 |
+| Q10-Q12 | [1.0, 6.0] | 중간 |
+
+### 18.3 데이터 수집 계획
+
+- 최소 목표: 1,000 세션
+- 이상적 목표: 10,000 세션
+- 포함 데이터: 질문 응답, 추정 생시, 피드백, Fallback 로그
+
+### 18.4 벤치마크 비교 스크립트
+
+```python
+# scripts/benchmark_comparison.py
+
+import json
+from engine import BirthTimeEngine
+
+def load_test_cases(filepath):
+    with open(filepath, 'r') as f:
+        return json.load(f)
+
+def run_benchmark(engine, test_cases):
+    results = []
+    
+    for case in test_cases:
+        result = engine.estimate(
+            birth_date=case['birth_date'],
+            birth_city=case['birth_city'],
+            time_range=case['time_range'],
+            questions=case['questions']
+        )
+        
+        results.append({
+            'case_id': case['case_id'],
+            'expected_asc': case['expected_asc'],
+            'predicted_asc': result['asc_sign'],
+            'confidence': result['confidence_grade'],
+            'fallback_used': result.get('fallback_level', 0) > 0,
+            'match': case['expected_asc'] == result['asc_sign']
+        })
+    
+    return results
+
+def calculate_metrics(results):
+    total = len(results)
+    correct = sum(1 for r in results if r['match'])
+    fallback_count = sum(1 for r in results if r['fallback_used'])
+    
+    avg_confidence = sum(
+        grade_to_score(r['confidence']) for r in results
+    ) / total
+    
+    return {
+        'accuracy': correct / total,
+        'fallback_rate': fallback_count / total,
+        'avg_confidence': avg_confidence
+    }
+
+if __name__ == '__main__':
+    test_cases = load_test_cases('data/test_cases.json')
+    
+    engine = BirthTimeEngine(version='current')
+    results = run_benchmark(engine, test_cases)
+    metrics = calculate_metrics(results)
+    
+    print(f"Accuracy: {metrics['accuracy']:.2%}")
+    print(f"Fallback Rate: {metrics['fallback_rate']:.2%}")
+    print(f"Avg Confidence: {metrics['avg_confidence']:.1f}")
+```
+
+### 18.5 Fallback 로그 활용
+
+로그에서 `fallback_used` 필드 추출:
+
+```python
+# scripts/analyze_fallback.py
+
+import json
+
+def analyze_fallback_logs(log_dir):
+    fallback_stats = {}
+    
+    for log_file in os.listdir(log_dir):
+        with open(os.path.join(log_dir, log_file), 'r') as f:
+            session = json.load(f)
+        
+        for event in session.get('fallback_events', []):
+            qid = event['question_id']
+            level = event['fallback_level']
+            
+            if qid not in fallback_stats:
+                fallback_stats[qid] = {1: 0, 2: 0, 3: 0}
+            
+            fallback_stats[qid][level] += 1
+    
+    return fallback_stats
+
+# 분석 결과 예시:
+# {
+#   "Q10": {1: 42, 2: 15, 3: 3},  # Q10에서 Level 1 Fallback 42회 발생
+#   "Q11": {1: 8, 2: 2, 3: 0}
+# }
+```
+
+이를 통해:
+- Q10에서 Fallback 빈번 → 질문 텍스트 개선 필요
+- "취업 시기가 불확실하면 전후 1년 범위로 기억해주세요" 힌트 추가
+
+---
+
+## 19. Breaking Changes 및 마이그레이션
+
+### 19.1 Breaking Changes 목록
+
+| 변경 사항 | 영향 | 필수 조치 |
+|-----------|------|-----------|
+| **Event Rules JSON화** | 코드 → 데이터 분리 | FactoryData 마이그레이션 |
+| **로그 함수 명시** | `log()` → `ln()` | 코드 검토 |
+| **Fallback 시스템** | 신규 로직 추가 | YAML 설정 추가 |
+| **GDPR 강화** | 금지 필드 확대 | 자동 검증 스크립트 |
+
+### 19.2 마이그레이션 가이드
+
+#### Step 1: FactoryData 백업
+
+```bash
+cp FactoryData.json FactoryData.backup.json
+```
+
+#### Step 2: 마이그레이션 스크립트 실행
+
+```bash
+python scripts/migrate_factory_data.py --add-event-rules
+```
+
+스크립트 내용:
+
+```python
+# scripts/migrate_factory_data.py
+
+import json
+
+def migrate_to_current_version(data):
+    # event_rules 섹션 추가
+    if 'event_rules' not in data:
+        data['event_rules'] = generate_default_event_rules()
+    
+    # ml_trainable 필드 추가
+    for rule_id, rule in data['event_rules'].items():
+        if 'ml_trainable' not in rule:
+            rule['ml_trainable'] = True
+        if 'weight_range' not in rule:
+            rule['weight_range'] = [0.5, 10.0]
+    
+    # 버전 업데이트
+    data['version'] = '2.0'
+    
+    return data
+
+def generate_default_event_rules():
+    return {
+        "Q9_A": {
+            "question_id": "Q9",
+            "option_id": "A",
+            "event_type": "education",
+            "houses": [1, 2, 4, 9],
+            "planets": ["Mercury", "Jupiter"],
+            "base_weight": 1.3,
+            "weight_range": [0.5, 10.0],
+            "ml_trainable": True
+        },
+        # ... 나머지 규칙
+    }
+
+if __name__ == '__main__':
+    with open('FactoryData.json', 'r') as f:
+        data = json.load(f)
+    
+    migrated = migrate_to_current_version(data)
+    
+    with open('FactoryData.json', 'w') as f:
+        json.dump(migrated, f, indent=2)
+    
+    print("Migration completed successfully.")
+```
+
+#### Step 3: 검증
+
+```bash
+python scripts/validate_factory_data.py
+```
+
+검증 스크립트:
+
+```python
+# scripts/validate_factory_data.py
+
+import json
+
+def validate_factory_data(filepath):
+    with open(filepath, 'r') as f:
+        data = json.load(f)
+    
+    errors = []
+    
+    # 필수 섹션 확인
+    required_sections = ['feature_map', 'event_rules', 'nakshatra_mappings']
+    for section in required_sections:
+        if section not in data:
+            errors.append(f"Missing section: {section}")
+    
+    # event_rules 검증
+    if 'event_rules' in data:
+        for rule_id, rule in data['event_rules'].items():
+            if 'ml_trainable' not in rule:
+                errors.append(f"{rule_id}: missing ml_trainable")
+            if 'weight_range' not in rule:
+                errors.append(f"{rule_id}: missing weight_range")
+    
+    if errors:
+        print("Validation FAILED:")
+        for error in errors:
+            print(f"  - {error}")
+        return False
+    else:
+        print("Validation PASSED.")
+        return True
+
+if __name__ == '__main__':
+    validate_factory_data('FactoryData.json')
+```
+
+### 19.3 에러 메시지 예시
+
+#### event_rules 없음
+
+```
+RuntimeError: FactoryData migration incomplete
+Missing required section: 'event_rules'
+
+This is a breaking change. To fix:
+1. Backup: cp FactoryData.json FactoryData.backup.json
+2. Run: python scripts/migrate_factory_data.py --add-event-rules
+3. Verify: python scripts/validate_factory_data.py
+
+For more details, see Section 19 in documentation.
+Engine startup aborted.
+```
+
+#### 코드 구현
+
+```python
+# engine/__init__.py
+
+class BirthTimeEngine:
+    def __init__(self, factory_data_path='FactoryData.json'):
+        with open(factory_data_path, 'r') as f:
+            self.factory_data = json.load(f)
+        
+        # Breaking Change 검증
+        if 'event_rules' not in self.factory_data:
+            raise RuntimeError(
+                "FactoryData migration incomplete\n"
+                "Missing required section: 'event_rules'\n\n"
+                "This is a breaking change. To fix:\n"
+                "1. Backup: cp FactoryData.json FactoryData.backup.json\n"
+                "2. Run: python scripts/migrate_factory_data.py --add-event-rules\n"
+                "3. Verify: python scripts/validate_factory_data.py\n\n"
+                "For more details, see Section 19 in documentation.\n"
+                "Engine startup aborted."
+            )
+```
+
+---
+
+## 20. 개발팀 전달사항
+
+### 20.1 핵심 메시지
+
+1. **로그 함수는 항상 자연로그(ln)**
+   - `math.log(x)` 사용 (base e)
+   - `math.log10(x)` 사용 금지
+
+2. **Event Rules는 FactoryData.json에서 관리**
+   - 코드에 하드코딩 금지
+   - 마이그레이션 스크립트 필수 실행
+
+3. **Fallback 시스템은 점진적 완화**
+   - Level 0 → 1 → 2 → 3 → 4 순서 엄수
+   - Confidence Penalty 필수 적용
+
+4. **개인정보 보호 최우선**
+   - IP 주소 수집 금지
+   - `birth_place_coords` 금지
+   - 자동 검증 스크립트 활성화
+
+5. **Breaking Changes 대응**
+   - 엔진 시작 시 FactoryData 검증
+   - 에러 메시지에 해결 방법 포함
+
+### 20.2 구현 우선순위
+
+**High Priority (즉시)**:
+1. FactoryData 마이그레이션
+2. 로그 함수 코드 검토 (log → ln)
+3. GDPR UI 구현 (JavaScript 검증 포함)
+4. Breaking Changes 에러 메시지 추가
+
+**Medium Priority (Phase 2)**:
+1. Antardasha 계산
+2. Context-Aware Mapping
+3. weight_range 세밀 조정
+4. 벤치마크 스크립트
+
+**Low Priority (Phase 2.5 이후)**:
+1. Q13 가중치 상향 검토
+2. 페널티 가변화 A/B 테스트
+3. CI/CD 자동화
+
+### 20.3 코드 리뷰 체크리스트
+
+- [ ] `math.log()` 사용 (log10 아님)
+- [ ] Event Rules JSON에서 읽기 (하드코딩 없음)
+- [ ] Fallback 레벨 순서 준수
+- [ ] `birth_place_coords` 접근 없음
+- [ ] IP 주소 로깅 없음
+- [ ] GDPR 동의 검증
+- [ ] 에러 메시지에 해결 방법 포함
+
+---
+
+## 21. 구현 체크리스트
+
+### 21.1 Phase 1 체크리스트
+
+**표본 생성**:
+- [ ] Coarse Scan (5분 간격)
+- [ ] Cusp 감지
+- [ ] Fine Scan (1분 간격)
+- [ ] 표본 캐싱
+
+**질문 시스템**:
+- [ ] 적응형 질문 분기 (IG 기반)
+- [ ] Q1-Q8 성향 질문
+- [ ] Q9-Q13 사건 질문
+- [ ] Q14-Q15 Tiebreaker
+
+**스코어링**:
+- [ ] Feature Mapping (Static)
+- [ ] ln 함수 사용
+- [ ] 체감효용 함수
+- [ ] 스코어 정규화
+
+**사건 검증**:
+- [ ] Event Rules JSON 로드
+- [ ] Mahadasha 계산
+- [ ] Fallback 시스템 (4단계)
+- [ ] 로그합 집계
+
+**도수 추정**:
+- [ ] Circular Mean
+- [ ] Cusp 감지 + Tiebreaker
+
+**신뢰도**:
+- [ ] 등급 판정 (A+~C-)
+- [ ] Fallback Penalty 적용
+
+**UX**:
+- [ ] GDPR 동의 화면
+- [ ] 질문 UI
+- [ ] 결과 화면
+- [ ] 피드백 수집
+
+**로깅**:
+- [ ] 세션 로그 JSON
+- [ ] 개인정보 자동 제거
+- [ ] 24시간 보관 정책
+
+**데이터**:
+- [ ] FactoryData 마이그레이션
+- [ ] Event Rules JSON
+- [ ] 검증 스크립트
+
+### 21.2 Phase 2 체크리스트
+
+- [ ] Antardasha 계산
+- [ ] Context-Aware Mapping
+- [ ] weight_range 조정
+- [ ] 벤치마크 비교
+
+### 21.3 Phase 3 체크리스트
+
+- [ ] ML 모델 구축
+- [ ] 가중치 학습
+- [ ] 대규모 데이터셋
+- [ ] A/B 테스트
+
+---
+
+## 22. 테스트 전략
+
+### 22.1 단위 테스트
+
+```python
+# tests/test_scoring.py
+
+import pytest
+from engine.scoring import calculate_score, ln
+
+def test_ln_function():
+    assert ln(1) == 0
+    assert ln(2.718281828) ≈ 1.0
+    
+def test_scoring():
+    features = {"Q1_A": 8, "Q2_B": 5}
+    score = calculate_score(features)
+    assert score > 0
+```
+
+### 22.2 통합 테스트
+
+```python
+# tests/test_pipeline.py
+
+def test_full_pipeline():
+    engine = BirthTimeEngine()
+    result = engine.estimate(
+        birth_date="1994-12-18",
+        birth_city="Seoul",
+        time_range=("13:00", "16:00"),
+        questions={"Q1": "A", "Q9": {"option": "A", "year": 2014}}
+    )
+    
+    assert result['asc_sign'] in ZODIAC_SIGNS
+    assert result['confidence_grade'] in ['A+', 'A', 'B', 'C']
+```
+
+### 22.3 테스트 케이스 확장 (test_cases.json)
+
+```json
+{
+  "test_cases": [
+    {
+      "case_id": "TC001",
+      "description": "정상 케이스: Antardasha 정확 매칭",
+      "birth_date": "1994-12-18",
+      "birth_city": "Seoul",
+      "time_range": "13:00-16:00",
+      "questions": {
+        "Q1": "A",
+        "Q2": "B",
+        "Q3": "A",
+        "Q9": {"option": "A", "year": 2014},
+        "Q10": {"option": "A", "year": 2016},
+        "Q11": {"option": "A", "year": 2018},
+        "Q12": {"option": "B", "year": 2019},
+        "Q13": {"option": "A", "year": 2023, "month": 6}
+      },
+      "expected_asc": "Virgo",
+      "expected_confidence": "A-",
+      "expected_fallback": null
+    },
+    {
+      "case_id": "TC002",
+      "description": "Fallback 케이스: Buffer 확장 필요",
+      "birth_date": "1990-03-15",
+      "birth_city": "Busan",
+      "time_range": "09:00-12:00",
+      "questions": {
+        "Q1": "C",
+        "Q2": "D",
+        "Q3": "D",
+        "Q9": {"option": "B", "year": 2010},
+        "Q10": {"option": "B", "year": 2012},
+        "Q11": {"option": "D", "year": 2015},
+        "Q12": {"option": "D", "year": 2018},
+        "Q13": {"option": "B", "year": 2022}
+      },
+      "expected_asc": "Cancer",
+      "expected_confidence": "B",
+      "expected_fallback": "buffer_extended",
+      "notes": "Q10 연도가 Antardasha와 7개월 차이 → Level 1 Fallback 트리거 예상"
+    },
+    {
+      "case_id": "TC003",
+      "description": "Cusp 케이스: Tiebreaker 필요",
+      "birth_date": "1988-07-22",
+      "birth_city": "Incheon",
+      "time_range": "17:30-20:30",
+      "questions": {
+        "Q1": "A",
+        "Q2": "A",
+        "Q3": "A",
+        "Q9": {"option": "A", "year": 2008},
+        "Q10": {"option": "A", "year": 2010},
+        "Q11": {"option": "A", "year": 2015},
+        "Q12": {"option": "A", "year": 2018},
+        "Q13": {"option": "A", "year": 2023}
+      },
+      "expected_asc": "Sagittarius",
+      "expected_confidence": "B+",
+      "expected_tiebreaker": true,
+      "notes": "Leo/Virgo 경계 → Q14-Q15 Tiebreaker 출제 예상"
+    }
+  ]
+}
+```
+
+### 22.4 성능 테스트
+
+```python
+# tests/test_performance.py
+
+import time
+
+def test_pipeline_performance():
+    engine = BirthTimeEngine()
+    
+    start = time.time()
+    result = engine.estimate(...)
+    end = time.time()
+    
+    assert (end - start) < 6.0  # 6초 이내
+```
+
+---
+
+## 23. 보안 및 개인정보 보호
+
+### 23.1 GDPR 준수
+
+- 명시적 동의 수집
+- 데이터 최소 수집
+- 24시간 후 자동 삭제
+- 사용자 데이터 접근 권한
+- 데이터 삭제 요청 처리
+
+### 23.2 금지 필드 목록
+
+절대 수집/저장하지 않는 정보:
+
+```python
+FORBIDDEN_FIELDS = [
+    'ip_address',              # IP 주소
+    'birth_place_coords',      # 위도/경도
+    'device_id',               # 기기 식별자
+    'mac_address',             # MAC 주소
+    'email',                   # 이메일 (익명화 필수)
+    'phone_number',            # 전화번호
+    'precise_location'         # 정밀 위치
+]
+```
+
+### 23.3 자동 검증 스크립트
+
+```python
+# utils/privacy.py
+
+def validate_no_forbidden_fields(data, forbidden_fields):
+    for field in forbidden_fields:
+        if field in data:
+            raise ValueError(
+                f"Forbidden field detected: {field}\n"
+                f"This violates GDPR/privacy policy.\n"
+                f"Remove this field before proceeding."
+            )
+
+# 로깅 시 자동 호출
+def log_session(session_data):
+    validate_no_forbidden_fields(session_data, FORBIDDEN_FIELDS)
+    # ... 로깅 진행
+```
+
+### 23.4 birth_place_coords 금지 이유
+
+**위치 추적 리스크**:
+- 출생 국가("KR")는 개인 특정 불가
+- 위도/경도는 출생 병원/집 주소 역추적 가능
+- 작은 도시에서는 좌표만으로 거의 특정됨
+
+**법적 근거**:
+- GDPR: "개인 식별 정보" 정의에 해당
+- 한국 개인정보 보호법: "위치정보"는 민감정보
+
+**대안**:
+- 도시명("Seoul") → 국가 코드("KR")로만 변환
+- ephemeris 계산용 좌표는 임시 메모리에만 보관
+- 로그에 절대 기록하지 않음
+
+### 23.5 보안 체크리스트
+
+- [ ] GDPR 동의 화면 구현
+- [ ] 금지 필드 자동 검증
+- [ ] IP 주소 수집 금지
+- [ ] birth_place_coords 접근 금지
+- [ ] 로그 24시간 보관 정책
+- [ ] CSRF 토큰 검증
+- [ ] HTTPS 통신 필수
+
+---
+
+## 24. 부록
+
+### 24.1 수학 및 통계
+
+- [Natural Logarithm (Wikipedia)](https://en.wikipedia.org/wiki/Natural_logarithm)
+- [Softmax Function (DeepAI)](https://deepai.org/machine-learning-glossary-and-terms/softmax-layer)
+- [Gradient Descent Optimization](https://arxiv.org/abs/1609.04747)
+- [Circular Mean (Wikipedia)](https://en.wikipedia.org/wiki/Circular_mean)
+
+### 24.2 GDPR 및 개인정보 보호
+
+- [GDPR 공식 문서](https://gdpr.eu)
+- [개인정보 보호법 (한국)](https://www.privacy.go.kr)
+- [GDPR Consent UI Examples](https://gdpr.eu/consent-examples/)
+- [위치정보의 보호 및 이용 등에 관한 법률](https://www.law.go.kr)
+
+### 24.3 베딕 점성학
+
+- [Vimshottari Dasha Calculator](https://www.astrosage.com/dasha/)
+- [Nakshatra Guide](https://www.vedicastrology.us.com/nakshatras.html)
+- [Karaka Planet Significations](https://www.astro.com/astrology/in_karaka_e.htm)
+- [Vedic Astrology Basics](https://www.vedicastrologybasics.com)
+
+### 24.4 소프트웨어 엔지니어링
+
+- [Semantic Versioning](https://semver.org/)
+- [Migration Best Practices](https://docs.microsoft.com/en-us/ef/core/managing-schemas/migrations/)
+- [API Backward Compatibility](https://swagger.io/docs/specification/versioning/)
+- [Python Logging Best Practices](https://docs.python.org/3/howto/logging.html)
+
+### 24.5 추가 참고 자료
+
+- [LogSumExp Trick](https://en.wikipedia.org/wiki/LogSumExp)
+- [Information Gain (Entropy)](https://en.wikipedia.org/wiki/Information_gain_in_decision_trees)
+- [A/B Testing Guide](https://www.optimizely.com/optimization-glossary/ab-testing/)
+
+---
+
+## 문서 종료
+
+**최종 작성일**: 2026-02-09  
+**승인자**: [개발 총책임자]  
+**다음 업데이트**: Phase 2 완료 후 안정화 및 버그 픽스
+
+---
+
+**Key Takeaways**:
+
+1. **로그 함수는 항상 자연로그(ln)** - ML 표준, Gradient 안정성
+2. **Event Rules는 JSON 데이터** - 유연성, ML 준비
+3. **Fallback은 4단계 적응형** - 점진적 완화, Confidence Penalty
+4. **개인정보 보호 최우선** - IP 금지, birth_place_coords 금지
+5. **Breaking Changes 대응 필수** - 마이그레이션 + 검증 + 에러 메시지
+
+---
+
+**문서 끝**
