@@ -15,6 +15,7 @@ from typing import Optional
 
 import swisseph as swe
 import pytz
+from timezonefinder import TimezoneFinder
 from openai import OpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
@@ -227,7 +228,13 @@ def is_combust(planet_name: str, planet_lon: float, sun_lon: float) -> bool:
 
 def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: float, lon: float) -> float:
     """율리우스일 계산 (UTC 변환)"""
-    tz = pytz.timezone('Asia/Seoul')  # 예시
+    # 위도/경도로 타임존 자동 결정
+    tf = TimezoneFinder()
+    tz_name = tf.timezone_at(lat=lat, lng=lon)
+    if not tz_name:
+        tz_name = 'UTC'  # 타임존을 찾을 수 없으면 UTC 사용
+    tz = pytz.timezone(tz_name)
+
     local_dt = datetime(year, month, day, int(hour_frac), int((hour_frac % 1) * 60))
     local_dt = tz.localize(local_dt)
     utc_dt = local_dt.astimezone(pytz.utc)
