@@ -365,6 +365,7 @@ def get_chart(
         houses = {}
         if house_system == "P":
             cusps, ascmc = swe.houses(jd, lat, lon, b'P')
+            asc_tropical = ascmc[0]  # 디버그용
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
             for i in range(12):
@@ -377,6 +378,7 @@ def get_chart(
                 }
         else:  # Whole Sign
             cusps, ascmc = swe.houses(jd, lat, lon, b'W')
+            asc_tropical = ascmc[0]  # 디버그용
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
             asc_rasi = get_rasi_index(asc_lon)
@@ -458,6 +460,11 @@ def get_chart(
             "houses": houses,
             "features": {
                 "yogas": yogas
+            },
+            "debug": {
+                "ayanamsa": round(ayanamsa, 4),
+                "asc_tropical": round(asc_tropical, 4),
+                "asc_sidereal": round(asc_lon, 4)
             }
         }
         
