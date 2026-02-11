@@ -17,8 +17,9 @@ import swisseph as swe
 import pytz
 from openai import OpenAI
 
-from fastapi import FastAPI, Query, Response, HTTPException
+from fastapi import FastAPI, Query, Response, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel, Field
 
 # ReportLab PDF 생성
 from reportlab.lib import colors
@@ -137,6 +138,35 @@ HOUSE_SYSTEMS = {
     "P": "Placidus",
     "W": "Whole Sign",
 }
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Pydantic 모델
+# ─────────────────────────────────────────────────────────────────────────────
+class BTREvent(BaseModel):
+    type: str = Field(..., description="이벤트 타입 (예: marriage, career, education)")
+    year: int = Field(..., description="이벤트 발생 년도")
+    month: Optional[int] = Field(None, description="이벤트 발생 월 (선택)")
+    weight: Optional[float] = Field(1.0, description="이벤트 가중치")
+    dasha_lords: Optional[list[str]] = Field(default_factory=list, description="다샤 로드")
+    house_triggers: Optional[list[int]] = Field(default_factory=list, description="하우스 트리거")
+
+class BTRAnalyzeRequest(BaseModel):
+    year: int = Field(..., description="출생 년도")
+    month: int = Field(..., ge=1, le=12, description="출생 월")
+    day: int = Field(..., ge=1, le=31, description="출생 일")
+    lat: float = Field(..., description="위도")
+    lon: float = Field(..., description="경도")
+    events: list[BTREvent] = Field(..., description="이벤트 리스트")
+
+class BTRRefineRequest(BaseModel):
+    year: int = Field(..., description="출생 년도")
+    month: int = Field(..., ge=1, le=12, description="출생 월")
+    day: int = Field(..., ge=1, le=31, description="출생 일")
+    lat: float = Field(..., description="위도")
+    lon: float = Field(..., description="경도")
+    bracket_start: float = Field(..., description="브래킷 시작 시간")
+    bracket_end: float = Field(..., description="브래킷 종료 시간")
+    events: list[BTREvent] = Field(..., description="이벤트 리스트")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 헬퍼 함수
@@ -967,28 +997,28 @@ def get_btr_questions(
 
 
 @app.post("/btr/analyze")
-def analyze_btr(
-    year: int = Query(..., description="출생 년도"),
-    month: int = Query(..., ge=1, le=12, description="출생 월"),
-    day: int = Query(..., ge=1, le=31, description="출생 일"),
-    lat: float = Query(..., description="위도"),
-    lon: float = Query(..., description="경도"),
-    events: list = Body(..., description="이벤트 리스트"),
-):
+def analyze_btr(request: BTRAnalyzeRequest):
     """
     BTR 분석 실행
 
-    events 예시:
-    [
-        {
-            "type": "marriage",
-            "year": 2015,
-            "month": 6,
-            "weight": 0.8,
-            "dasha_lords": ["Venus", "Jupiter"],
-            "house_triggers": [7]
-        }
-    ]
+    Request Body:
+    {
+        "year": 1994,
+        "month": 12,
+        "day": 18,
+        "lat": 37.5665,
+        "lon": 126.978,
+        "events": [
+            {
+                "type": "marriage",
+                "year": 2015,
+                "month": 6,
+                "weight": 0.8,
+                "dasha_lords": ["Venus", "Jupiter"],
+                "house_triggers": [7]
+            }
+        ]
+    }
 
     Returns:
         Top 3 후보 시간대 + 신뢰도
@@ -996,26 +1026,29 @@ def analyze_btr(
     if not BTR_ENGINE_AVAILABLE:
         raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
 
-    if not events:
+    if not request.events:
         raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
 
     # 미래 이벤트 검증
     current_year = datetime.now().year
-    for ev in events:
-        if ev.get("year") and ev["year"] > current_year:
+    for ev in request.events:
+        if ev.year > current_year:
             raise HTTPException(
                 status_code=400,
-                detail=f"미래 이벤트는 사용할 수 없습니다: {ev['year']}"
+                detail=f"미래 이벤트는 사용할 수 없습니다: {ev.year}"
             )
 
     try:
-        birth_date = {"year": year, "month": month, "day": day}
+        birth_date = {"year": request.year, "month": request.month, "day": request.day}
+
+        # Pydantic 모델을 dict로 변환
+        events_dict = [ev.model_dump() for ev in request.events]
 
         candidates = analyze_birth_time(
             birth_date=birth_date,
-            events=events,
-            lat=lat,
-            lon=lon,
+            events=events_dict,
+            lat=request.lat,
+            lon=request.lon,
             num_brackets=8,
             top_n=3,
         )
@@ -1023,9 +1056,9 @@ def analyze_btr(
         return {
             "status": "ok",
             "birth_date": birth_date,
-            "lat": lat,
-            "lon": lon,
-            "num_events": len(events),
+            "lat": request.lat,
+            "lon": request.lon,
+            "total_events": len(request.events),
             "candidates": candidates,
         }
 
@@ -1036,16 +1069,7 @@ def analyze_btr(
 
 
 @app.post("/btr/refine")
-def refine_btr(
-    year: int = Query(..., description="출생 년도"),
-    month: int = Query(..., ge=1, le=12, description="출생 월"),
-    day: int = Query(..., ge=1, le=31, description="출생 일"),
-    lat: float = Query(..., description="위도"),
-    lon: float = Query(..., description="경도"),
-    bracket_start: float = Query(..., description="브래킷 시작 시간"),
-    bracket_end: float = Query(..., description="브래킷 종료 시간"),
-    events: list = Body(..., description="이벤트 리스트"),
-):
+def refine_btr(request: BTRRefineRequest):
     """
     선택된 브래킷 2차 정밀화 (30분 단위)
 
@@ -1055,19 +1079,22 @@ def refine_btr(
     if not BTR_ENGINE_AVAILABLE:
         raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
 
-    if not events:
+    if not request.events:
         raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
 
     try:
-        birth_date = {"year": year, "month": month, "day": day}
-        bracket = {"start": bracket_start, "end": bracket_end}
+        birth_date = {"year": request.year, "month": request.month, "day": request.day}
+        bracket = {"start": request.bracket_start, "end": request.bracket_end}
+
+        # Pydantic 모델을 dict로 변환
+        events_dict = [ev.model_dump() for ev in request.events]
 
         refined = refine_time_bracket(
             date=birth_date,
             bracket=bracket,
-            events=events,
-            lat=lat,
-            lon=lon,
+            events=events_dict,
+            lat=request.lat,
+            lon=request.lon,
             sub_intervals=6,
         )
 
