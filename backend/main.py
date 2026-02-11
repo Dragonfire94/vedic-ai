@@ -238,8 +238,15 @@ def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: f
     local_dt = datetime(year, month, day, int(hour_frac), int((hour_frac % 1) * 60))
     local_dt = tz.localize(local_dt)
     utc_dt = local_dt.astimezone(pytz.utc)
+
+    # 🔍 디버그: 시간 변환 확인
+    print(f"🔍 Timezone: {tz_name}")
+    print(f"🔍 Local time: {local_dt}")
+    print(f"🔍 UTC time: {utc_dt}")
+
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day,
                     utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0)
+    print(f"🔍 Julian day: {jd}")
     return jd
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -379,6 +386,12 @@ def get_chart(
         if house_system == "P":
             cusps, ascmc = swe.houses(jd, lat, lon, b'P')
             asc_tropical = ascmc[0]  # 디버그용
+
+            # 🔍 디버그: Houses 계산 확인
+            print(f"🔍 Ayanamsa: {ayanamsa}")
+            print(f"🔍 Tropical Ascendant: {asc_tropical}")
+            print(f"🔍 Sidereal Ascendant: {normalize_360(asc_tropical - ayanamsa)}")
+
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
             for i in range(12):
