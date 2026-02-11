@@ -528,7 +528,14 @@ def get_ai_reading(
             "model": OPENAI_MODEL,
             "summary": summary,
             "reading": reading_text,
-            "ai_cache_key": cache_key
+            "ai_cache_key": cache_key,
+            "debug_info": {
+                "api_key_configured": bool(OPENAI_API_KEY),
+                "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+                "model_used": OPENAI_MODEL,
+                "client_initialized": False,
+                "reason": "OpenAI client not initialized"
+            }
         }
         if use_cache:
             AI_CACHE[cache_key] = result
@@ -568,14 +575,22 @@ def get_ai_reading(
         )
         
         reading_text = response.choices[0].message.content
-        
+
         result = {
             "cached": False,
             "fallback": False,
             "model": OPENAI_MODEL,
             "summary": summary,
             "reading": reading_text,
-            "ai_cache_key": cache_key
+            "ai_cache_key": cache_key,
+            "debug_info": {
+                "api_key_configured": bool(OPENAI_API_KEY),
+                "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+                "model_used": OPENAI_MODEL,
+                "prompt_length": len(prompt),
+                "response_tokens": response.usage.total_tokens if hasattr(response, 'usage') else 0,
+                "client_initialized": client is not None
+            }
         }
         
         if use_cache:
@@ -592,7 +607,15 @@ def get_ai_reading(
             "model": OPENAI_MODEL,
             "summary": summary,
             "reading": reading_text,
-            "ai_cache_key": cache_key
+            "ai_cache_key": cache_key,
+            "debug_info": {
+                "api_key_configured": bool(OPENAI_API_KEY),
+                "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+                "model_used": OPENAI_MODEL,
+                "client_initialized": client is not None,
+                "error_type": type(e).__name__,
+                "error_message": str(e)
+            }
         }
         return result
 
