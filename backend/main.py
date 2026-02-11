@@ -297,6 +297,12 @@ def get_chart(
     gender: str = Query("male")
 ):
     """베딕 차트 계산"""
+    # 🔍 디버그: 실제로 받은 파라미터 출력
+    print(f"🔍 DEBUG - Received parameters:")
+    print(f"   year={year}, month={month}, day={day}, hour={hour}")
+    print(f"   lat={lat}, lon={lon}")
+    print(f"   house_system={house_system}, gender={gender}")
+
     try:
         jd = compute_julian_day(year, month, day, hour, lat, lon)
         
