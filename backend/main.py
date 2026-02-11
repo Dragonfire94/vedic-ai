@@ -359,12 +359,17 @@ def get_chart(
                 }
         
         # 하우스 계산 (Placidus/Whole Sign)
+        # Swiss Ephemeris houses()는 Tropical 좌표를 반환하므로 Ayanamsa를 빼서 Sidereal로 변환
+        ayanamsa = swe.get_ayanamsa_ut(jd)
+
         houses = {}
         if house_system == "P":
             cusps, ascmc = swe.houses(jd, lat, lon, b'P')
-            asc_lon = normalize_360(ascmc[0])
+            # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
+            asc_lon = normalize_360(ascmc[0] - ayanamsa)
             for i in range(12):
-                cusp_lon = normalize_360(cusps[i])
+                # 각 하우스 커스프도 Sidereal로 변환
+                cusp_lon = normalize_360(cusps[i] - ayanamsa)
                 rasi_idx = get_rasi_index(cusp_lon)
                 houses[f"house_{i+1}"] = {
                     "cusp_longitude": round(cusp_lon, 6),
@@ -372,7 +377,8 @@ def get_chart(
                 }
         else:  # Whole Sign
             cusps, ascmc = swe.houses(jd, lat, lon, b'W')
-            asc_lon = normalize_360(ascmc[0])
+            # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
+            asc_lon = normalize_360(ascmc[0] - ayanamsa)
             asc_rasi = get_rasi_index(asc_lon)
             for i in range(12):
                 rasi_idx = (asc_rasi + i) % 12
