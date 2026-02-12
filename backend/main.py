@@ -297,7 +297,7 @@ def get_chart(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(0),
     include_interpretation: int = Query(0),
@@ -516,7 +516,7 @@ def get_ai_reading(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
     language: str = Query("ko"),
@@ -843,7 +843,7 @@ def generate_pdf(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
     include_ai: int = Query(1),

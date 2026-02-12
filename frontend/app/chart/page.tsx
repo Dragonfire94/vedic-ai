@@ -42,7 +42,7 @@ export default function ChartPage() {
     lat: parseFloat(searchParams.get('lat') || '37.5665'),
     lon: parseFloat(searchParams.get('lon') || '126.978'),
     gender: searchParams.get('gender') || 'male',
-    house_system: searchParams.get('house_system') || 'P',
+    house_system: searchParams.get('house_system') || 'W',  // Vedic uses Whole Sign
   }
 
   // Load chart data
