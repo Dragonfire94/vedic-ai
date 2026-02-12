@@ -316,19 +316,19 @@ def get_chart(
         # 행성 계산
         planets = {}
         sun_lon = None
-        
+
         for name, pid in PLANET_IDS.items():
             res, _ = swe.calc_ut(jd, pid, swe.FLG_SIDEREAL)
-            lon = normalize_360(res[0])
+            p_lon = normalize_360(res[0])
             if name == "Sun":
-                sun_lon = lon
-            
-            rasi_idx = get_rasi_index(lon)
-            nak = get_nakshatra_info(lon)
-            deg_in_sign = lon - (rasi_idx * 30)
-            
+                sun_lon = p_lon
+
+            rasi_idx = get_rasi_index(p_lon)
+            nak = get_nakshatra_info(p_lon)
+            deg_in_sign = p_lon - (rasi_idx * 30)
+
             planets[name] = {
-                "longitude": round(lon, 6),
+                "longitude": round(p_lon, 6),
                 "rasi": {
                     "index": rasi_idx,
                     "name": RASI_NAMES[rasi_idx],
@@ -337,7 +337,7 @@ def get_chart(
                 },
                 "nakshatra": nak,
                 "features": {
-                    "dignity": get_dignity(name, rasi_idx, lon),
+                    "dignity": get_dignity(name, rasi_idx, p_lon),
                     "retrograde": res[3] < 0,
                     "combust": False  # 나중에 계산
                 }
@@ -460,8 +460,8 @@ def get_chart(
         if include_d9:
             d9_planets = {}
             for name, data in planets.items():
-                lon = data["longitude"]
-                d9_lon = (lon * 9) % 360
+                p_lon = data["longitude"]
+                d9_lon = (p_lon * 9) % 360
                 d9_rasi_idx = get_rasi_index(d9_lon)
                 d9_planets[name] = {
                     "rasi": RASI_NAMES[d9_rasi_idx],
