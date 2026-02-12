@@ -384,12 +384,15 @@ def get_chart(
 
         houses = {}
         if house_system == "P":
-            # 🔧 FIX: Swiss Ephemeris uses WEST longitude as positive
-            # East longitude (like Seoul 126.977°E) should be NEGATIVE
-            cusps, ascmc = swe.houses(jd, lat, -lon, b'P')
-            asc_tropical = ascmc[0]  # 디버그용
+            # 🔧 FIX: pyswisseph requires RADIANS, not degrees!
+            import math
+            lat_rad = math.radians(lat)
+            lon_rad = math.radians(lon)
+            cusps, ascmc = swe.houses(jd, lat_rad, lon_rad, b'P')
+            asc_tropical = ascmc[0]
 
             # 🔍 디버그: Houses 계산 확인
+            print(f"🔍 Lat/Lon (radians): {lat_rad}, {lon_rad}")
             print(f"🔍 Ayanamsa: {ayanamsa}")
             print(f"🔍 Tropical Ascendant: {asc_tropical}")
             print(f"🔍 Sidereal Ascendant: {normalize_360(asc_tropical - ayanamsa)}")
@@ -405,9 +408,12 @@ def get_chart(
                     "rasi": RASI_NAMES[rasi_idx]
                 }
         else:  # Whole Sign
-            # 🔧 FIX: Swiss Ephemeris uses WEST longitude as positive
-            cusps, ascmc = swe.houses(jd, lat, -lon, b'W')
-            asc_tropical = ascmc[0]  # 디버그용
+            # 🔧 FIX: pyswisseph requires RADIANS, not degrees!
+            import math
+            lat_rad = math.radians(lat)
+            lon_rad = math.radians(lon)
+            cusps, ascmc = swe.houses(jd, lat_rad, lon_rad, b'W')
+            asc_tropical = ascmc[0]
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
             asc_rasi = get_rasi_index(asc_lon)
