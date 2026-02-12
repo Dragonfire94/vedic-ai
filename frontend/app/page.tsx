@@ -52,6 +52,7 @@ export default function HomePage() {
       if (formData.timeKnown === 'exact') {
         // 정확한 시간 → 바로 차트
         params.append('hour', (formData.hour + formData.minute / 60).toString())
+        params.append('house_system', 'W')  // Vedic uses Whole Sign
         router.push(`/chart?${params}`)
       } else if (formData.timeKnown === 'approximate') {
         // 대략만 암 → 시간대 + BTR
