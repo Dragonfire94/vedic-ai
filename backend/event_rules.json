@@ -1,0 +1,37 @@
+{
+  "version": "1.0.0",
+  "event_rules": {
+    "generic": {
+      "dasha_lords": [],
+      "house_triggers": [],
+      "base_weight": 1.0,
+      "weight_range": [0.5, 10.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    },
+    "marriage": {
+      "dasha_lords": ["Venus", "Jupiter", "Moon"],
+      "house_triggers": [7, 2, 11],
+      "base_weight": 3.0,
+      "weight_range": [1.0, 8.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2]
+    },
+    "career": {
+      "dasha_lords": ["Sun", "Saturn", "Mercury", "Jupiter"],
+      "house_triggers": [10, 6, 2, 11],
+      "base_weight": 2.5,
+      "weight_range": [1.0, 8.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    },
+    "education": {
+      "dasha_lords": ["Mercury", "Jupiter", "Moon"],
+      "house_triggers": [4, 5, 9],
+      "base_weight": 2.0,
+      "weight_range": [0.5, 6.0],
+      "ml_trainable": true,
+      "fallback_levels": [1, 2, 3]
+    }
+  }
+}

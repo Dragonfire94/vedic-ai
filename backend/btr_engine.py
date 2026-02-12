@@ -7,6 +7,8 @@ BTR (Birth Time Rectification) 엔진
 
 import math
 import logging
+import json
+import os
 from typing import List, Dict, Optional, Tuple, Any
 from datetime import datetime
 
@@ -61,6 +63,42 @@ CONFIDENCE_GRADES = [
     (80, "B+"), (75, "B"), (70, "B-"),
     (65, "C+"), (60, "C"), (0, "C-"),
 ]
+
+# Event Rules (JSON 기반)
+_EVENT_RULES_PATH = os.path.join(os.path.dirname(__file__), "event_rules.json")
+_DEFAULT_EVENT_RULES = {
+    "version": "1.0.0",
+    "event_rules": {
+        "generic": {
+            "dasha_lords": [],
+            "house_triggers": [],
+            "base_weight": 1.0,
+            "weight_range": [0.5, 10.0],
+            "ml_trainable": True,
+            "fallback_levels": [1, 2, 3],
+        }
+    }
+}
+
+
+def _load_event_rules() -> Dict[str, Any]:
+    try:
+        with open(_EVENT_RULES_PATH, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if "event_rules" not in data or not isinstance(data["event_rules"], dict):
+            raise RuntimeError("Missing required section: 'event_rules'")
+        return data
+    except Exception as e:
+        logger.warning(f"event_rules.json load failed, fallback to defaults: {e}")
+        return _DEFAULT_EVENT_RULES
+
+
+EVENT_RULES = _load_event_rules()
+
+
+def get_event_rule(event_type: str) -> Dict[str, Any]:
+    rules = EVENT_RULES.get("event_rules", {})
+    return rules.get(event_type, rules.get("generic", _DEFAULT_EVENT_RULES["event_rules"]["generic"]))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -433,9 +471,16 @@ def match_event_to_chart(
     """
     event_year = event.get("year")
     event_month = event.get("month")
-    event_weight = event.get("weight", 1.0)
-    dasha_lords = event.get("dasha_lords", [])
-    house_triggers = event.get("house_triggers", [])
+
+    rule = get_event_rule(event.get("type", "generic"))
+    weight_range = rule.get("weight_range", [0.5, 10.0])
+    min_w, max_w = (weight_range + [0.5, 10.0])[:2]
+    event_weight = event.get("weight", rule.get("base_weight", 1.0))
+    event_weight = max(min_w, min(max_w, event_weight))
+
+    dasha_lords = event.get("dasha_lords") or rule.get("dasha_lords", [])
+    house_triggers = event.get("house_triggers") or rule.get("house_triggers", [])
+    allowed_fallback_levels = set(rule.get("fallback_levels", [1, 2, 3]))
 
     if not event_year:
         return 0.0, 4
@@ -450,6 +495,8 @@ def match_event_to_chart(
 
     # 4단계 Fallback 매칭
     for level in range(5):
+        if level > 0 and level not in allowed_fallback_levels and level != 4:
+            continue
         matched, score = _try_match_at_level(
             level, maha, antar, dasha_lords, house_triggers,
             chart, event_weight, event_year, event_month,
@@ -652,34 +699,19 @@ def calculate_confidence(
     """
     Confidence score 계산 (0~100)
 
-    Parameters:
-        total_score: 총 획득 점수
-        max_possible_score: 최대 가능 점수
-        num_events: 총 이벤트 수
-        matched_events: 매칭된 이벤트 수
-        fallback_penalties: Fallback 레벨 리스트
-
-    Returns:
-        Confidence score (0~100)
-
-    사용 예시:
-        conf = calculate_confidence(8.5, 10.0, 5, 4, [0, 0, 1, 0, 2])
+    ln(1 + normalized_score) 기반 점수 + 매칭률 + fallback penalty를 결합한다.
     """
     if max_possible_score <= 0 or num_events <= 0:
         return 0.0
 
-    # 기본 점수 비율
-    score_ratio = total_score / max_possible_score
-
-    # 이벤트 매칭 비율
+    score_ratio = max(0.0, total_score / max_possible_score)
+    # 자연로그(ln) 명시 사용
+    ln_component = math.log(1.0 + score_ratio) / math.log(2.0)  # 0~1 스케일
     match_ratio = matched_events / num_events
 
-    # 기본 confidence (0~100)
-    base_confidence = (score_ratio * 0.6 + match_ratio * 0.4) * 100
+    base_confidence = (ln_component * 0.7 + match_ratio * 0.3) * 100
 
-    # Fallback penalty 적용
     total_penalty = sum(get_fallback_penalty(level) for level in fallback_penalties)
-    # 등급당 ~5점 감소
     penalty_score = total_penalty * 5
 
     confidence = max(0.0, min(100.0, base_confidence + penalty_score))
@@ -861,7 +893,6 @@ def _score_candidate(
     birth_jd = chart["jd"]
     birth_moon_lon = chart["moon_longitude"]
 
-    total_score = 0.0
     matched_count = 0
     max_possible = 0.0
     fallback_levels = []
@@ -882,7 +913,9 @@ def _score_candidate(
             event_scores.append(-0.5 * event_weight)
 
         fallback_levels.append(fb_level)
-        total_score += score
+
+    # 이벤트 점수는 LogSumExp(ln)로 집계
+    total_score = log_sum_exp(event_scores) if event_scores else 0.0
 
     # Confidence 계산
     confidence = calculate_confidence(
