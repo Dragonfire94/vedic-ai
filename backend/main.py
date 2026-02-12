@@ -384,7 +384,9 @@ def get_chart(
 
         houses = {}
         if house_system == "P":
-            cusps, ascmc = swe.houses(jd, lat, lon, b'P')
+            # 🔧 FIX: Swiss Ephemeris uses WEST longitude as positive
+            # East longitude (like Seoul 126.977°E) should be NEGATIVE
+            cusps, ascmc = swe.houses(jd, lat, -lon, b'P')
             asc_tropical = ascmc[0]  # 디버그용
 
             # 🔍 디버그: Houses 계산 확인
@@ -403,7 +405,8 @@ def get_chart(
                     "rasi": RASI_NAMES[rasi_idx]
                 }
         else:  # Whole Sign
-            cusps, ascmc = swe.houses(jd, lat, lon, b'W')
+            # 🔧 FIX: Swiss Ephemeris uses WEST longitude as positive
+            cusps, ascmc = swe.houses(jd, lat, -lon, b'W')
             asc_tropical = ascmc[0]  # 디버그용
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
