@@ -386,13 +386,14 @@ def get_chart(
         if house_system == "P":
             # 🔧 FIX: pyswisseph requires RADIANS, not degrees!
             import math
+            print(f"🔍 INPUT Lat/Lon (degrees): {lat}, {lon}")
             lat_rad = math.radians(lat)
             lon_rad = math.radians(lon)
+            print(f"🔍 CONVERTED Lat/Lon (radians): {lat_rad}, {lon_rad}")
             cusps, ascmc = swe.houses(jd, lat_rad, lon_rad, b'P')
             asc_tropical = ascmc[0]
 
             # 🔍 디버그: Houses 계산 확인
-            print(f"🔍 Lat/Lon (radians): {lat_rad}, {lon_rad}")
             print(f"🔍 Ayanamsa: {ayanamsa}")
             print(f"🔍 Tropical Ascendant: {asc_tropical}")
             print(f"🔍 Sidereal Ascendant: {normalize_360(asc_tropical - ayanamsa)}")
