@@ -384,13 +384,9 @@ def get_chart(
 
         houses = {}
         if house_system == "P":
-            # 🔧 FIX: pyswisseph requires RADIANS, not degrees!
-            import math
+            # swe.houses() expects DEGREES, not radians!
             print(f"🔍 INPUT Lat/Lon (degrees): {lat}, {lon}")
-            lat_rad = math.radians(lat)
-            lon_rad = math.radians(lon)
-            print(f"🔍 CONVERTED Lat/Lon (radians): {lat_rad}, {lon_rad}")
-            cusps, ascmc = swe.houses(jd, lat_rad, lon_rad, b'P')
+            cusps, ascmc = swe.houses(jd, lat, lon, b'P')
             asc_tropical = ascmc[0]
 
             # 🔍 디버그: Houses 계산 확인
@@ -409,11 +405,8 @@ def get_chart(
                     "rasi": RASI_NAMES[rasi_idx]
                 }
         else:  # Whole Sign
-            # 🔧 FIX: pyswisseph requires RADIANS, not degrees!
-            import math
-            lat_rad = math.radians(lat)
-            lon_rad = math.radians(lon)
-            cusps, ascmc = swe.houses(jd, lat_rad, lon_rad, b'W')
+            # swe.houses() expects DEGREES, not radians!
+            cusps, ascmc = swe.houses(jd, lat, lon, b'W')
             asc_tropical = ascmc[0]
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
