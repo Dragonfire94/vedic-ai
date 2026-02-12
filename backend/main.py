@@ -356,14 +356,14 @@ def get_chart(
             rahu_res, _ = swe.calc_ut(jd, swe.MEAN_NODE, swe.FLG_SIDEREAL)
             rahu_lon = normalize_360(rahu_res[0])
             ketu_lon = normalize_360(rahu_lon + 180)
-            
-            for name, lon in [("Rahu", rahu_lon), ("Ketu", ketu_lon)]:
-                rasi_idx = get_rasi_index(lon)
-                nak = get_nakshatra_info(lon)
-                deg_in_sign = lon - (rasi_idx * 30)
+
+            for name, p_lon in [("Rahu", rahu_lon), ("Ketu", ketu_lon)]:
+                rasi_idx = get_rasi_index(p_lon)
+                nak = get_nakshatra_info(p_lon)
+                deg_in_sign = p_lon - (rasi_idx * 30)
                 
                 planets[name] = {
-                    "longitude": round(lon, 6),
+                    "longitude": round(p_lon, 6),
                     "rasi": {
                         "index": rasi_idx,
                         "name": RASI_NAMES[rasi_idx],
