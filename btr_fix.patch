@@ -1,0 +1,474 @@
+diff --git a/backend/btr_engine.py b/backend/btr_engine.py
+index df34de7..adc661d 100644
+--- a/backend/btr_engine.py
++++ b/backend/btr_engine.py
+@@ -7,6 +7,8 @@ BTR (Birth Time Rectification) 엔진
+ 
+ import math
+ import logging
++import json
++import os
+ from typing import List, Dict, Optional, Tuple, Any
+ from datetime import datetime
+ 
+@@ -62,6 +64,42 @@ CONFIDENCE_GRADES = [
+     (65, "C+"), (60, "C"), (0, "C-"),
+ ]
+ 
++# Event Rules (JSON 기반)
++_EVENT_RULES_PATH = os.path.join(os.path.dirname(__file__), "event_rules.json")
++_DEFAULT_EVENT_RULES = {
++    "version": "1.0.0",
++    "event_rules": {
++        "generic": {
++            "dasha_lords": [],
++            "house_triggers": [],
++            "base_weight": 1.0,
++            "weight_range": [0.5, 10.0],
++            "ml_trainable": True,
++            "fallback_levels": [1, 2, 3],
++        }
++    }
++}
++
++
++def _load_event_rules() -> Dict[str, Any]:
++    try:
++        with open(_EVENT_RULES_PATH, "r", encoding="utf-8") as f:
++            data = json.load(f)
++        if "event_rules" not in data or not isinstance(data["event_rules"], dict):
++            raise RuntimeError("Missing required section: 'event_rules'")
++        return data
++    except Exception as e:
++        logger.warning(f"event_rules.json load failed, fallback to defaults: {e}")
++        return _DEFAULT_EVENT_RULES
++
++
++EVENT_RULES = _load_event_rules()
++
++
++def get_event_rule(event_type: str) -> Dict[str, Any]:
++    rules = EVENT_RULES.get("event_rules", {})
++    return rules.get(event_type, rules.get("generic", _DEFAULT_EVENT_RULES["event_rules"]["generic"]))
++
+ 
+ # ─────────────────────────────────────────────────────────────────────────────
+ # 헬퍼 함수
+@@ -433,9 +471,16 @@ def match_event_to_chart(
+     """
+     event_year = event.get("year")
+     event_month = event.get("month")
+-    event_weight = event.get("weight", 1.0)
+-    dasha_lords = event.get("dasha_lords", [])
+-    house_triggers = event.get("house_triggers", [])
++
++    rule = get_event_rule(event.get("type", "generic"))
++    weight_range = rule.get("weight_range", [0.5, 10.0])
++    min_w, max_w = (weight_range + [0.5, 10.0])[:2]
++    event_weight = event.get("weight", rule.get("base_weight", 1.0))
++    event_weight = max(min_w, min(max_w, event_weight))
++
++    dasha_lords = event.get("dasha_lords") or rule.get("dasha_lords", [])
++    house_triggers = event.get("house_triggers") or rule.get("house_triggers", [])
++    allowed_fallback_levels = set(rule.get("fallback_levels", [1, 2, 3]))
+ 
+     if not event_year:
+         return 0.0, 4
+@@ -450,6 +495,8 @@ def match_event_to_chart(
+ 
+     # 4단계 Fallback 매칭
+     for level in range(5):
++        if level > 0 and level not in allowed_fallback_levels and level != 4:
++            continue
+         matched, score = _try_match_at_level(
+             level, maha, antar, dasha_lords, house_triggers,
+             chart, event_weight, event_year, event_month,
+@@ -652,34 +699,19 @@ def calculate_confidence(
+     """
+     Confidence score 계산 (0~100)
+ 
+-    Parameters:
+-        total_score: 총 획득 점수
+-        max_possible_score: 최대 가능 점수
+-        num_events: 총 이벤트 수
+-        matched_events: 매칭된 이벤트 수
+-        fallback_penalties: Fallback 레벨 리스트
+-
+-    Returns:
+-        Confidence score (0~100)
+-
+-    사용 예시:
+-        conf = calculate_confidence(8.5, 10.0, 5, 4, [0, 0, 1, 0, 2])
++    ln(1 + normalized_score) 기반 점수 + 매칭률 + fallback penalty를 결합한다.
+     """
+     if max_possible_score <= 0 or num_events <= 0:
+         return 0.0
+ 
+-    # 기본 점수 비율
+-    score_ratio = total_score / max_possible_score
+-
+-    # 이벤트 매칭 비율
++    score_ratio = max(0.0, total_score / max_possible_score)
++    # 자연로그(ln) 명시 사용
++    ln_component = math.log(1.0 + score_ratio) / math.log(2.0)  # 0~1 스케일
+     match_ratio = matched_events / num_events
+ 
+-    # 기본 confidence (0~100)
+-    base_confidence = (score_ratio * 0.6 + match_ratio * 0.4) * 100
++    base_confidence = (ln_component * 0.7 + match_ratio * 0.3) * 100
+ 
+-    # Fallback penalty 적용
+     total_penalty = sum(get_fallback_penalty(level) for level in fallback_penalties)
+-    # 등급당 ~5점 감소
+     penalty_score = total_penalty * 5
+ 
+     confidence = max(0.0, min(100.0, base_confidence + penalty_score))
+@@ -861,7 +893,6 @@ def _score_candidate(
+     birth_jd = chart["jd"]
+     birth_moon_lon = chart["moon_longitude"]
+ 
+-    total_score = 0.0
+     matched_count = 0
+     max_possible = 0.0
+     fallback_levels = []
+@@ -882,7 +913,9 @@ def _score_candidate(
+             event_scores.append(-0.5 * event_weight)
+ 
+         fallback_levels.append(fb_level)
+-        total_score += score
++
++    # 이벤트 점수는 LogSumExp(ln)로 집계
++    total_score = log_sum_exp(event_scores) if event_scores else 0.0
+ 
+     # Confidence 계산
+     confidence = calculate_confidence(
+diff --git a/backend/event_rules.json b/backend/event_rules.json
+new file mode 100644
+index 0000000..b05423d
+--- /dev/null
++++ b/backend/event_rules.json
+@@ -0,0 +1,37 @@
++{
++  "version": "1.0.0",
++  "event_rules": {
++    "generic": {
++      "dasha_lords": [],
++      "house_triggers": [],
++      "base_weight": 1.0,
++      "weight_range": [0.5, 10.0],
++      "ml_trainable": true,
++      "fallback_levels": [1, 2, 3]
++    },
++    "marriage": {
++      "dasha_lords": ["Venus", "Jupiter", "Moon"],
++      "house_triggers": [7, 2, 11],
++      "base_weight": 3.0,
++      "weight_range": [1.0, 8.0],
++      "ml_trainable": true,
++      "fallback_levels": [1, 2]
++    },
++    "career": {
++      "dasha_lords": ["Sun", "Saturn", "Mercury", "Jupiter"],
++      "house_triggers": [10, 6, 2, 11],
++      "base_weight": 2.5,
++      "weight_range": [1.0, 8.0],
++      "ml_trainable": true,
++      "fallback_levels": [1, 2, 3]
++    },
++    "education": {
++      "dasha_lords": ["Mercury", "Jupiter", "Moon"],
++      "house_triggers": [4, 5, 9],
++      "base_weight": 2.0,
++      "weight_range": [0.5, 6.0],
++      "ml_trainable": true,
++      "fallback_levels": [1, 2, 3]
++    }
++  }
++}
+diff --git a/backend/main.py b/backend/main.py
+index 3f07025..355c13e 100644
+--- a/backend/main.py
++++ b/backend/main.py
+@@ -50,6 +50,10 @@ app.add_middleware(
+ # ─────────────────────────────────────────────────────────────────────────────
+ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
++INTERPRETATIONS_FILE = os.getenv(
++    "INTERPRETATIONS_FILE",
++    os.path.join(os.path.dirname(__file__), "..", "assets", "data", "interpretations.kr_final.json")
++)
+ 
+ # ─────────────────────────────────────────────────────────────────────────────
+ # Pretendard 폰트 등록
+@@ -95,6 +99,16 @@ if OPENAI_API_KEY:
+ AI_CACHE = {}
+ AI_CACHE_TTL = 1800  # 30분
+ 
++# 규칙 기반 해석 데이터
++INTERPRETATIONS_KO_ATOMIC = {}
++try:
++    with open(INTERPRETATIONS_FILE, "r", encoding="utf-8") as f:
++        interpretations_data = json.load(f)
++        INTERPRETATIONS_KO_ATOMIC = interpretations_data.get("ko", {}).get("atomic", {})
++        print(f"[INFO] Loaded rule-based interpretations: {len(INTERPRETATIONS_KO_ATOMIC)} entries")
++except Exception as e:
++    print(f"[WARN] Failed to load interpretation DB from {INTERPRETATIONS_FILE}: {e}")
++
+ # ─────────────────────────────────────────────────────────────────────────────
+ # Swiss Ephemeris 초기화
+ # ─────────────────────────────────────────────────────────────────────────────
+@@ -249,6 +263,41 @@ def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: f
+     print(f"🔍 Julian day: {jd}")
+     return jd
+ 
++
++def _pick_interpretation_text(key: str) -> Optional[str]:
++    """규칙 기반 해석 텍스트 조회"""
++    row = INTERPRETATIONS_KO_ATOMIC.get(key)
++    if isinstance(row, dict):
++        return row.get("text")
++    return None
++
++
++def build_rule_based_reading(chart: dict, language: str) -> Optional[str]:
++    """정적 해석 JSON을 이용한 기본 리딩 생성"""
++    if language != "ko" or not INTERPRETATIONS_KO_ATOMIC:
++        return None
++
++    asc_sign = chart["houses"]["ascendant"]["rasi"]["name"]
++    moon_sign = chart["planets"]["Moon"]["rasi"]["name"]
++    sun_sign = chart["planets"]["Sun"]["rasi"]["name"]
++
++    sections = []
++    asc_text = _pick_interpretation_text(f"asc:{asc_sign}")
++    moon_text = _pick_interpretation_text(f"ps:Moon:{moon_sign}")
++    sun_text = _pick_interpretation_text(f"ps:Sun:{sun_sign}")
++
++    if asc_text:
++        sections.append(f"[상승궁 해석]\n{asc_text}")
++    if moon_text:
++        sections.append(f"[달 별자리 해석]\n{moon_text}")
++    if sun_text:
++        sections.append(f"[태양 별자리 해석]\n{sun_text}")
++
++    if not sections:
++        return None
++
++    return "\n\n".join(sections)
++
+ # ─────────────────────────────────────────────────────────────────────────────
+ # 엔드포인트: Health Check
+ # ─────────────────────────────────────────────────────────────────────────────
+@@ -521,12 +570,17 @@ def get_ai_reading(
+     include_d9: int = Query(1),
+     language: str = Query("ko"),
+     gender: str = Query("male"),
+-    use_cache: int = Query(1)
++    use_cache: int = Query(1),
++    reading_mode: str = Query("hybrid")
+ ):
+     """AI 리딩 생성"""
++    reading_mode = (reading_mode or "hybrid").lower()
++    if reading_mode not in {"hybrid", "openai", "rule_based"}:
++        reading_mode = "hybrid"
++
+     # 캐시 키
+-    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}"
+-    
++    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}_{reading_mode}"
++
+     if use_cache and cache_key in AI_CACHE:
+         cached = AI_CACHE[cache_key]
+         return {
+@@ -534,23 +588,48 @@ def get_ai_reading(
+             "ai_cache_key": cache_key,
+             **cached
+         }
+-    
++
+     # 차트 계산
+     chart = get_chart(year, month, day, hour, lat, lon, house_system, include_nodes, include_d9, gender=gender)
+-    
++
+     # 요약 생성
+     asc = chart["houses"]["ascendant"]["rasi"]["name_kr" if language == "ko" else "name"]
+     moon_sign = chart["planets"]["Moon"]["rasi"]["name_kr" if language == "ko" else "name"]
+-    
++
+     summary = {
+         "ascendant": asc,
+         "moon_sign": moon_sign,
+-        "language": language
++        "language": language,
++        "reading_mode": reading_mode
+     }
+-    
++
++    rule_based_reading = build_rule_based_reading(chart, language)
++
++    if reading_mode == "rule_based":
++        result = {
++            "cached": False,
++            "fallback": False,
++            "model": "rule-based-json",
++            "summary": summary,
++            "reading": rule_based_reading or "[No rule-based interpretation available]",
++            "ai_cache_key": cache_key,
++            "reading_source": "json_rule_based",
++            "debug_info": {
++                "interpretations_loaded": bool(INTERPRETATIONS_KO_ATOMIC),
++                "interpretations_entries": len(INTERPRETATIONS_KO_ATOMIC),
++                "reading_mode": reading_mode
++            }
++        }
++        if use_cache:
++            AI_CACHE[cache_key] = result
++        return result
++
+     # OpenAI 호출
+     if not client:
+         reading_text = "[OpenAI not configured]"
++        if reading_mode == "hybrid" and rule_based_reading:
++            reading_text = f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n[AI 종합 리딩]\n[OpenAI not configured]"
++
+         result = {
+             "cached": False,
+             "fallback": True,
+@@ -558,6 +637,7 @@ def get_ai_reading(
+             "summary": summary,
+             "reading": reading_text,
+             "ai_cache_key": cache_key,
++            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
+             "debug_info": {
+                 "api_key_configured": bool(OPENAI_API_KEY),
+                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+@@ -569,7 +649,7 @@ def get_ai_reading(
+         if use_cache:
+             AI_CACHE[cache_key] = result
+         return result
+-    
++
+     try:
+         # 프롬프트 생성
+         prompt = f"""당신은 베딕 점성학 전문가입니다. 다음 출생 차트를 분석하여 {'한국어' if language == 'ko' else 'English'}로 상세한 리딩을 제공하세요.
+@@ -583,7 +663,7 @@ def get_ai_reading(
+             rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
+             house = data.get("house", "?")
+             prompt += f"- {name}: {rasi} (House {house})\n"
+-        
++
+         prompt += f"""
+ 다음 섹션으로 구성하여 작성하세요:
+ 1. [Overview] - 핵심 특징 3가지
+@@ -594,16 +674,22 @@ def get_ai_reading(
+ 6. [Actionable Advice] - 실천 가능한 조언
+ 
+ 총 800-1000단어로 작성하되, 구체적이고 실용적인 조언을 포함하세요.
++특히 상담형 관점에서 사용자가 실제 선택에 활용할 수 있도록 종합적인 맥락을 연결해 주세요.
+ """
+-        
++
+         response = client.chat.completions.create(
+             model=OPENAI_MODEL,
+             messages=[{"role": "user", "content": prompt}],
+             temperature=0.7,
+             max_tokens=2000
+         )
+-        
++
+         reading_text = response.choices[0].message.content
++        if reading_mode == "hybrid" and rule_based_reading:
++            reading_text = (
++                f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n"
++                f"[AI 종합 리딩]\n{reading_text}"
++            )
+ 
+         result = {
+             "cached": False,
+@@ -612,6 +698,7 @@ def get_ai_reading(
+             "summary": summary,
+             "reading": reading_text,
+             "ai_cache_key": cache_key,
++            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
+             "debug_info": {
+                 "api_key_configured": bool(OPENAI_API_KEY),
+                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+@@ -621,14 +708,19 @@ def get_ai_reading(
+                 "client_initialized": client is not None
+             }
+         }
+-        
++
+         if use_cache:
+             AI_CACHE[cache_key] = result
+-        
++
+         return result
+-        
++
+     except Exception as e:
+         reading_text = f"[AI Error: {str(e)}]"
++        if reading_mode == "hybrid" and rule_based_reading:
++            reading_text = (
++                f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n"
++                f"[AI 종합 리딩]\n{reading_text}"
++            )
+         result = {
+             "cached": False,
+             "fallback": True,
+@@ -637,6 +729,7 @@ def get_ai_reading(
+             "summary": summary,
+             "reading": reading_text,
+             "ai_cache_key": cache_key,
++            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
+             "debug_info": {
+                 "api_key_configured": bool(OPENAI_API_KEY),
+                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
+@@ -992,6 +1085,7 @@ try:
+         generate_time_brackets,
+         calculate_vimshottari_dasha,
+         get_dasha_at_date,
++        get_event_rule,
+     )
+     BTR_ENGINE_AVAILABLE = True
+     print("[INFO] BTR engine loaded successfully")
+@@ -1061,6 +1155,18 @@ def get_btr_questions(
+     }
+ 
+ 
++@app.get("/btr/event-rules")
++def get_btr_event_rules(event_type: str = Query("generic", description="이벤트 타입")):
++    """BTR 이벤트 규칙 조회 (JSON 기반)"""
++    if not BTR_ENGINE_AVAILABLE:
++        raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
++    return {
++        "status": "ok",
++        "event_type": event_type,
++        "rule": get_event_rule(event_type),
++    }
++
++
+ @app.post("/btr/analyze")
+ def analyze_btr(request: BTRAnalyzeRequest):
+     """
+diff --git a/frontend/lib/api.ts b/frontend/lib/api.ts
+index 9748717..1a16a7c 100644
+--- a/frontend/lib/api.ts
++++ b/frontend/lib/api.ts
+@@ -77,7 +77,7 @@ export async function getChart(data: ChartRequest) {
+   return response.json()
+ }
+ 
+-export async function getAIReading(data: ChartRequest & { language?: string }) {
++export async function getAIReading(data: ChartRequest & { language?: string; reading_mode?: string }) {
+   const params = new URLSearchParams({
+     year: data.year.toString(),
+     month: data.month.toString(),
+@@ -90,6 +90,7 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
+     include_d9: data.include_d9 ? '1' : '0',
+     language: data.language || 'ko',
+     gender: data.gender || 'male',
++    reading_mode: data.reading_mode || 'hybrid',
+   })
+ 
+   const response = await fetch(`${API_BASE_URL}/ai_reading?${params}`)

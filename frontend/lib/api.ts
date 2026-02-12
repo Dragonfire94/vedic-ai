@@ -77,7 +77,7 @@ export async function getChart(data: ChartRequest) {
   return response.json()
 }
 
-export async function getAIReading(data: ChartRequest & { language?: string }) {
+export async function getAIReading(data: ChartRequest & { language?: string; reading_mode?: string }) {
   const params = new URLSearchParams({
     year: data.year.toString(),
     month: data.month.toString(),
@@ -90,6 +90,7 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
     include_d9: data.include_d9 ? '1' : '0',
     language: data.language || 'ko',
     gender: data.gender || 'male',
+    reading_mode: data.reading_mode || 'hybrid',
   })
 
   const response = await fetch(`${API_BASE_URL}/ai_reading?${params}`)
