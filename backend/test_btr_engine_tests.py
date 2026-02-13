@@ -25,8 +25,10 @@ from typing import Any, Dict, List, Tuple
 from backend.btr_engine import (
     _has_mahadasha_range_overlap,
     _score_candidate,
+    compute_aspect_multiplier,
     compute_event_signal_strength,
     compute_planet_dignity_score,
+    evaluate_aspect_impact,
     evaluate_dignity_impact,
     calculate_vimshottari_dasha,
     convert_age_range_to_year_range,
@@ -621,8 +623,85 @@ class TestDignityImpactEvaluation(unittest.TestCase):
                 events=events,
             )
 
-        self.assertGreater(report["with_dignity"]["score_gap"], report["without_dignity"]["score_gap"])
+        self.assertGreater(report["with_configuration"]["score_gap"], report["without_configuration"]["score_gap"])
         self.assertTrue(report["separation_improved"])
+
+
+class TestAspectWeightingEngine(unittest.TestCase):
+    """Deterministic major-aspect weighting tests for Layer 5 Step 2."""
+
+    def _base_chart(self) -> Dict[str, Any]:
+        return {
+            "jd": date_to_jd(1990, 1, 15),
+            "moon_longitude": 85.0,
+            "planet_houses": {
+                "Sun": 10,
+                "Moon": 1,
+                "Mars": 3,
+            },
+            "planet_signs": {
+                "Sun": "Aries",
+                "Moon": "Cancer",
+                "Mars": "Gemini",
+            },
+        }
+
+    def test_conjunction_boost(self) -> None:
+        mult = compute_aspect_multiplier("Sun", 10.0, {"Sun": 10.0, "Moon": 10.0})
+        self.assertGreater(mult, 1.0)
+
+    def test_square_penalty(self) -> None:
+        mult = compute_aspect_multiplier("Sun", 10.0, {"Sun": 10.0, "Moon": 100.0})
+        self.assertLess(mult, 1.0)
+
+    def test_trine_bonus(self) -> None:
+        mult = compute_aspect_multiplier("Sun", 10.0, {"Sun": 10.0, "Moon": 130.0})
+        self.assertGreater(mult, 1.0)
+
+    def test_orb_attenuation(self) -> None:
+        tight = compute_aspect_multiplier("Sun", 10.0, {"Sun": 10.0, "Moon": 10.0})
+        edge = compute_aspect_multiplier("Sun", 10.0, {"Sun": 10.0, "Moon": 17.9})
+        self.assertGreater(tight, edge)
+
+    def test_aspect_toggle_effect(self) -> None:
+        birth_date = _make_birth_date(1990, 1, 15)
+        events = [{
+            "event_type": "career",
+            "precision_level": "exact",
+            "year": 2012,
+            "month": 6,
+            "weight": 1.0,
+            "dasha_lords": ["Sun"],
+            "house_triggers": [],
+        }]
+        chart_a = self._base_chart()
+        chart_b = self._base_chart()
+        chart_a["planet_longitudes"] = {"Sun": 10.0, "Moon": 10.0, "Mars": 250.0}
+        chart_b["planet_longitudes"] = {"Sun": 10.0, "Moon": 100.0, "Mars": 250.0}
+
+        with patch("backend.btr_engine.match_event_to_chart", return_value=(1.0, 0)):
+            score_a_on, *_ = _score_candidate(birth_date, 12.0, chart_a, events, 37.5665, 126.978, use_dignity=False, use_aspects=True)
+            score_b_on, *_ = _score_candidate(birth_date, 12.0, chart_b, events, 37.5665, 126.978, use_dignity=False, use_aspects=True)
+            score_a_off, *_ = _score_candidate(birth_date, 12.0, chart_a, events, 37.5665, 126.978, use_dignity=False, use_aspects=False)
+            score_b_off, *_ = _score_candidate(birth_date, 12.0, chart_b, events, 37.5665, 126.978, use_dignity=False, use_aspects=False)
+
+        self.assertGreater(score_a_on, score_b_on)
+        self.assertAlmostEqual(score_a_off, score_b_off, places=6)
+
+        with patch(
+            "backend.btr_engine.analyze_birth_time",
+            side_effect=[
+                [{"score": score_a_on, "confidence": 0.73}, {"score": score_b_on, "confidence": 0.65}],
+                [{"score": score_a_off, "confidence": 0.69}, {"score": score_b_off, "confidence": 0.69}],
+            ],
+        ):
+            report = evaluate_aspect_impact(
+                birth_data={"birth_date": birth_date, "lat": 37.5665, "lon": 126.978, "top_n": 2},
+                events=events,
+            )
+
+        self.assertTrue(report["separation_improved"])
+        self.assertGreater(report["delta_score_gap"], 0.0)
 
 
 if __name__ == "__main__":
