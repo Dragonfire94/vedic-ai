@@ -1503,6 +1503,8 @@ def analyze_birth_time(
     for candidate in calibrated:
         production_rows.append({
             "ascendant": candidate.get("ascendant", ""),
+            "time_range": candidate.get("time_range", ""),
+            "mid_hour": round(float(candidate.get("mid_hour", 0.0)), 2),
             "score": round(float(candidate.get("score", 0.0)), 2),
             "probability": round(max(0.0, min(1.0, float(candidate.get("probability", 0.0)))), 6),
             "confidence": round(max(0.0, min(1.0, float(candidate.get("confidence", 0.0)))), 3),

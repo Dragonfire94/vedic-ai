@@ -11,7 +11,7 @@ import json
 import math
 import base64
 from datetime import datetime
-from typing import Optional, Any, Literal, Tuple
+from typing import Optional, Any, Literal, Tuple, Dict, List
 
 from astro_engine import build_structural_summary
 
@@ -695,6 +695,83 @@ def get_chart(
         raise HTTPException(status_code=500, detail=str(e))
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Rectified bridge helpers
+# ─────────────────────────────────────────────────────────────────────────────
+def build_rectified_chart_payload(
+    btr_candidate: dict,
+    birth_date: dict,
+    latitude: float,
+    longitude: float,
+    timezone: float,
+) -> dict:
+    """Build deterministic chart payload from a rectified BTR candidate."""
+    del timezone  # reserved for explicit TZ pipeline usage
+    mid_hour = float(btr_candidate.get("mid_hour", 0.0))
+    return get_chart(
+        year=int(birth_date["year"]),
+        month=int(birth_date["month"]),
+        day=int(birth_date["day"]),
+        hour=mid_hour,
+        lat=float(latitude),
+        lon=float(longitude),
+        house_system="W",
+        include_nodes=1,
+        include_d9=1,
+        include_interpretation=0,
+        gender="male",
+    )
+
+
+def build_rectified_structural_summary(
+    btr_candidates: list,
+    birth_date: dict,
+    latitude: float,
+    longitude: float,
+    timezone: float,
+) -> dict:
+    """Bridge top BTR candidate to deterministic structural summary."""
+    if not btr_candidates:
+        raise ValueError("No BTR candidates available")
+
+    top_candidate = btr_candidates[0]
+    chart_data = build_rectified_chart_payload(
+        btr_candidate=top_candidate,
+        birth_date=birth_date,
+        latitude=latitude,
+        longitude=longitude,
+        timezone=timezone,
+    )
+    structural_summary = build_structural_summary(chart_data)
+
+    return {
+        "rectified_time_range": top_candidate.get("time_range", ""),
+        "rectified_probability": float(top_candidate.get("probability", 0.0)),
+        "rectified_confidence": float(top_candidate.get("confidence", 0.0)),
+        "structural_summary": structural_summary,
+    }
+
+
+def build_ai_psychological_input(
+    rectified_structural_summary: dict,
+) -> dict:
+    """Build compact AI-safe signal payload (no raw longitude/degree data)."""
+    source = rectified_structural_summary.get("structural_summary", {}) or {}
+    allowed_keys = [
+        "planet_power_ranking",
+        "psychological_tension_axis",
+        "purushartha_profile",
+        "behavioral_risk_profile",
+        "stability_metrics",
+        "personality_vector",
+        "probability_forecast",
+        "karmic_pattern_profile",
+        "interaction_risks",
+        "enhanced_behavioral_risks",
+    ]
+    return {k: source.get(k, {}) for k in allowed_keys}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: AI Reading
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/ai_reading")
@@ -710,34 +787,107 @@ def get_ai_reading(
     include_d9: int = Query(1),
     language: str = Query("ko"),
     gender: str = Query("male"),
-    use_cache: int = Query(1)
+    use_cache: int = Query(1),
+    production_mode: int = Query(0),
+    events_json: str = Query("[]"),
+    timezone: float = Query(0.0),
 ):
     """AI 리딩 생성"""
-    # 캐시 키
-    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}"
-    
+    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}_{production_mode}_{events_json}_{timezone}"
+
     if use_cache and cache_key in AI_CACHE:
         cached = AI_CACHE[cache_key]
+        if production_mode:
+            return cached
         return {
             "cached": True,
             "ai_cache_key": cache_key,
-            **cached
+            **cached,
         }
-    
-    # 차트 계산
+
+    if production_mode:
+        if not BTR_ENGINE_AVAILABLE:
+            raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
+
+        try:
+            events = json.loads(events_json) if events_json else []
+            if not isinstance(events, list) or not events:
+                raise ValueError("production_mode=1 requires non-empty events_json list")
+
+            birth_date = {"year": year, "month": month, "day": day}
+            btr_candidates = analyze_birth_time(
+                birth_date=birth_date,
+                events=events,
+                lat=lat,
+                lon=lon,
+                num_brackets=8,
+                top_n=3,
+                production_mode=True,
+            )
+
+            rectified_summary = build_rectified_structural_summary(
+                btr_candidates=btr_candidates,
+                birth_date=birth_date,
+                latitude=lat,
+                longitude=lon,
+                timezone=timezone,
+            )
+            ai_psychological_input = build_ai_psychological_input(rectified_summary)
+            ai_payload = {
+                "rectified_meta": {
+                    "time_range": rectified_summary["rectified_time_range"],
+                    "probability": rectified_summary["rectified_probability"],
+                    "confidence": rectified_summary["rectified_confidence"],
+                },
+                "structural_summary": ai_psychological_input,
+            }
+
+            if not client:
+                final_text = "[OpenAI not configured]"
+            else:
+                system_message = (
+                    "You are not calculating astrology. "
+                    "You are interpreting structured psychological signals. "
+                    "Use only the provided JSON."
+                )
+                user_message = f"""Interpret only this JSON payload:
+{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
+
+Provide a concise psychological narrative summary."""
+                response = client.chat.completions.create(
+                    model=OPENAI_MODEL,
+                    messages=[
+                        {"role": "system", "content": system_message},
+                        {"role": "user", "content": user_message},
+                    ],
+                    temperature=0.6,
+                    max_tokens=1200,
+                )
+                final_text = response.choices[0].message.content
+
+            production_result = {
+                "rectified_time_range": rectified_summary["rectified_time_range"],
+                "probability": round(float(rectified_summary["rectified_probability"]), 6),
+                "confidence": round(float(rectified_summary["rectified_confidence"]), 3),
+                "final_psychological_summary": final_text,
+            }
+            if use_cache:
+                AI_CACHE[cache_key] = production_result
+            return production_result
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
     chart = get_chart(year, month, day, hour, lat, lon, house_system, include_nodes, include_d9, gender=gender)
-    
-    # 구조화 요약 생성 (deterministic engine)
     structured_summary = build_structural_summary(chart)
     ai_payload = {"structural_summary": structured_summary}
 
-    # 기존 summary 필드 호환 유지
     summary = {
         "language": language,
         "structured_summary": structured_summary,
     }
-    
-    # OpenAI 호출
+
     if not client:
         reading_text = "[OpenAI not configured]"
         result = {
@@ -753,20 +903,18 @@ def get_ai_reading(
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
                 "model_used": OPENAI_MODEL,
                 "client_initialized": False,
-                "reason": "OpenAI client not initialized"
-            }
+                "reason": "OpenAI client not initialized",
+            },
         }
         if use_cache:
             AI_CACHE[cache_key] = result
         return result
-    
+
     try:
-        # 프롬프트 생성 (RAG + fallback)
         mapped_keys: list[str] = []
         mapped_texts: list[str] = []
         mapped_section_counts = {"atomic": 0, "lagna_lord": 0, "yogas": 0, "patterns": 0}
         static_context_used = False
-        context_list: list[str] = []
         context_data = ""
 
         if language == "ko":
@@ -818,9 +966,9 @@ Write a concise, practical English report with sections:
                 {"role": "user", "content": user_message},
             ],
             temperature=0.6,
-            max_tokens=3000
+            max_tokens=3000,
         )
-        
+
         reading_text = response.choices[0].message.content
 
         result = {
@@ -838,7 +986,7 @@ Write a concise, practical English report with sections:
                 "system_prompt_length": len(system_message),
                 "user_prompt_length": len(user_message),
                 "context_length": len(context_data),
-                "response_tokens": response.usage.total_tokens if hasattr(response, 'usage') else 0,
+                "response_tokens": response.usage.total_tokens if hasattr(response, "usage") else 0,
                 "client_initialized": client is not None,
                 "static_context_used": static_context_used,
                 "mapped_key_count": len(mapped_keys),
@@ -847,14 +995,14 @@ Write a concise, practical English report with sections:
                 "mapped_section_counts": mapped_section_counts,
                 "interpretations_loaded": bool(INTERPRETATIONS_KO),
                 "interpretations_load_error": INTERPRETATIONS_LOAD_ERROR,
-            }
+            },
         }
-        
+
         if use_cache:
             AI_CACHE[cache_key] = result
-        
+
         return result
-        
+
     except Exception as e:
         reading_text = f"[AI Error: {str(e)}]"
         result = {
@@ -872,8 +1020,8 @@ Write a concise, practical English report with sections:
                 "model_used": OPENAI_MODEL,
                 "client_initialized": client is not None,
                 "error_type": type(e).__name__,
-                "error_message": str(e)
-            }
+                "error_message": str(e),
+            },
         }
         return result
 
