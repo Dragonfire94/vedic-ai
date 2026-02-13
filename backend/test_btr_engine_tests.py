@@ -6,6 +6,7 @@ import math
 import unittest
 import sys
 import types
+from unittest.mock import patch
 
 if "swisseph" not in sys.modules:
     def _julday(year: int, month: int, day: int, hour: float) -> float:
@@ -26,6 +27,7 @@ from backend.btr_engine import (
     _score_candidate,
     compute_event_signal_strength,
     compute_planet_dignity_score,
+    evaluate_dignity_impact,
     calculate_vimshottari_dasha,
     convert_age_range_to_year_range,
     date_to_jd,
@@ -486,6 +488,141 @@ class TestPlanetDignityScoring(unittest.TestCase):
     def test_neutral_sign_no_change(self) -> None:
         """Neutral sign should remain at 1.0 multiplier."""
         self.assertEqual(compute_planet_dignity_score("Venus", "Aquarius"), 1.0)
+
+
+class TestDignityImpactEvaluation(unittest.TestCase):
+    """Diagnostics tests for dignity-on vs dignity-off impact evaluation."""
+
+    def test_dignity_impact_separation(self) -> None:
+        """Exaltation vs debilitation should widen candidate separation when enabled."""
+        birth_date = _make_birth_date(1990, 1, 15)
+        jd = date_to_jd(1990, 1, 15)
+        exalted_chart = {
+            "jd": jd,
+            "moon_longitude": 85.0,
+            "planet_houses": {
+                "Sun": 10,
+                "Moon": 1,
+                "Mars": 2,
+                "Mercury": 3,
+                "Jupiter": 9,
+                "Venus": 5,
+                "Saturn": 10,
+                "Rahu": 2,
+                "Ketu": 8,
+            },
+            "planet_signs": {
+                "Sun": "Aries",  # exalted (career-relevant)
+                "Moon": "Cancer",
+                "Mars": "Gemini",
+                "Mercury": "Taurus",
+                "Jupiter": "Sagittarius",
+                "Venus": "Libra",
+                "Saturn": "Aquarius",
+                "Rahu": "Aries",
+                "Ketu": "Libra",
+            },
+        }
+        debilitated_chart = {
+            "jd": jd,
+            "moon_longitude": 85.0,
+            "planet_houses": {
+                "Sun": 10,
+                "Moon": 1,
+                "Mars": 2,
+                "Mercury": 3,
+                "Jupiter": 9,
+                "Venus": 5,
+                "Saturn": 10,
+                "Rahu": 2,
+                "Ketu": 8,
+            },
+            "planet_signs": {
+                "Sun": "Libra",  # debilitated (career-relevant)
+                "Moon": "Cancer",
+                "Mars": "Gemini",
+                "Mercury": "Taurus",
+                "Jupiter": "Sagittarius",
+                "Venus": "Libra",
+                "Saturn": "Aquarius",
+                "Rahu": "Aries",
+                "Ketu": "Libra",
+            },
+        }
+        events = [
+            {
+                "event_type": "career",
+                "precision_level": "exact",
+                "year": 2012,
+                "month": 6,
+                "weight": 1.0,
+                "dasha_lords": ["Sun"],
+                "house_triggers": [],
+            }
+        ]
+
+        with patch("backend.btr_engine.match_event_to_chart", return_value=(1.0, 0)):
+            exalted_with_dignity, *_ = _score_candidate(
+                birth_date,
+                12.0,
+                exalted_chart,
+                events,
+                37.5665,
+                126.978,
+                use_dignity=True,
+            )
+            debilitated_with_dignity, *_ = _score_candidate(
+                birth_date,
+                12.0,
+                debilitated_chart,
+                events,
+                37.5665,
+                126.978,
+                use_dignity=True,
+            )
+            exalted_without_dignity, *_ = _score_candidate(
+                birth_date,
+                12.0,
+                exalted_chart,
+                events,
+                37.5665,
+                126.978,
+                use_dignity=False,
+            )
+            debilitated_without_dignity, *_ = _score_candidate(
+                birth_date,
+                12.0,
+                debilitated_chart,
+                events,
+                37.5665,
+                126.978,
+                use_dignity=False,
+            )
+
+        score_gap_with_dignity = exalted_with_dignity - debilitated_with_dignity
+        score_gap_without_dignity = exalted_without_dignity - debilitated_without_dignity
+
+        self.assertGreater(score_gap_with_dignity, score_gap_without_dignity)
+
+        with_dignity_candidates = [
+            {"score": exalted_with_dignity, "confidence": 0.7},
+            {"score": debilitated_with_dignity, "confidence": 0.5},
+        ]
+        without_dignity_candidates = [
+            {"score": exalted_without_dignity, "confidence": 0.6},
+            {"score": debilitated_without_dignity, "confidence": 0.6},
+        ]
+        with patch(
+            "backend.btr_engine.analyze_birth_time",
+            side_effect=[with_dignity_candidates, without_dignity_candidates],
+        ):
+            report = evaluate_dignity_impact(
+                birth_data={"birth_date": birth_date, "lat": 37.5665, "lon": 126.978, "top_n": 2},
+                events=events,
+            )
+
+        self.assertGreater(report["with_dignity"]["score_gap"], report["without_dignity"]["score_gap"])
+        self.assertTrue(report["separation_improved"])
 
 
 if __name__ == "__main__":
