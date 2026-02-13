@@ -689,6 +689,7 @@ def get_ai_reading(
     
     # 구조화 요약 생성 (deterministic engine)
     structured_summary = build_structural_summary(chart)
+    ai_payload = {"structural_summary": structured_summary}
 
     # 기존 summary 필드 호환 유지
     summary = {
@@ -732,16 +733,18 @@ def get_ai_reading(
             system_message = """너는 점성학 구조 데이터를 심리적으로 이해하기 쉬운 상담 언어로 풀어주는 전문 컨설턴트다.
 
 중요 원칙:
-- 제공된 structured_summary 데이터만 사용한다.
+- 제공된 structural_summary 데이터만 사용한다.
 - 데이터에 없는 사실을 단정하거나 추가하지 않는다.
 - 과장된 예언 대신 실행 가능한 행동 조언으로 재구성한다.
 - 정중하고 따뜻한 ~합니다/~하세요 체를 유지한다."""
 
-            user_message = f"""다음은 내담자의 구조화 점성학 분석 JSON입니다.
+            user_message = f"""다음은 내담자의 구조 요약 JSON입니다.
 
-{json.dumps(structured_summary, ensure_ascii=False, indent=2)}
+{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
 
-위 JSON만 근거로 다음 형식으로 한국어 리포트를 작성하세요.
+너의 역할: "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis."
+
+아래 JSON만 근거로 다음 형식으로 한국어 리포트를 작성하세요.
 [핵심 테마] 삶의 주제 한 줄 요약
 [심리 축] 내적 갈등/강점 해설
 [관계·커리어] 관계 벡터와 커리어 벡터의 실제 적용 조언
@@ -753,12 +756,14 @@ def get_ai_reading(
 - 과도한 운세 문구 금지"""
         else:
             system_message = (
-                "You are a psychological language renderer for structured astrology output. "
-                "Use only the provided structured_summary JSON, avoid adding external claims, "
+                "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis. "
+                "Use only the provided structural_summary JSON, avoid adding external claims, "
                 "and provide practical guidance."
             )
-            user_message = f"""Use only this structured_summary JSON:
-{json.dumps(structured_summary, ensure_ascii=False, indent=2)}
+            user_message = f"""Role instruction: "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis."
+
+Use only this structural_summary JSON:
+{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
 
 Write a concise, practical English report with sections:
 1) Core life theme
@@ -772,8 +777,8 @@ Write a concise, practical English report with sections:
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
             ],
-            temperature=0.7,
-            max_tokens=3200
+            temperature=0.6,
+            max_tokens=3000
         )
         
         reading_text = response.choices[0].message.content
