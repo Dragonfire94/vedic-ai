@@ -572,28 +572,60 @@ def get_ai_reading(
     
     try:
         # 프롬프트 생성
-        prompt = f"""당신은 베딕 점성학 전문가입니다. 다음 출생 차트를 분석하여 {'한국어' if language == 'ko' else 'English'}로 상세한 리딩을 제공하세요.
+        if language == "ko":
+            prompt = f"""당신은 사용자의 성향을 날카롭게 짚고 현실적인 조언을 주는 상담가입니다. 아래 출생 차트를 바탕으로 한국어 AI 리딩을 작성하세요.
 
-상승궁(Ascendant): {asc}
-달 별자리(Moon Sign): {moon_sign}
+첫 기준:
+- 첫 문장은 반드시 한 줄 비유로 시작하세요. (예: "당신은 바위틈에서 피어나는 들꽃 같습니다.")
+- 문체는 반드시 "~합니다", "~하세요"를 사용하세요.
+- 사용자는 "당신" 또는 "이 별을 가진 분"으로 지칭하세요.
 
-행성 배치:
+핵심 스타일:
+- 전문 용어를 절대 쓰지 마세요.
+- 특히 다음 단어는 금지입니다: "라히리", "시데리얼", "켄드라", "트리코나", "아스펙트", "로드", "상승궁".
+- 대신 "당신이 타고난 기운", "별의 흐름", "운명의 방" 같은 자연스러운 표현으로 의역하세요.
+- 자연물/상황 비유를 적극 사용하세요. (흙, 나무, 불, 바위, 정원, 보석, 폭풍, 스포츠카 등)
+
+구성:
+1) 첫 문장: 성향을 한 줄로 압축한 강렬한 비유
+2) 본문: 겉으로 보이는 모습과 내면의 갈등(이중성)을 분명하게 짚기
+3) 결론: 뜬구름 없는 현실 행동 지침(개운법) 3~5개 제시
+
+작성 규칙:
+- 설명조 도입("이 배치는...", "~기준에서...") 없이 바로 본론으로 시작하세요.
+- 위로만 하지 말고, 필요한 부분은 직설적으로 짚되 상담처럼 따뜻하게 마무리하세요.
+- 총 700~900자 분량으로 작성하세요.
+
+차트 요약 정보:
+- 당신이 타고난 기운의 시작점: {asc}
+- 감정의 기본 결: {moon_sign}
+
+별의 흐름:
+"""
+        else:
+            prompt = f"""You are an insightful astrology counselor. Analyze the chart below and provide a detailed reading in English.
+
+Ascendant: {asc}
+Moon Sign: {moon_sign}
+
+Planetary placements:
 """
         for name, data in chart["planets"].items():
             rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
             house = data.get("house", "?")
             prompt += f"- {name}: {rasi} (House {house})\n"
-        
-        prompt += f"""
-다음 섹션으로 구성하여 작성하세요:
-1. [Overview] - 핵심 특징 3가지
-2. [Career & Wealth] - 직업과 재물운
-3. [Relationships] - 인간관계와 결혼
-4. [Strengths] - 강점과 재능
-5. [Challenges] - 극복할 과제
-6. [Actionable Advice] - 실천 가능한 조언
 
-총 800-1000단어로 작성하되, 구체적이고 실용적인 조언을 포함하세요.
+        if language != "ko":
+            prompt += """
+Please structure your response with these sections:
+1. [Overview] - 3 key traits
+2. [Career & Wealth]
+3. [Relationships]
+4. [Strengths]
+5. [Challenges]
+6. [Actionable Advice]
+
+Write 800-1000 words with practical guidance.
 """
         
         response = client.chat.completions.create(
