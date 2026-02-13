@@ -1505,3 +1505,311 @@ def evaluate_aspect_impact(
         events=events,
         comparison_mode="aspects_only",
     )
+
+
+def _clamp_float(value: Any, low: float, high: float) -> float:
+    """Convert value to float and clamp into [low, high] with finite safety."""
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError):
+        numeric = low
+    if not math.isfinite(numeric):
+        numeric = low
+    return max(low, min(high, numeric))
+
+
+def _safe_ratio(numerator: float, denominator: float) -> float:
+    """Return finite ratio with deterministic zero fallback."""
+    if abs(denominator) < 1e-12:
+        return 0.0
+    ratio = numerator / denominator
+    if not math.isfinite(ratio):
+        return 0.0
+    return ratio
+
+
+def _build_repeated_events(event_type: str, count: int, base_year: int, weight: float = 1.0) -> List[Dict[str, Any]]:
+    """Build deterministic synthetic events for diagnostics only."""
+    return [
+        {
+            "event_type": event_type,
+            "precision_level": "exact",
+            "year": int(base_year),
+            "month": 6,
+            "weight": _clamp_float(weight, 0.0, 10.0),
+            "dasha_lords": [],
+            "house_triggers": [],
+        }
+        for _ in range(max(1, int(count)))
+    ]
+
+
+def _extract_birth_inputs(birth_data: Dict[str, Any]) -> Tuple[Dict[str, int], float, float, int, int]:
+    """Resolve shared birth inputs from diagnostics payload."""
+    birth_date = birth_data.get("birth_date") or {
+        "year": int(birth_data["year"]),
+        "month": int(birth_data["month"]),
+        "day": int(birth_data["day"]),
+    }
+    lat = float(birth_data.get("lat", birth_data.get("latitude", 0.0)))
+    lon = float(birth_data.get("lon", birth_data.get("longitude", 0.0)))
+    num_brackets = int(birth_data.get("num_brackets", 8))
+    top_n = int(birth_data.get("top_n", num_brackets))
+    return birth_date, lat, lon, num_brackets, top_n
+
+
+def evaluate_event_count_stability(birth_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Stress-test stability as event count increases with identical events."""
+    birth_date, lat, lon, num_brackets, top_n = _extract_birth_inputs(birth_data)
+    base_year = int(birth_date["year"]) + 25
+
+    event_count_metrics: Dict[str, Dict[str, Any]] = {}
+    counts = [1, 3, 5, 10, 20]
+
+    for count in counts:
+        events = _build_repeated_events("career", count=count, base_year=base_year, weight=1.0)
+        candidates = analyze_birth_time(
+            birth_date=birth_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=num_brackets,
+            top_n=top_n,
+        )
+        metrics = _extract_candidate_metrics(candidates)
+        event_count_metrics[str(count)] = {
+            "top_score": metrics["top_candidate_score"],
+            "second_score": metrics["second_candidate_score"],
+            "score_gap": metrics["score_gap"],
+            "max_confidence": metrics["max_confidence"],
+            "confidence_variance": metrics["confidence_variance"],
+        }
+
+    reference_per_event = _safe_ratio(event_count_metrics["1"]["top_score"], 1.0)
+    non_linear_growth = False
+    confidence_saturation = False
+    for count in counts[1:]:
+        top_score = float(event_count_metrics[str(count)]["top_score"])
+        observed_per_event = _safe_ratio(top_score, float(count))
+        if reference_per_event > 0:
+            delta_ratio = abs(observed_per_event - reference_per_event) / reference_per_event
+            if delta_ratio > 0.35:
+                non_linear_growth = True
+        confidence_saturation = confidence_saturation or (float(event_count_metrics[str(count)]["max_confidence"]) > 0.98)
+
+    return {
+        "event_counts": event_count_metrics,
+        "instability_detected": bool(non_linear_growth or confidence_saturation),
+        "non_linear_growth": bool(non_linear_growth),
+        "confidence_saturation": bool(confidence_saturation),
+    }
+
+
+def evaluate_event_type_bias(birth_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Check whether specific event types systematically inflate separation/confidence."""
+    birth_date, lat, lon, num_brackets, top_n = _extract_birth_inputs(birth_data)
+    base_year = int(birth_date["year"]) + 25
+
+    scenarios = {
+        "career_only": _build_repeated_events("career", 5, base_year),
+        "relationship_only": _build_repeated_events("relationship", 5, base_year),
+        "health_only": _build_repeated_events("health", 5, base_year),
+        "finance_only": _build_repeated_events("finance", 5, base_year),
+        "mixed": [
+            _build_repeated_events("career", 1, base_year)[0],
+            _build_repeated_events("relationship", 1, base_year)[0],
+            _build_repeated_events("health", 1, base_year)[0],
+            _build_repeated_events("finance", 1, base_year)[0],
+            _build_repeated_events("relocation", 1, base_year)[0],
+        ],
+    }
+
+    scenario_metrics: Dict[str, Dict[str, Any]] = {}
+    for name, events in scenarios.items():
+        candidates = analyze_birth_time(
+            birth_date=birth_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=num_brackets,
+            top_n=top_n,
+        )
+        metrics = _extract_candidate_metrics(candidates)
+        ordering = [f"{c.get('time_range', '')}:{_clamp_float(c.get('score', 0.0), -1e6, 1e6):.3f}" for c in candidates]
+        scenario_metrics[name] = {
+            "score_gap": metrics["score_gap"],
+            "confidence": metrics["max_confidence"],
+            "candidate_ordering": ordering,
+        }
+
+    gaps = [float(v["score_gap"]) for v in scenario_metrics.values()]
+    mean_gap = sum(gaps) / len(gaps) if gaps else 0.0
+    inflated_types = [name for name, v in scenario_metrics.items() if mean_gap > 0 and float(v["score_gap"]) > (mean_gap * 1.3)]
+
+    return {
+        "scenarios": scenario_metrics,
+        "mean_score_gap": round(mean_gap, 6),
+        "inflated_types": inflated_types,
+        "bias_detected": bool(len(inflated_types) > 0),
+    }
+
+
+def evaluate_birth_year_sensitivity(birth_data: Dict[str, Any], events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Check candidate ordering/score changes under ±1 year birth-date perturbation."""
+    birth_date, lat, lon, num_brackets, top_n = _extract_birth_inputs(birth_data)
+    years = [birth_date["year"] - 1, birth_date["year"], birth_date["year"] + 1]
+
+    results: Dict[str, Dict[str, Any]] = {}
+    for year in years:
+        shifted_date = {**birth_date, "year": int(year)}
+        candidates = analyze_birth_time(
+            birth_date=shifted_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=num_brackets,
+            top_n=top_n,
+        )
+        metrics = _extract_candidate_metrics(candidates)
+        top_candidate = candidates[0].get("time_range", "") if candidates else ""
+        results[str(year)] = {
+            "top_candidate": top_candidate,
+            "score_gap": metrics["score_gap"],
+            "confidence": metrics["max_confidence"],
+        }
+
+    base = results[str(birth_date["year"])]
+    prior = results[str(birth_date["year"] - 1)]
+    after = results[str(birth_date["year"] + 1)]
+
+    gap_delta_prior = abs(_safe_ratio(float(prior["score_gap"]) - float(base["score_gap"]), max(1e-9, abs(float(base["score_gap"])))))
+    gap_delta_after = abs(_safe_ratio(float(after["score_gap"]) - float(base["score_gap"]), max(1e-9, abs(float(base["score_gap"])))))
+    confidence_delta = max(
+        abs(float(prior["confidence"]) - float(base["confidence"])),
+        abs(float(after["confidence"]) - float(base["confidence"])),
+    )
+    ordering_flip = (prior["top_candidate"] != base["top_candidate"]) and (after["top_candidate"] != base["top_candidate"])
+
+    return {
+        "year_runs": results,
+        "score_gap_delta_percent": round(max(gap_delta_prior, gap_delta_after) * 100.0, 6),
+        "confidence_delta": round(confidence_delta, 6),
+        "ordering_flip": bool(ordering_flip),
+        "sensitivity_issue": bool(ordering_flip or gap_delta_prior > 0.5 or gap_delta_after > 0.5),
+    }
+
+
+def evaluate_extreme_age_ranges(birth_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Evaluate score/confidence safety under extreme range-width events."""
+    birth_date, lat, lon, num_brackets, top_n = _extract_birth_inputs(birth_data)
+    ranges = [(0, 0), (0, 5), (0, 30)]
+
+    scenario_report: Dict[str, Dict[str, Any]] = {}
+    safe = True
+    for start_age, end_age in ranges:
+        events = [
+            {
+                "event_type": "career",
+                "precision_level": "range",
+                "year": None,
+                "month": None,
+                "age_range": [start_age, end_age],
+                "weight": 1.0,
+                "dasha_lords": [],
+                "house_triggers": [],
+            }
+            for _ in range(5)
+        ]
+        candidates = analyze_birth_time(
+            birth_date=birth_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=num_brackets,
+            top_n=top_n,
+        )
+        metrics = _extract_candidate_metrics(candidates)
+        width = max(0, end_age - start_age)
+        info_weight = get_information_weight({"precision_level": "range", "age_range": [start_age, end_age]})
+        adaptive_buffer = max(1, int(width * 0.1))
+        score_impact = _safe_ratio(metrics["top_candidate_score"], max(1.0, float(len(events))))
+        scenario_report[f"{start_age}-{end_age}"] = {
+            "information_weight": round(max(0.0, info_weight), 6),
+            "adaptive_buffer": int(adaptive_buffer),
+            "score_impact": round(score_impact, 6),
+            "max_confidence": metrics["max_confidence"],
+        }
+        if metrics["max_confidence"] > 0.98 or info_weight < 0 or score_impact > 100:
+            safe = False
+
+    return {
+        "ranges": scenario_report,
+        "safe_range_flag": bool(safe),
+    }
+
+
+def evaluate_event_weight_extremes(birth_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Check linearity and overflow safety under extreme event-weight multipliers."""
+    birth_date, lat, lon, num_brackets, top_n = _extract_birth_inputs(birth_data)
+    base_year = int(birth_date["year"]) + 25
+    multipliers = [0.1, 1.0, 5.0, 10.0]
+    results: Dict[str, Dict[str, float]] = {}
+
+    for multiplier in multipliers:
+        events = _build_repeated_events("career", 5, base_year, weight=multiplier)
+        candidates = analyze_birth_time(
+            birth_date=birth_date,
+            events=events,
+            lat=lat,
+            lon=lon,
+            num_brackets=num_brackets,
+            top_n=top_n,
+        )
+        metrics = _extract_candidate_metrics(candidates)
+        results[str(multiplier)] = {
+            "top_score": metrics["top_candidate_score"],
+            "score_gap": metrics["score_gap"],
+            "confidence": metrics["max_confidence"],
+        }
+
+    base_top = float(results["1.0"]["top_score"])
+    linearity_check = True
+    for multiplier in [0.1, 5.0, 10.0]:
+        observed = float(results[str(multiplier)]["top_score"])
+        expected = base_top * multiplier
+        if abs(expected) > 1e-9:
+            if abs(observed - expected) / abs(expected) > 0.35:
+                linearity_check = False
+        if float(results[str(multiplier)]["confidence"]) > 0.98:
+            linearity_check = False
+
+    return {
+        "multipliers": results,
+        "linearity_check": bool(linearity_check),
+    }
+
+
+def run_full_stability_audit(birth_data: Dict[str, Any], events: List[Dict[str, Any]]) -> Dict[str, Any]:
+    """Run Layer 5.5 diagnostics without changing scoring internals."""
+    event_count = evaluate_event_count_stability(birth_data)
+    type_bias = evaluate_event_type_bias(birth_data)
+    birth_year_sensitivity = evaluate_birth_year_sensitivity(birth_data, events)
+    extreme_ranges = evaluate_extreme_age_ranges(birth_data)
+    weight_extremes = evaluate_event_weight_extremes(birth_data)
+
+    overall_safe = not any([
+        bool(event_count.get("instability_detected", False)),
+        bool(type_bias.get("bias_detected", False)),
+        bool(birth_year_sensitivity.get("sensitivity_issue", False)),
+        not bool(extreme_ranges.get("safe_range_flag", False)),
+        not bool(weight_extremes.get("linearity_check", False)),
+    ])
+
+    return {
+        "event_count": event_count,
+        "type_bias": type_bias,
+        "birth_year_sensitivity": birth_year_sensitivity,
+        "extreme_ranges": extreme_ranges,
+        "weight_extremes": weight_extremes,
+        "overall_safe": bool(overall_safe),
+    }
