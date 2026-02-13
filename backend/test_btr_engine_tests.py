@@ -25,6 +25,7 @@ from backend.btr_engine import (
     _has_mahadasha_range_overlap,
     _score_candidate,
     compute_event_signal_strength,
+    compute_planet_dignity_score,
     calculate_vimshottari_dasha,
     convert_age_range_to_year_range,
     date_to_jd,
@@ -465,6 +466,26 @@ class TestBTREventSignalStrength(unittest.TestCase):
 
         self.assertGreater(low_conflict, high_conflict)
 
+
+
+class TestPlanetDignityScoring(unittest.TestCase):
+    """Deterministic dignity multiplier tests for Layer 5 Step 1."""
+
+    def test_exaltation_multiplier(self) -> None:
+        """Exaltation sign should return 1.3 multiplier."""
+        self.assertEqual(compute_planet_dignity_score("Sun", "Aries"), 1.3)
+
+    def test_debilitation_penalty(self) -> None:
+        """Debilitation sign should return 0.6 multiplier."""
+        self.assertEqual(compute_planet_dignity_score("Moon", "Scorpio"), 0.6)
+
+    def test_own_sign_bonus(self) -> None:
+        """Own sign should return 1.15 multiplier."""
+        self.assertEqual(compute_planet_dignity_score("Mars", "Aries"), 1.15)
+
+    def test_neutral_sign_no_change(self) -> None:
+        """Neutral sign should remain at 1.0 multiplier."""
+        self.assertEqual(compute_planet_dignity_score("Venus", "Aquarius"), 1.0)
 
 
 if __name__ == "__main__":
