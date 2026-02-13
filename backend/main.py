@@ -10,6 +10,7 @@ import os
 import json
 import math
 import base64
+from enum import Enum
 from datetime import datetime
 from typing import Optional, Any, Literal, Tuple, Dict, List
 
@@ -24,7 +25,7 @@ from openai import OpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import AliasChoices, BaseModel, Field, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
 # ReportLab PDF 생성
 from reportlab.lib import colors
@@ -183,10 +184,20 @@ HOUSE_SYSTEMS = {
 # ─────────────────────────────────────────────────────────────────────────────
 # Pydantic 모델
 # ─────────────────────────────────────────────────────────────────────────────
+class EventType(str, Enum):
+    career_change = "career_change"
+    relationship = "relationship"
+    relocation = "relocation"
+    health = "health"
+    finance = "finance"
+    other = "other"
+
+
 class BTREvent(BaseModel):
-    event_type: str = Field(
+    model_config = ConfigDict(extra="ignore")
+    event_type: EventType = Field(
         ...,
-        description="이벤트 타입 (예: marriage, career, education)",
+        description="이벤트 타입",
         validation_alias=AliasChoices("event_type", "type"),
     )
     precision_level: Literal["exact", "range", "unknown"] = Field(
@@ -194,8 +205,8 @@ class BTREvent(BaseModel):
         description="정밀도 레벨 (exact | range | unknown)",
     )
     year: Optional[int] = Field(None, description="이벤트 발생 년도")
-    month: Optional[int] = Field(None, description="이벤트 발생 월 (선택)")
     age_range: Optional[Tuple[int, int]] = Field(None, description="이벤트 나이 구간 (시작, 종료)")
+    other_label: Optional[str] = Field(None, description="기타 이벤트 라벨")
     weight: Optional[float] = Field(1.0, description="이벤트 가중치")
     dasha_lords: Optional[list[str]] = Field(default_factory=list, description="다샤 로드")
     house_triggers: Optional[list[int]] = Field(default_factory=list, description="하우스 트리거")
@@ -203,8 +214,8 @@ class BTREvent(BaseModel):
     @model_validator(mode="after")
     def validate_precision_payload(self) -> "BTREvent":
         """precision_level에 맞는 이벤트 입력 조합을 검증한다."""
-        if self.month is not None and not (1 <= self.month <= 12):
-            raise ValueError("month는 1~12 범위여야 합니다.")
+        if self.event_type == EventType.other and not self.other_label:
+            raise ValueError("event_type='other' 인 경우 other_label은 필수입니다.")
 
         if self.precision_level == "exact":
             if self.year is None:
@@ -222,14 +233,23 @@ class BTREvent(BaseModel):
                 raise ValueError("age_range 시작값은 종료값보다 클 수 없습니다.")
             if self.year is not None:
                 raise ValueError("precision_level='range' 인 경우 year는 사용할 수 없습니다.")
-            if self.month is not None:
-                raise ValueError("precision_level='range' 인 경우 month는 사용할 수 없습니다.")
 
         elif self.precision_level == "unknown":
-            if self.year is not None or self.age_range is not None or self.month is not None:
-                raise ValueError("precision_level='unknown' 인 경우 year/month/age_range는 모두 비워야 합니다.")
+            if self.year is not None or self.age_range is not None:
+                raise ValueError("precision_level='unknown' 인 경우 year/age_range는 모두 비워야 합니다.")
 
         return self
+
+
+def validate_btr_events(events: List[BTREvent]) -> None:
+    """
+    Enforce:
+    - At least one event must have precision_level != "unknown"
+    - Reject empty list
+    - Raise HTTPException(400, detail="Please choose a timing for at least one event.")
+    """
+    if len(events) == 0 or all(e.precision_level == "unknown" for e in events):
+        raise HTTPException(status_code=400, detail="Please choose a timing for at least one event.")
 
 class BTRAnalyzeRequest(BaseModel):
     year: int = Field(..., description="출생 년도")
@@ -1473,9 +1493,9 @@ def analyze_btr(request: BTRAnalyzeRequest):
         "lon": 126.978,
         "events": [
             {
-                "type": "marriage",
+                "type": "relationship",
                 "year": 2015,
-                "month": 6,
+                "precision_level": "exact",
                 "weight": 0.8,
                 "dasha_lords": ["Venus", "Jupiter"],
                 "house_triggers": [7]
@@ -1489,8 +1509,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
     if not BTR_ENGINE_AVAILABLE:
         raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
 
-    if not request.events:
-        raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
+    validate_btr_events(request.events)
 
     # 미래 이벤트 검증 (precision_level 별)
     current_year = datetime.now().year
@@ -1521,7 +1540,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
 
         # Pydantic 모델을 dict로 변환
-        events_dict = [ev.model_dump() for ev in request.events]
+        events_dict = [ev.model_dump(mode="json") for ev in request.events]
 
         candidates = analyze_birth_time(
             birth_date=birth_date,
@@ -1558,15 +1577,14 @@ def refine_btr(request: BTRRefineRequest):
     if not BTR_ENGINE_AVAILABLE:
         raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
 
-    if not request.events:
-        raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
+    validate_btr_events(request.events)
 
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
         bracket = {"start": request.bracket_start, "end": request.bracket_end}
 
         # Pydantic 모델을 dict로 변환
-        events_dict = [ev.model_dump() for ev in request.events]
+        events_dict = [ev.model_dump(mode="json") for ev in request.events]
 
         refined = refine_time_bracket(
             date=birth_date,

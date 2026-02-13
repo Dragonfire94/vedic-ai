@@ -1,13 +1,20 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
 
+export type EventType =
+  | 'career_change'
+  | 'relationship'
+  | 'relocation'
+  | 'health'
+  | 'finance'
+  | 'other'
+
 // Type definitions
-export interface BTREvent {
-  type: string
-  year: number
-  month?: number
-  weight?: number
-  dasha_lords?: string[]
-  house_triggers?: number[]
+export type BTREvent = {
+  event_type: EventType
+  precision_level: 'exact' | 'range' | 'unknown'
+  year?: number
+  age_range?: [number, number]
+  other_label?: string
 }
 
 export interface BTRAnalyzeRequest {
