@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Tuple
 from backend.btr_engine import (
     _has_mahadasha_range_overlap,
     _score_candidate,
+    compute_event_signal_strength,
     calculate_vimshottari_dasha,
     convert_age_range_to_year_range,
     date_to_jd,
@@ -355,6 +356,115 @@ class TestBTREnginePhase1Scenarios(unittest.TestCase):
         self._assert_with_summary(unknown_weight == 0.0, f"Expected unknown information weight 0.0. got {unknown_weight}")
         self._assert_with_summary(narrow_range_weight > wide_range_weight, f"Expected narrow > wide weight. narrow={narrow_range_weight}, wide={wide_range_weight}")
         self._assert_with_summary(abs(wide_range_weight - 0.3) < 1e-9, f"Expected floor 0.3 for wide range. got {wide_range_weight}")
+
+
+class TestBTREventSignalStrength(unittest.TestCase):
+    """Tests for event-type signal profile based score augmentation."""
+
+    def test_event_signal_strength_scaling(self) -> None:
+        """Signal should increase when houses/planets/dasha align better."""
+        event = {"event_type": "career"}
+
+        low_signal = compute_event_signal_strength(
+            chart_data={"houses": {1: True}},
+            event=event,
+            strength_data={"Sun": {"score": 0.2}, "Saturn": {"score": 0.2}},
+            influence_matrix={"Moon": 10.0, "Ketu": 8.0},
+            dasha_vector={},
+        )
+
+        high_signal = compute_event_signal_strength(
+            chart_data={"houses": {10: True, 6: True}},
+            event=event,
+            strength_data={
+                "Sun": {"score": 1.0},
+                "Saturn": {"score": 0.9},
+                "Mars": {"score": 0.8},
+            },
+            influence_matrix={"Moon": 0.0, "Ketu": 0.0},
+            dasha_vector={"Sun": True},
+        )
+
+        self.assertGreater(high_signal, low_signal)
+        self.assertGreaterEqual(low_signal, 0.0)
+        self.assertLessEqual(high_signal, 1.0)
+
+    def test_event_signal_integration_effect(self) -> None:
+        """Candidate score should be reduced when signal model is weaker."""
+        birth_date = _make_birth_date(1990, 1, 15)
+        chart_high = _make_chart(
+            date_to_jd(1990, 1, 15),
+            moon_longitude=85.0,
+            planet_houses={
+                "Sun": 10,
+                "Moon": 1,
+                "Mars": 6,
+                "Mercury": 3,
+                "Jupiter": 9,
+                "Venus": 5,
+                "Saturn": 10,
+                "Rahu": 2,
+                "Ketu": 8,
+            },
+        )
+        chart_low = _make_chart(
+            date_to_jd(1990, 1, 15),
+            moon_longitude=85.0,
+            planet_houses={
+                "Sun": 2,
+                "Moon": 6,
+                "Mars": 8,
+                "Mercury": 12,
+                "Jupiter": 4,
+                "Venus": 3,
+                "Saturn": 12,
+                "Rahu": 6,
+                "Ketu": 12,
+            },
+        )
+
+        events = [
+            {
+                "event_type": "career",
+                "precision_level": "exact",
+                "year": 2012,
+                "month": 6,
+                "weight": 1.0,
+                "dasha_lords": [],
+                "house_triggers": [],
+            }
+        ]
+
+        score_high, *_ = _evaluate_candidate(birth_date, chart_high, events)
+        score_low, *_ = _evaluate_candidate(birth_date, chart_low, events)
+
+        self.assertGreater(score_high, score_low)
+
+    def test_conflict_penalty_influence(self) -> None:
+        """Higher conflict influence should reduce event signal strength."""
+        event = {"event_type": "relationship"}
+        base_kwargs = dict(
+            chart_data={"houses": {7: True, 5: True, 11: True}},
+            event=event,
+            strength_data={
+                "Venus": {"score": 0.8},
+                "Moon": {"score": 0.8},
+                "Jupiter": {"score": 0.8},
+            },
+            dasha_vector={"Venus": True},
+        )
+
+        low_conflict = compute_event_signal_strength(
+            influence_matrix={"Saturn": 0.0, "Rahu": 0.0},
+            **base_kwargs,
+        )
+        high_conflict = compute_event_signal_strength(
+            influence_matrix={"Saturn": 12.0, "Rahu": 12.0},
+            **base_kwargs,
+        )
+
+        self.assertGreater(low_conflict, high_conflict)
+
 
 
 if __name__ == "__main__":
