@@ -11,7 +11,7 @@ import json
 import math
 import base64
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 import swisseph as swe
 import pytz
@@ -94,6 +94,30 @@ if OPENAI_API_KEY:
 # ─────────────────────────────────────────────────────────────────────────────
 AI_CACHE = {}
 AI_CACHE_TTL = 1800  # 30분
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 정적 해석 데이터 로드
+# ─────────────────────────────────────────────────────────────────────────────
+INTERPRETATION_FILE = os.path.join(
+    os.path.dirname(os.path.dirname(__file__)),
+    "assets", "data", "interpretations.kr_final.json"
+)
+INTERPRETATIONS_DATA: dict[str, Any] | None = None
+INTERPRETATIONS_KO: dict[str, Any] = {}
+INTERPRETATIONS_ATOMIC_KO: dict[str, Any] = {}
+INTERPRETATIONS_LOAD_ERROR: str | None = None
+
+try:
+    with open(INTERPRETATION_FILE, "r", encoding="utf-8") as f:
+        INTERPRETATIONS_DATA = json.load(f)
+    INTERPRETATIONS_KO = (INTERPRETATIONS_DATA.get("ko") or {})
+    INTERPRETATIONS_ATOMIC_KO = INTERPRETATIONS_KO.get("atomic") or {}
+    if not isinstance(INTERPRETATIONS_ATOMIC_KO, dict):
+        INTERPRETATIONS_LOAD_ERROR = "ko.atomic is not a dictionary"
+        INTERPRETATIONS_ATOMIC_KO = {}
+except Exception as e:
+    INTERPRETATIONS_LOAD_ERROR = str(e)
+    print(f"[WARN] interpretations file load failed: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Swiss Ephemeris 초기화
@@ -248,6 +272,117 @@ def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: f
                     utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0)
     print(f"🔍 Julian day: {jd}")
     return jd
+
+def extract_atomic_interpretation_text(entry: Any) -> str | None:
+    """해석 엔트리(dict/str)에서 text를 추출"""
+    if isinstance(entry, dict):
+        text = entry.get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    elif isinstance(entry, str) and entry.strip():
+        return entry.strip()
+    return None
+
+
+def build_atomic_keys_from_chart(chart: dict) -> list[str]:
+    """차트에서 atomic 조회 키를 생성한다."""
+    keys: list[str] = []
+
+    asc_sign = (((chart.get("houses") or {}).get("ascendant") or {}).get("rasi") or {}).get("name")
+    if isinstance(asc_sign, str) and asc_sign:
+        keys.append(f"asc:{asc_sign}")
+
+    for planet_name, pdata in (chart.get("planets") or {}).items():
+        sign_name = ((pdata.get("rasi") or {}).get("name"))
+        if isinstance(sign_name, str) and sign_name:
+            keys.append(f"ps:{planet_name}:{sign_name}")
+
+        house_num = pdata.get("house")
+        if isinstance(house_num, int):
+            keys.append(f"ph:{planet_name}:{house_num}")
+
+    # 순서 유지 중복 제거
+    return list(dict.fromkeys(keys))
+
+
+def yoga_name_to_key(yoga_name: str) -> str:
+    """차트 yoga 이름을 데이터 키 형식으로 정규화"""
+    cleaned = yoga_name.replace("Yoga", "").replace("yoga", "").strip()
+    cleaned = ''.join(ch for ch in cleaned if ch.isalnum())
+    return f"yoga:{cleaned}" if cleaned else ""
+
+
+def collect_interpretation_context(chart: dict) -> tuple[list[str], list[str], dict[str, int]]:
+    """차트에 대응하는 해석 텍스트를 섹션별로 수집해 RAG context를 구성"""
+    keys: list[str] = []
+    texts: list[str] = []
+    section_counts = {"atomic": 0, "lagna_lord": 0, "yogas": 0, "patterns": 0}
+
+    ko_data = INTERPRETATIONS_KO if isinstance(INTERPRETATIONS_KO, dict) else {}
+
+    # 1) atomic: asc / planet-sign / planet-house
+    atomic = ko_data.get("atomic") or {}
+    if isinstance(atomic, dict):
+        for key in build_atomic_keys_from_chart(chart):
+            text = extract_atomic_interpretation_text(atomic.get(key))
+            if text:
+                keys.append(key)
+                texts.append(text)
+                section_counts["atomic"] += 1
+
+    # 2) yogas: chart.features.yogas hit 기반 매핑
+    yogas = ko_data.get("yogas") or {}
+    if isinstance(yogas, dict):
+        for yoga in (((chart.get("features") or {}).get("yogas")) or []):
+            if not isinstance(yoga, dict) or not yoga.get("hit"):
+                continue
+            yoga_name = yoga.get("name")
+            if not isinstance(yoga_name, str):
+                continue
+            yoga_key = yoga_name_to_key(yoga_name)
+            if not yoga_key:
+                continue
+            text = extract_atomic_interpretation_text(yogas.get(yoga_key))
+            if text:
+                keys.append(yoga_key)
+                texts.append(text)
+                section_counts["yogas"] += 1
+
+    # 3) patterns: chart.features.patterns가 존재할 경우만 사용 (확장 대비)
+    patterns = ko_data.get("patterns") or {}
+    if isinstance(patterns, dict):
+        for pat in (((chart.get("features") or {}).get("patterns")) or []):
+            if isinstance(pat, str):
+                pat_key = pat if pat.startswith("pat:") else f"pat:{pat}"
+            elif isinstance(pat, dict):
+                raw_key = pat.get("id") or pat.get("key") or pat.get("name")
+                if not isinstance(raw_key, str):
+                    continue
+                pat_key = raw_key if raw_key.startswith("pat:") else f"pat:{raw_key}"
+            else:
+                continue
+            text = extract_atomic_interpretation_text(patterns.get(pat_key))
+            if text:
+                keys.append(pat_key)
+                texts.append(text)
+                section_counts["patterns"] += 1
+
+    # 4) lagna_lord: chart.features.lagna_lord_keys가 존재할 경우 확장 사용
+    lagna_lord = ko_data.get("lagna_lord") or {}
+    if isinstance(lagna_lord, dict):
+        for ll_key in (((chart.get("features") or {}).get("lagna_lord_keys")) or []):
+            if not isinstance(ll_key, str):
+                continue
+            key = ll_key if ll_key.startswith("ll:") else f"ll:{ll_key}"
+            text = extract_atomic_interpretation_text(lagna_lord.get(key))
+            if text:
+                keys.append(key)
+                texts.append(text)
+                section_counts["lagna_lord"] += 1
+
+    dedup_keys = list(dict.fromkeys(keys))
+    dedup_texts = list(dict.fromkeys(texts))
+    return dedup_keys, dedup_texts, section_counts
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: Health Check
@@ -571,9 +706,54 @@ def get_ai_reading(
         return result
     
     try:
-        # 프롬프트 생성
-        if language == "ko":
-            prompt = f"""당신은 사용자의 성향을 날카롭게 짚고 현실적인 조언을 주는 상담가입니다. 아래 출생 차트를 바탕으로 한국어 AI 리딩을 작성하세요.
+        # 프롬프트 생성 (RAG + fallback)
+        mapped_keys: list[str] = []
+        mapped_texts: list[str] = []
+        mapped_section_counts = {"atomic": 0, "lagna_lord": 0, "yogas": 0, "patterns": 0}
+        static_context_used = False
+
+        if language == "ko" and INTERPRETATIONS_ATOMIC_KO:
+            mapped_keys, mapped_texts, mapped_section_counts = collect_interpretation_context(chart)
+
+        if language == "ko" and mapped_texts:
+            static_context_used = True
+            context_blob = "\n\n".join(f"[{i}] {t}" for i, t in enumerate(mapped_texts, 1))
+            prompt = f"""당신은 단순한 점성가가 아니라, 내담자의 인생을 꿰뚫어 보는 심층 심리 분석가이자 인생 컨설턴트입니다.
+아래 [차트 해석 재료]는 단편적인 조각입니다. 이 조각들을 유기적으로 종합해 하나의 완성도 높은 프리미엄 상담 리포트를 작성하세요.
+절대 제공되지 않은 사실을 지어내지 말고, 반드시 제공된 재료를 근거로만 통찰을 전개하세요.
+
+[작성 원칙]
+1) 단편 나열 금지: 성격 키워드를 병렬로 늘어놓지 말고, 서로 상충하는 지점의 긴장과 이중성을 분석하세요.
+2) 입체적 분석: 겉모습(Persona)과 속마음(Inner Self)의 괴리를 분명히 짚고, 실제 삶에서 어떻게 나타나는지 설명하세요.
+3) 문체: 전문적이되 따뜻한 상담 어조로 "~합니다/~하세요"를 사용하세요.
+4) 첫 문장: 반드시 한 줄의 시적인 비유로 시작하세요.
+5) 실용성: 뜬구름 조언 금지. 바로 적용 가능한 행동 지침을 구체적으로 제시하세요.
+6) 금지: 전문용어 나열식 설명, 근거 없는 단정, 데이터에 없는 예측 생성.
+
+[출력 형식: Markdown]
+# [한 줄 요약 비유: ~~~한 당신]
+
+## 1. 심층 성향 분석: 겉과 속의 이중주
+- 제공 재료를 교차 해석해 내면의 갈등 구조와 심리 패턴을 입체적으로 설명하세요.
+
+## 2. 당신의 무기와 잠재적 함정
+- 강점이 빛나는 조건과, 약점이 문제를 만드는 구체적 트리거를 함께 제시하세요.
+
+## 3. 현실적 개운 솔루션 (Premium Insight)
+- **최적의 환경**: 구체적 지역 특성/방향/공간 구성 팁
+- **행운의 키워드**: 색상, 숫자, 아이템
+- **처세술**: 당장 실천 가능한 대화법/관계 전략/업무 루틴
+- **직업적 조언**: 직무 성향, 협업 방식, 커리어 운영 원칙
+
+분량은 공백 포함 2,000자 이상으로 작성하세요.
+
+[차트 해석 재료]
+{context_blob}
+"""
+        else:
+            # JSON 파일 로드 실패/키 매핑 실패 시 기존 창작형 프롬프트로 fallback
+            if language == "ko":
+                prompt = f"""당신은 사용자의 성향을 날카롭게 짚고 현실적인 조언을 주는 상담가입니다. 아래 출생 차트를 바탕으로 한국어 AI 리딩을 작성하세요.
 
 첫 기준:
 - 첫 문장은 반드시 한 줄 비유로 시작하세요. (예: "당신은 바위틈에서 피어나는 들꽃 같습니다.")
@@ -602,21 +782,22 @@ def get_ai_reading(
 
 별의 흐름:
 """
-        else:
-            prompt = f"""You are an insightful astrology counselor. Analyze the chart below and provide a detailed reading in English.
+            else:
+                prompt = f"""You are an insightful astrology counselor. Analyze the chart below and provide a detailed reading in English.
 
 Ascendant: {asc}
 Moon Sign: {moon_sign}
 
 Planetary placements:
 """
-        for name, data in chart["planets"].items():
-            rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
-            house = data.get("house", "?")
-            prompt += f"- {name}: {rasi} (House {house})\n"
 
-        if language != "ko":
-            prompt += """
+            for name, data in chart["planets"].items():
+                rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
+                house = data.get("house", "?")
+                prompt += f"- {name}: {rasi} (House {house})\n"
+
+            if language != "ko":
+                prompt += """
 Please structure your response with these sections:
 1. [Overview] - 3 key traits
 2. [Career & Wealth]
@@ -627,12 +808,12 @@ Please structure your response with these sections:
 
 Write 800-1000 words with practical guidance.
 """
-        
+
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=2000
+            temperature=0.75,
+            max_tokens=3200
         )
         
         reading_text = response.choices[0].message.content
@@ -650,7 +831,14 @@ Write 800-1000 words with practical guidance.
                 "model_used": OPENAI_MODEL,
                 "prompt_length": len(prompt),
                 "response_tokens": response.usage.total_tokens if hasattr(response, 'usage') else 0,
-                "client_initialized": client is not None
+                "client_initialized": client is not None,
+                "static_context_used": static_context_used,
+                "mapped_key_count": len(mapped_keys),
+                "mapped_text_count": len(mapped_texts),
+                "mapped_keys": mapped_keys,
+                "mapped_section_counts": mapped_section_counts,
+                "interpretations_loaded": bool(INTERPRETATIONS_KO),
+                "interpretations_load_error": INTERPRETATIONS_LOAD_ERROR,
             }
         }
         
