@@ -7,7 +7,7 @@ BTR (Birth Time Rectification) 엔진
 
 import math
 import logging
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Literal
 from datetime import datetime
 
 import swisseph as swe
@@ -111,6 +111,18 @@ def year_frac_to_jd(year_frac: float) -> float:
 def date_to_jd(year: int, month: int, day: int) -> float:
     """날짜 → Julian Day (UTC noon)"""
     return swe.julday(year, month, day, 12.0)
+
+
+def convert_age_range_to_year_range(
+    birth_year: int,
+    age_range: Tuple[int, int]
+) -> Tuple[int, int]:
+    """
+    Convert age range into absolute year range.
+    Does not perform scoring yet.
+    """
+    start_age, end_age = age_range
+    return birth_year + start_age, birth_year + end_age
 
 
 def log_sum_exp(scores: List[float]) -> float:
@@ -414,7 +426,8 @@ def match_event_to_chart(
     event: Dict,
     birth_jd: float,
     birth_moon_lon: float,
-    tolerance_months: int = 3
+    tolerance_months: int = 3,
+    birth_year: Optional[int] = None
 ) -> Tuple[float, int]:
     """
     이벤트와 차트 매칭
@@ -425,17 +438,48 @@ def match_event_to_chart(
         birth_jd: 출생 Julian Day
         birth_moon_lon: 출생 시 달 경도
         tolerance_months: 허용 오차 (월)
+        birth_year: 출생 연도 (range 이벤트 변환용, 미지정 시 birth_jd에서 추정)
 
     Returns:
         (score, fallback_level)
         score: 매칭 점수 (0.0~1.0)
         fallback_level: 사용된 fallback 레벨 (0~4)
     """
+    precision_level = event.get("precision_level", "exact")
     event_year = event.get("year")
     event_month = event.get("month")
     event_weight = event.get("weight", 1.0)
     dasha_lords = event.get("dasha_lords", [])
     house_triggers = event.get("house_triggers", [])
+
+    if precision_level == "range":
+        age_range = event.get("age_range")
+        if not age_range:
+            return 0.0, 4
+
+        resolved_birth_year = birth_year
+        if resolved_birth_year is None:
+            resolved_birth_year = int(jd_to_year_frac(birth_jd))
+
+        start_year, end_year = convert_age_range_to_year_range(
+            resolved_birth_year,
+            (int(age_range[0]), int(age_range[1]))
+        )
+
+        range_match = _has_mahadasha_range_overlap(
+            birth_jd=birth_jd,
+            birth_moon_lon=birth_moon_lon,
+            event_start_year=start_year,
+            event_end_year=end_year,
+            dasha_lords=dasha_lords,
+        )
+        if not range_match:
+            return 0.0, 4
+
+        score = event_weight
+        if _check_house_triggers(chart, house_triggers):
+            score += 0.2
+        return score, 0
 
     if not event_year:
         return 0.0, 4
@@ -459,6 +503,41 @@ def match_event_to_chart(
             return score, level
 
     return 0.0, 4
+
+
+def _has_mahadasha_range_overlap(
+    birth_jd: float,
+    birth_moon_lon: float,
+    event_start_year: int,
+    event_end_year: int,
+    dasha_lords: List[str]
+) -> bool:
+    """
+    Range 이벤트의 Mahadasha 연도 구간 겹침 여부를 확인한다.
+
+    겹침 규칙:
+    - 이벤트 구간: [event_start_year, event_end_year]
+    - Mahadasha 구간: [md_start_year, md_end_year] 를 ±1년 확장
+      => [md_start_year - 1, md_end_year + 1]
+    - 표준 interval overlap:
+      event_start_year <= md_end_year_adj and event_end_year >= md_start_year_adj
+    """
+    mahadashas = calculate_vimshottari_dasha(birth_jd, birth_moon_lon)
+
+    for md in mahadashas:
+        if dasha_lords and md["lord"] not in dasha_lords:
+            continue
+
+        md_start_year = int(math.floor(jd_to_year_frac(md["start_jd"])))
+        md_end_year = int(math.ceil(jd_to_year_frac(md["end_jd"])))
+
+        md_start_year_adj = md_start_year - 1
+        md_end_year_adj = md_end_year + 1
+
+        if event_start_year <= md_end_year_adj and event_end_year >= md_start_year_adj:
+            return True
+
+    return False
 
 
 def _try_match_at_level(
@@ -655,7 +734,7 @@ def calculate_confidence(
     Parameters:
         total_score: 총 획득 점수
         max_possible_score: 최대 가능 점수
-        num_events: 총 이벤트 수
+        num_events: 신뢰도 계산에 포함되는 이벤트 수 (unknown 제외)
         matched_events: 매칭된 이벤트 수
         fallback_penalties: Fallback 레벨 리스트
 
@@ -837,6 +916,26 @@ def _compute_chart_for_time(
         return None
 
 
+
+
+def get_precision_utility(event: Dict[str, Any]) -> float:
+    """
+    이벤트 정밀도별 유틸리티 가중치(U)를 반환한다.
+
+    - exact: 1.0
+    - range: 0.7
+    - unknown: 0.0
+
+    precision_level 미지정(구버전 입력)은 exact로 처리해 하위 호환을 유지한다.
+    """
+    precision_level: Literal["exact", "range", "unknown"] = event.get("precision_level", "exact")
+
+    if precision_level == "range":
+        return 0.7
+    if precision_level == "unknown":
+        return 0.0
+    return 1.0
+
 def _hour_to_str(hour_float: float) -> str:
     """시간(소수점) → 'HH:MM' 문자열"""
     h = int(hour_float) % 24
@@ -855,6 +954,9 @@ def _score_candidate(
     """
     후보 시간에 대한 종합 스코어 계산
 
+    precision_level='unknown' 이벤트는 완전히 중립 처리한다.
+    (매칭/감점/신뢰도 분모/패널티 계산에서 제외)
+
     Returns:
         (total_score, matched_events, total_events, confidence, fallback_levels)
     """
@@ -864,30 +966,39 @@ def _score_candidate(
     total_score = 0.0
     matched_count = 0
     max_possible = 0.0
-    fallback_levels = []
-    event_scores = []
+    fallback_levels: List[int] = []
+    scored_event_count = 0
 
     for event in events:
+        precision_level = event.get("precision_level", "exact")
+        if precision_level == "unknown":
+            # unknown 이벤트는 완전 중립 처리
+            continue
+
+        utility = get_precision_utility(event)
         event_weight = event.get("weight", 1.0)
-        max_possible += event_weight + 0.2  # weight + max house bonus
+        effective_weight = event_weight * utility
+        max_possible += effective_weight + (0.2 * utility)
 
-        score, fb_level = match_event_to_chart(
-            chart, event, birth_jd, birth_moon_lon
+        raw_score, fb_level = match_event_to_chart(
+            chart, event, birth_jd, birth_moon_lon,
+            birth_year=date["year"]
         )
-
-        if score > 0:
-            matched_count += 1
-            event_scores.append(score)
-        else:
-            event_scores.append(-0.5 * event_weight)
-
         fallback_levels.append(fb_level)
-        total_score += score
+        scored_event_count += 1
 
-    # Confidence 계산
+        if raw_score > 0:
+            matched_count += 1
+            event_score = raw_score * utility
+        else:
+            event_score = (-0.5 * event_weight) * utility
+
+        total_score += event_score
+
+    # Confidence 계산 (unknown 이벤트 제외)
     confidence = calculate_confidence(
         total_score, max_possible,
-        len(events), matched_count,
+        scored_event_count, matched_count,
         fallback_levels
     )
 

@@ -11,7 +11,7 @@ import json
 import math
 import base64
 from datetime import datetime
-from typing import Optional, Any
+from typing import Optional, Any, Literal, Tuple
 
 from astro_engine import build_structural_summary
 
@@ -22,7 +22,7 @@ from openai import OpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field
+from pydantic import AliasChoices, BaseModel, Field, model_validator
 
 # ReportLab PDF 생성
 from reportlab.lib import colors
@@ -182,12 +182,52 @@ HOUSE_SYSTEMS = {
 # Pydantic 모델
 # ─────────────────────────────────────────────────────────────────────────────
 class BTREvent(BaseModel):
-    type: str = Field(..., description="이벤트 타입 (예: marriage, career, education)")
-    year: int = Field(..., description="이벤트 발생 년도")
+    event_type: str = Field(
+        ...,
+        description="이벤트 타입 (예: marriage, career, education)",
+        validation_alias=AliasChoices("event_type", "type"),
+    )
+    precision_level: Literal["exact", "range", "unknown"] = Field(
+        "exact",
+        description="정밀도 레벨 (exact | range | unknown)",
+    )
+    year: Optional[int] = Field(None, description="이벤트 발생 년도")
     month: Optional[int] = Field(None, description="이벤트 발생 월 (선택)")
+    age_range: Optional[Tuple[int, int]] = Field(None, description="이벤트 나이 구간 (시작, 종료)")
     weight: Optional[float] = Field(1.0, description="이벤트 가중치")
     dasha_lords: Optional[list[str]] = Field(default_factory=list, description="다샤 로드")
     house_triggers: Optional[list[int]] = Field(default_factory=list, description="하우스 트리거")
+
+    @model_validator(mode="after")
+    def validate_precision_payload(self) -> "BTREvent":
+        """precision_level에 맞는 이벤트 입력 조합을 검증한다."""
+        if self.month is not None and not (1 <= self.month <= 12):
+            raise ValueError("month는 1~12 범위여야 합니다.")
+
+        if self.precision_level == "exact":
+            if self.year is None:
+                raise ValueError("precision_level='exact' 인 경우 year는 필수입니다.")
+            if self.age_range is not None:
+                raise ValueError("precision_level='exact' 인 경우 age_range는 사용할 수 없습니다.")
+
+        elif self.precision_level == "range":
+            if self.age_range is None:
+                raise ValueError("precision_level='range' 인 경우 age_range는 필수입니다.")
+            start_age, end_age = self.age_range
+            if start_age < 0 or end_age < 0:
+                raise ValueError("age_range 값은 0 이상이어야 합니다.")
+            if start_age > end_age:
+                raise ValueError("age_range 시작값은 종료값보다 클 수 없습니다.")
+            if self.year is not None:
+                raise ValueError("precision_level='range' 인 경우 year는 사용할 수 없습니다.")
+            if self.month is not None:
+                raise ValueError("precision_level='range' 인 경우 month는 사용할 수 없습니다.")
+
+        elif self.precision_level == "unknown":
+            if self.year is not None or self.age_range is not None or self.month is not None:
+                raise ValueError("precision_level='unknown' 인 경우 year/month/age_range는 모두 비워야 합니다.")
+
+        return self
 
 class BTRAnalyzeRequest(BaseModel):
     year: int = Field(..., description="출생 년도")
@@ -1179,6 +1219,7 @@ try:
         generate_time_brackets,
         calculate_vimshottari_dasha,
         get_dasha_at_date,
+        convert_age_range_to_year_range,
     )
     BTR_ENGINE_AVAILABLE = True
     print("[INFO] BTR engine loaded successfully")
@@ -1281,14 +1322,30 @@ def analyze_btr(request: BTRAnalyzeRequest):
     if not request.events:
         raise HTTPException(status_code=400, detail="이벤트가 하나 이상 필요합니다.")
 
-    # 미래 이벤트 검증
+    # 미래 이벤트 검증 (precision_level 별)
     current_year = datetime.now().year
     for ev in request.events:
-        if ev.year > current_year:
-            raise HTTPException(
-                status_code=400,
-                detail=f"미래 이벤트는 사용할 수 없습니다: {ev.year}"
-            )
+        if ev.precision_level == "exact":
+            if ev.year is not None and ev.year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"미래 이벤트는 사용할 수 없습니다: {ev.year}"
+                )
+        elif ev.precision_level == "range":
+            if ev.age_range is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="range 이벤트는 age_range가 필요합니다."
+                )
+            _, upper_year = convert_age_range_to_year_range(request.year, ev.age_range)
+            if upper_year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"미래 범위 이벤트는 사용할 수 없습니다: {upper_year}"
+                )
+        elif ev.precision_level == "unknown":
+            # unknown은 연도 검증을 생략
+            continue
 
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
