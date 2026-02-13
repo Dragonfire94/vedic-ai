@@ -63,6 +63,39 @@ CONFIDENCE_GRADES = [
     (65, "C+"), (60, "C"), (0, "C-"),
 ]
 
+EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, List[Any]]] = {
+    "career": {
+        "houses": [10, 6],
+        "planets": ["Sun", "Saturn", "Mars"],
+        "dasha_lords": ["Sun", "Saturn"],
+        "conflict_factors": ["Moon", "Ketu"],
+    },
+    "relationship": {
+        "houses": [7, 5, 11],
+        "planets": ["Venus", "Moon", "Jupiter"],
+        "dasha_lords": ["Venus", "Jupiter"],
+        "conflict_factors": ["Saturn", "Rahu"],
+    },
+    "relocation": {
+        "houses": [3, 4, 9],
+        "planets": ["Mars", "Jupiter", "Mercury"],
+        "dasha_lords": ["Mars"],
+        "conflict_factors": ["Saturn"],
+    },
+    "health": {
+        "houses": [6, 8, 12],
+        "planets": ["Saturn", "Mars"],
+        "dasha_lords": ["Saturn"],
+        "conflict_factors": ["Rahu", "Ketu"],
+    },
+    "finance": {
+        "houses": [2, 8, 11],
+        "planets": ["Jupiter", "Venus"],
+        "dasha_lords": ["Jupiter"],
+        "conflict_factors": ["Mars", "Saturn"],
+    },
+}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 헬퍼 함수
@@ -965,6 +998,53 @@ def get_information_weight(event: Dict[str, Any]) -> float:
     inv_certainty: float = age_range_width / float(MAX_AGE_RANGE_ALLOWABLE)
     return max(0.3, 1.0 - inv_certainty)
 
+
+def compute_event_signal_strength(
+    chart_data: Dict[str, Any],
+    event: Dict[str, Any],
+    strength_data: Dict[str, Dict[str, float]],
+    influence_matrix: Dict[str, float],
+    dasha_vector: Dict[str, Any],
+) -> float:
+    """Compute an event-type specific astrological signal strength in [0, 1].
+
+    The score combines house alignment, key-planet strength, dasha-lord presence,
+    and conflict penalties using fixed weighted blending.
+    Unknown/unsupported event types remain neutral with signal strength 1.0.
+    """
+    event_type = event.get("event_type")
+    profile = EVENT_SIGNAL_PROFILE.get(event_type)
+    if not profile:
+        return 1.0
+
+    houses_map: Dict[int, bool] = chart_data.get("houses", {})
+    if not houses_map and not strength_data and not influence_matrix:
+        # 기존 스코어링 하위 호환: 차트 신호 근거가 없으면 중립 가중치 사용
+        return 1.0
+    house_candidates: List[int] = profile["houses"]
+    house_hits = len([house_num for house_num in house_candidates if houses_map.get(house_num)])
+    house_weight = (house_hits / len(house_candidates)) if house_candidates else 0.0
+
+    planet_scores: List[float] = [
+        strength_data[planet]["score"]
+        for planet in profile["planets"]
+        if planet in strength_data and "score" in strength_data[planet]
+    ]
+    planet_weight = (sum(planet_scores) / len(planet_scores)) if planet_scores else 0.0
+
+    dasha_lord_weight = 1.0 if any(lord in dasha_vector for lord in profile["dasha_lords"]) else 0.4
+
+    conflict_penalty = sum(influence_matrix.get(planet, 0.0) for planet in profile["conflict_factors"])
+    conflict_weight = 1.0 - min(1.0, conflict_penalty / 20.0)
+
+    signal_strength = (
+        (house_weight * 0.25)
+        + (planet_weight * 0.35)
+        + (dasha_lord_weight * 0.25)
+        + (conflict_weight * 0.15)
+    )
+    return max(0.0, min(1.0, signal_strength))
+
 def _hour_to_str(hour_float: float) -> str:
     """시간(소수점) → 'HH:MM' 문자열"""
     h = int(hour_float) % 24
@@ -988,6 +1068,9 @@ def _score_candidate(
 
     Returns:
         (total_score, matched_events, total_events, confidence, fallback_levels)
+
+    Confidence는 이벤트 신호 강도(event_signal)를 반영하되 기존과 동일하게
+    0~1 범위로 정규화된다.
     """
     birth_jd = chart["jd"]
     birth_moon_lon = chart["moon_longitude"]
@@ -1009,8 +1092,16 @@ def _score_candidate(
         utility = get_precision_utility(event)
         information_weight = get_information_weight(event)
         event_weight = event.get("weight", 1.0)
-        effective_weight = event_weight * utility * information_weight
-        max_possible += effective_weight + (0.2 * utility * information_weight)
+        planet_houses: Dict[str, int] = chart.get("planet_houses", {})
+        houses = {house_num: True for house_num in set(planet_houses.values())}
+        strength_data: Dict[str, Dict[str, float]] = {
+            planet: {"score": 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6}
+            for planet in planet_houses
+        }
+        influence_matrix: Dict[str, float] = {
+            planet: (10.0 if house_num in (6, 8, 12) else 2.0)
+            for planet, house_num in planet_houses.items()
+        }
 
         raw_score, fb_level = match_event_to_chart(
             chart, event, birth_jd, birth_moon_lon,
@@ -1019,15 +1110,30 @@ def _score_candidate(
         fallback_levels.append(fb_level)
         scored_event_count += 1
 
+        dasha_vector: Dict[str, Any] = {}
+        if raw_score > 0:
+            dasha_lords = event.get("dasha_lords", [])
+            dasha_vector = {lord: True for lord in dasha_lords}
+
+        event_signal = compute_event_signal_strength(
+            chart_data={"houses": houses},
+            event=event,
+            strength_data=strength_data,
+            influence_matrix=influence_matrix,
+            dasha_vector=dasha_vector,
+        )
+        effective_weight = event_weight * utility * information_weight * event_signal
+        max_possible += effective_weight + (0.2 * utility * information_weight)
+
         if raw_score > 0:
             matched_count += 1
-            event_score = raw_score * utility * information_weight
-            confidence_score_total += raw_score * information_weight
+            event_score = raw_score * utility * information_weight * event_signal
+            confidence_score_total += raw_score * event_signal * information_weight
         else:
-            event_score = (-0.5 * event_weight) * utility * information_weight
+            event_score = (-0.5 * event_weight) * utility * information_weight * event_signal
 
         total_score += event_score
-        confidence_score_max += (event_weight + 0.2) * information_weight
+        confidence_score_max += (event_weight + 0.2) * information_weight * event_signal
 
     # Confidence 계산 (unknown 제외, 정보량 가중 적용)
     if confidence_score_max <= 0:
