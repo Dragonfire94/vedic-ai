@@ -126,6 +126,16 @@ OWN_SIGNS: Dict[str, List[str]] = {
     "Saturn": ["Capricorn", "Aquarius"],
 }
 
+MAJOR_ASPECTS: Dict[int, float] = {
+    0: 1.2,   # Conjunction
+    60: 1.05,  # Sextile
+    90: 0.85,  # Square
+    120: 1.15,  # Trine
+    180: 0.9,  # Opposition
+}
+
+MAX_ORB = 8  # degrees
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 헬퍼 함수
@@ -226,6 +236,42 @@ def compute_planet_dignity_score(planet: str, sign: str) -> float:
         score = 1.0
 
     return max(0.5, min(1.5, score))
+
+
+def _angle_distance(deg1: float, deg2: float) -> float:
+    """Return the smallest angular distance between two longitudes in [0, 180]."""
+    delta = abs(normalize_360(deg1) - normalize_360(deg2))
+    return min(delta, 360.0 - delta)
+
+
+def compute_aspect_multiplier(
+    planet_name: str,
+    planet_longitude: float,
+    all_planets: Dict[str, float],
+) -> float:
+    """Compute deterministic major-aspect multiplier for a single planet.
+
+    The multiplier is based on major-aspect matches with linear orb attenuation,
+    softened around neutral (1.0), and clamped to [0.7, 1.3].
+    """
+    weighted_effects: List[float] = []
+
+    for other_planet, other_longitude in all_planets.items():
+        if other_planet == planet_name:
+            continue
+        distance = _angle_distance(planet_longitude, other_longitude)
+        for aspect_angle, aspect_weight in MAJOR_ASPECTS.items():
+            orb = abs(distance - float(aspect_angle))
+            if orb <= float(MAX_ORB):
+                attenuation = max(0.0, 1.0 - (orb / float(MAX_ORB)))
+                weighted_effects.append(aspect_weight * attenuation)
+
+    if not weighted_effects:
+        return 1.0
+
+    mean_effect = sum(weighted_effects) / len(weighted_effects)
+    softened = 1.0 + (mean_effect - 1.0) * 0.5
+    return max(0.7, min(1.3, softened))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -965,6 +1011,7 @@ def _compute_chart_for_time(
         # 행성 계산 (Whole Sign)
         planet_houses = {}
         planet_signs: Dict[str, str] = {}
+        planet_longitudes: Dict[str, float] = {}
         moon_lon = None
 
         planet_ids = {
@@ -980,6 +1027,7 @@ def _compute_chart_for_time(
             house = ((p_rasi - asc_rasi_idx) % 12) + 1
             planet_houses[name] = house
             planet_signs[name] = RASI_NAMES[p_rasi]
+            planet_longitudes[name] = p_lon
 
             if name == "Moon":
                 moon_lon = p_lon
@@ -992,6 +1040,8 @@ def _compute_chart_for_time(
         planet_houses["Ketu"] = ((get_rasi_index(ketu_lon) - asc_rasi_idx) % 12) + 1
         planet_signs["Rahu"] = RASI_NAMES[get_rasi_index(rahu_lon)]
         planet_signs["Ketu"] = RASI_NAMES[get_rasi_index(ketu_lon)]
+        planet_longitudes["Rahu"] = rahu_lon
+        planet_longitudes["Ketu"] = ketu_lon
 
         # Moon nakshatra
         moon_nak_idx = get_nakshatra_index(moon_lon) if moon_lon else 0
@@ -1006,6 +1056,7 @@ def _compute_chart_for_time(
             "moon_nakshatra": moon_nak_name,
             "planet_houses": planet_houses,
             "planet_signs": planet_signs,
+            "planet_longitudes": planet_longitudes,
             "jd": jd,
         }
 
@@ -1118,6 +1169,7 @@ def _score_candidate(
     lat: float,
     lon: float,
     use_dignity: bool = True,
+    use_aspects: bool = True,
 ) -> Tuple[float, int, int, float, List[int]]:
     """
     후보 시간에 대한 종합 스코어 계산
@@ -1154,12 +1206,22 @@ def _score_candidate(
         planet_houses: Dict[str, int] = chart.get("planet_houses", {})
         houses = {house_num: True for house_num in set(planet_houses.values())}
         planet_signs: Dict[str, str] = chart.get("planet_signs", {})
+        planet_longitudes: Dict[str, float] = chart.get("planet_longitudes", {})
         strength_data: Dict[str, Dict[str, float]] = {}
         for planet in planet_houses:
-            base_strength = 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6
+            existing_base_strength = 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6
             planet_sign = planet_signs.get(planet, "")
             dignity_multiplier = compute_planet_dignity_score(planet, planet_sign) if use_dignity else 1.0
-            final_strength = base_strength * dignity_multiplier
+            base_strength = existing_base_strength * dignity_multiplier
+            if use_aspects and planet in planet_longitudes:
+                aspect_multiplier = compute_aspect_multiplier(
+                    planet_name=planet,
+                    planet_longitude=planet_longitudes[planet],
+                    all_planets=planet_longitudes,
+                )
+            else:
+                aspect_multiplier = 1.0
+            final_strength = base_strength * aspect_multiplier
             strength_data[planet] = {"score": final_strength}
         influence_matrix: Dict[str, float] = {
             planet: (10.0 if house_num in (6, 8, 12) else 2.0)
@@ -1219,6 +1281,7 @@ def analyze_birth_time(
     num_brackets: int = 8,
     top_n: int = 3,
     use_dignity: bool = True,
+    use_aspects: bool = True,
 ) -> List[Dict]:
     """
     메인 BTR 분석 함수
@@ -1296,7 +1359,7 @@ def analyze_birth_time(
             continue
 
         score, matched, total, confidence, fb_levels = _score_candidate(
-            birth_date, mid_hour, chart, events, lat, lon, use_dignity=use_dignity
+            birth_date, mid_hour, chart, events, lat, lon, use_dignity=use_dignity, use_aspects=use_aspects
         )
 
         confidence_percent = confidence * 100.0
@@ -1376,24 +1439,36 @@ def _extract_candidate_metrics(candidates: List[Dict[str, Any]]) -> Dict[str, fl
 def evaluate_dignity_impact(
     birth_data: Dict[str, Any],
     events: List[Dict[str, Any]],
+    comparison_mode: str = "dignity_only",
 ) -> Dict[str, Any]:
-    """Compare BTR candidate separation with dignity multipliers on vs off."""
+    """Compare candidate separation across dignity/aspect weighting configurations."""
     birth_date = birth_data["birth_date"]
     lat = float(birth_data["lat"])
     lon = float(birth_data["lon"])
     num_brackets = int(birth_data.get("num_brackets", 8))
     top_n = int(birth_data.get("top_n", 3))
 
-    with_dignity_candidates = analyze_birth_time(
+    mode_flags: Dict[str, Tuple[bool, bool]] = {
+        "dignity_only": (True, False),
+        "aspects_only": (False, True),
+        "dignity_aspects": (True, True),
+        "neither": (False, False),
+    }
+    if comparison_mode not in mode_flags:
+        raise ValueError(f"Unsupported comparison_mode: {comparison_mode}")
+
+    use_dignity, use_aspects = mode_flags[comparison_mode]
+    with_candidates = analyze_birth_time(
         birth_date=birth_date,
         events=events,
         lat=lat,
         lon=lon,
         num_brackets=num_brackets,
         top_n=top_n,
-        use_dignity=True,
+        use_dignity=use_dignity,
+        use_aspects=use_aspects,
     )
-    without_dignity_candidates = analyze_birth_time(
+    without_candidates = analyze_birth_time(
         birth_date=birth_date,
         events=events,
         lat=lat,
@@ -1401,18 +1476,32 @@ def evaluate_dignity_impact(
         num_brackets=num_brackets,
         top_n=top_n,
         use_dignity=False,
+        use_aspects=False,
     )
 
-    with_metrics = _extract_candidate_metrics(with_dignity_candidates)
-    without_metrics = _extract_candidate_metrics(without_dignity_candidates)
+    with_metrics = _extract_candidate_metrics(with_candidates)
+    without_metrics = _extract_candidate_metrics(without_candidates)
 
     delta_score_gap = with_metrics["score_gap"] - without_metrics["score_gap"]
     delta_confidence = with_metrics["max_confidence"] - without_metrics["max_confidence"]
 
     return {
-        "with_dignity": with_metrics,
-        "without_dignity": without_metrics,
+        "comparison_mode": comparison_mode,
+        "with_configuration": with_metrics,
+        "without_configuration": without_metrics,
         "delta_score_gap": round(delta_score_gap, 6),
         "delta_confidence": round(delta_confidence, 6),
         "separation_improved": bool(with_metrics["score_gap"] > without_metrics["score_gap"]),
     }
+
+
+def evaluate_aspect_impact(
+    birth_data: Dict[str, Any],
+    events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Compare BTR candidate separation with aspect weighting on vs off."""
+    return evaluate_dignity_impact(
+        birth_data=birth_data,
+        events=events,
+        comparison_mode="aspects_only",
+    )
