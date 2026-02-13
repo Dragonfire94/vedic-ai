@@ -135,6 +135,8 @@ MAJOR_ASPECTS: Dict[int, float] = {
 }
 
 MAX_ORB = 8  # degrees
+SOFTMAX_TEMPERATURE = 1.5
+ENTROPY_FLAT_THRESHOLD = 1.9
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -213,6 +215,105 @@ def log_sum_exp(scores: List[float]) -> float:
         return 0.0
     max_s = max(scores)
     return max_s + math.log(sum(math.exp(s - max_s) for s in scores))
+
+
+def normalize_candidate_scores(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Apply deterministic temperature softmax normalization to candidate scores."""
+    if not candidates:
+        return candidates
+
+    raw_scores = [float(c.get("score", 0.0)) for c in candidates]
+    scaled_scores = [s / SOFTMAX_TEMPERATURE for s in raw_scores]
+    lse = log_sum_exp(scaled_scores)
+
+    probs = [math.exp(s - lse) for s in scaled_scores]
+    prob_sum = sum(probs)
+    if prob_sum <= 0.0:
+        uniform = 1.0 / len(candidates)
+        probs = [uniform for _ in candidates]
+    else:
+        probs = [p / prob_sum for p in probs]
+
+    max_bound = 0.99
+    if probs and max(probs) > max_bound:
+        max_idx = probs.index(max(probs))
+        overflow = probs[max_idx] - max_bound
+        probs[max_idx] = max_bound
+        remainder_indices = [i for i in range(len(probs)) if i != max_idx]
+        remainder_total = sum(probs[i] for i in remainder_indices)
+        if remainder_total > 0 and overflow > 0:
+            for i in remainder_indices:
+                probs[i] += overflow * (probs[i] / remainder_total)
+
+    for idx, candidate in enumerate(candidates):
+        probability = max(0.0, min(1.0, probs[idx]))
+        candidate["probability"] = round(probability, 6)
+
+    total = sum(float(c.get("probability", 0.0)) for c in candidates)
+    if candidates and total > 0:
+        drift = 1.0 - total
+        candidates[-1]["probability"] = round(
+            max(0.0, min(1.0, float(candidates[-1]["probability"]) + drift)),
+            6,
+        )
+
+    return candidates
+
+
+def recalibrate_confidence(candidates: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Cap confidence using top-2 score gap to avoid saturation in ambiguous charts."""
+    if not candidates:
+        return candidates
+
+    sorted_scores = sorted([float(c.get("score", 0.0)) for c in candidates], reverse=True)
+    top_score = sorted_scores[0] if sorted_scores else 0.0
+    second_score = sorted_scores[1] if len(sorted_scores) > 1 else top_score
+    gap = max(0.0, top_score - second_score)
+    confidence_cap = max(0.0, min(0.9, 0.5 + (gap / 10.0)))
+
+    for candidate in candidates:
+        current = max(0.0, min(1.0, float(candidate.get("confidence", 0.0))))
+        candidate["confidence"] = round(min(current, confidence_cap), 3)
+
+    return candidates
+
+
+def evaluate_calibration_distribution(candidates: List[Dict[str, Any]]) -> Dict[str, float | bool]:
+    """Summarize calibration distribution quality from candidate probabilities/confidence."""
+    if not candidates:
+        return {
+            "probability_entropy": 0.0,
+            "max_probability": 0.0,
+            "min_probability": 0.0,
+            "confidence_mean": 0.0,
+            "confidence_std": 0.0,
+            "distribution_too_peaked": False,
+            "distribution_too_flat": False,
+        }
+
+    probabilities = [max(0.0, min(1.0, float(c.get("probability", 0.0)))) for c in candidates]
+    confidences = [max(0.0, min(1.0, float(c.get("confidence", 0.0)))) for c in candidates]
+
+    entropy = 0.0
+    for p in probabilities:
+        if p > 0.0:
+            entropy += -p * math.log(p)
+
+    confidence_mean = sum(confidences) / len(confidences) if confidences else 0.0
+    confidence_variance = _safe_variance(confidences)
+
+    max_probability = max(probabilities) if probabilities else 0.0
+    min_probability = min(probabilities) if probabilities else 0.0
+
+    return {
+        "probability_entropy": round(max(0.0, entropy), 6),
+        "max_probability": round(max_probability, 6),
+        "min_probability": round(min_probability, 6),
+        "confidence_mean": round(confidence_mean, 6),
+        "confidence_std": round(math.sqrt(max(0.0, confidence_variance)), 6),
+        "distribution_too_peaked": bool(max_probability > 0.9),
+        "distribution_too_flat": bool(entropy > ENTROPY_FLAT_THRESHOLD),
+    }
 
 
 def compute_planet_dignity_score(planet: str, sign: str) -> float:
@@ -1282,6 +1383,7 @@ def analyze_birth_time(
     top_n: int = 3,
     use_dignity: bool = True,
     use_aspects: bool = True,
+    production_mode: bool = False,
 ) -> List[Dict]:
     """
     메인 BTR 분석 함수
@@ -1383,6 +1485,7 @@ def analyze_birth_time(
 
     # 3. 정렬 및 Top-N
     candidates.sort(key=lambda x: x["score"], reverse=True)
+    candidates = candidates[:top_n]
 
     # 모든 점수가 0인 경우
     if all(c["score"] <= 0 for c in candidates):
@@ -1390,7 +1493,23 @@ def analyze_birth_time(
         for c in candidates:
             c["grade_message"] = "이벤트 정보가 부족하여 정확한 추정이 어렵습니다."
 
-    return candidates[:top_n]
+    if not production_mode:
+        return candidates
+
+    calibrated = normalize_candidate_scores(candidates)
+    calibrated = recalibrate_confidence(calibrated)
+
+    production_rows: List[Dict[str, Any]] = []
+    for candidate in calibrated:
+        production_rows.append({
+            "ascendant": candidate.get("ascendant", ""),
+            "score": round(float(candidate.get("score", 0.0)), 2),
+            "probability": round(max(0.0, min(1.0, float(candidate.get("probability", 0.0)))), 6),
+            "confidence": round(max(0.0, min(1.0, float(candidate.get("confidence", 0.0)))), 3),
+            "fallback_level": round(float(candidate.get("fallback_level", 0.0)), 2),
+        })
+
+    return production_rows
 
 
 def _safe_variance(values: List[float]) -> float:
