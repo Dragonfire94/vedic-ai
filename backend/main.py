@@ -13,7 +13,9 @@ import base64
 from datetime import datetime
 from typing import Optional, Any, Literal, Tuple, Dict, List
 
-from astro_engine import build_structural_summary
+# Structural engine import via the backend package to keep resolution stable
+# when running `uvicorn backend.main:app` from any working directory.
+from backend.astro_engine import build_structural_summary
 
 import swisseph as swe
 import pytz
@@ -1379,7 +1381,9 @@ except Exception as e:
 
 # BTR 엔진 import
 try:
-    from btr_engine import (
+    # Import BTR engine functions from the backend package so module resolution
+    # remains consistent regardless of the current working directory.
+    from backend.btr_engine import (
         analyze_birth_time,
         refine_time_bracket,
         generate_time_brackets,
