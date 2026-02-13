@@ -96,6 +96,36 @@ EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, List[Any]]] = {
     },
 }
 
+EXALTATION_SIGNS: Dict[str, str] = {
+    "Sun": "Aries",
+    "Moon": "Taurus",
+    "Mars": "Capricorn",
+    "Mercury": "Virgo",
+    "Jupiter": "Cancer",
+    "Venus": "Pisces",
+    "Saturn": "Libra",
+}
+
+DEBILITATION_SIGNS: Dict[str, str] = {
+    "Sun": "Libra",
+    "Moon": "Scorpio",
+    "Mars": "Cancer",
+    "Mercury": "Pisces",
+    "Jupiter": "Capricorn",
+    "Venus": "Virgo",
+    "Saturn": "Aries",
+}
+
+OWN_SIGNS: Dict[str, List[str]] = {
+    "Sun": ["Leo"],
+    "Moon": ["Cancer"],
+    "Mars": ["Aries", "Scorpio"],
+    "Mercury": ["Gemini", "Virgo"],
+    "Jupiter": ["Sagittarius", "Pisces"],
+    "Venus": ["Taurus", "Libra"],
+    "Saturn": ["Capricorn", "Aquarius"],
+}
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 헬퍼 함수
@@ -173,6 +203,29 @@ def log_sum_exp(scores: List[float]) -> float:
         return 0.0
     max_s = max(scores)
     return max_s + math.log(sum(math.exp(s - max_s) for s in scores))
+
+
+def compute_planet_dignity_score(planet: str, sign: str) -> float:
+    """Return deterministic dignity multiplier for a planet placed in a sign.
+
+    Multipliers:
+    - Exaltation: 1.3
+    - Own sign: 1.15
+    - Debilitation: 0.6
+    - Neutral: 1.0
+
+    Final value is clamped to [0.5, 1.5].
+    """
+    if planet in EXALTATION_SIGNS and EXALTATION_SIGNS[planet] == sign:
+        score = 1.3
+    elif planet in OWN_SIGNS and sign in OWN_SIGNS[planet]:
+        score = 1.15
+    elif planet in DEBILITATION_SIGNS and DEBILITATION_SIGNS[planet] == sign:
+        score = 0.6
+    else:
+        score = 1.0
+
+    return max(0.5, min(1.5, score))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -911,6 +964,7 @@ def _compute_chart_for_time(
 
         # 행성 계산 (Whole Sign)
         planet_houses = {}
+        planet_signs: Dict[str, str] = {}
         moon_lon = None
 
         planet_ids = {
@@ -925,6 +979,7 @@ def _compute_chart_for_time(
             p_rasi = get_rasi_index(p_lon)
             house = ((p_rasi - asc_rasi_idx) % 12) + 1
             planet_houses[name] = house
+            planet_signs[name] = RASI_NAMES[p_rasi]
 
             if name == "Moon":
                 moon_lon = p_lon
@@ -935,6 +990,8 @@ def _compute_chart_for_time(
         ketu_lon = normalize_360(rahu_lon + 180)
         planet_houses["Rahu"] = ((get_rasi_index(rahu_lon) - asc_rasi_idx) % 12) + 1
         planet_houses["Ketu"] = ((get_rasi_index(ketu_lon) - asc_rasi_idx) % 12) + 1
+        planet_signs["Rahu"] = RASI_NAMES[get_rasi_index(rahu_lon)]
+        planet_signs["Ketu"] = RASI_NAMES[get_rasi_index(ketu_lon)]
 
         # Moon nakshatra
         moon_nak_idx = get_nakshatra_index(moon_lon) if moon_lon else 0
@@ -948,6 +1005,7 @@ def _compute_chart_for_time(
             "moon_longitude": round(moon_lon, 4) if moon_lon else 0.0,
             "moon_nakshatra": moon_nak_name,
             "planet_houses": planet_houses,
+            "planet_signs": planet_signs,
             "jd": jd,
         }
 
@@ -1094,10 +1152,14 @@ def _score_candidate(
         event_weight = event.get("weight", 1.0)
         planet_houses: Dict[str, int] = chart.get("planet_houses", {})
         houses = {house_num: True for house_num in set(planet_houses.values())}
-        strength_data: Dict[str, Dict[str, float]] = {
-            planet: {"score": 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6}
-            for planet in planet_houses
-        }
+        planet_signs: Dict[str, str] = chart.get("planet_signs", {})
+        strength_data: Dict[str, Dict[str, float]] = {}
+        for planet in planet_houses:
+            base_strength = 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6
+            planet_sign = planet_signs.get(planet, "")
+            dignity_multiplier = compute_planet_dignity_score(planet, planet_sign)
+            final_strength = base_strength * dignity_multiplier
+            strength_data[planet] = {"score": final_strength}
         influence_matrix: Dict[str, float] = {
             planet: (10.0 if house_num in (6, 8, 12) else 2.0)
             for planet, house_num in planet_houses.items()
