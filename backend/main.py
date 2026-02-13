@@ -731,7 +731,7 @@ def build_rectified_structural_summary(
 ) -> dict:
     """Bridge top BTR candidate to deterministic structural summary."""
     if not btr_candidates:
-        raise ValueError("No BTR candidates available")
+        raise HTTPException(status_code=400, detail="No BTR candidates available")
 
     top_candidate = btr_candidates[0]
     chart_data = build_rectified_chart_payload(
@@ -755,6 +755,22 @@ def build_ai_psychological_input(
     rectified_structural_summary: dict,
 ) -> dict:
     """Build compact AI-safe signal payload (no raw longitude/degree data)."""
+    def _json_safe(value):
+        if isinstance(value, dict):
+            return {str(k): _json_safe(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [_json_safe(v) for v in value]
+        if isinstance(value, tuple):
+            return [_json_safe(v) for v in value]
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            return value
+        if hasattr(value, "item"):
+            try:
+                return _json_safe(value.item())
+            except Exception:
+                return str(value)
+        return str(value)
+
     source = rectified_structural_summary.get("structural_summary", {}) or {}
     allowed_keys = [
         "planet_power_ranking",
@@ -768,7 +784,7 @@ def build_ai_psychological_input(
         "interaction_risks",
         "enhanced_behavioral_risks",
     ]
-    return {k: source.get(k, {}) for k in allowed_keys}
+    return {k: _json_safe(source.get(k, {})) for k in allowed_keys}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -843,7 +859,7 @@ def get_ai_reading(
             }
 
             if not client:
-                final_text = "[OpenAI not configured]"
+                final_text = json.dumps(ai_psychological_input, ensure_ascii=False, sort_keys=True)
             else:
                 system_message = (
                     "You are not calculating astrology. "
@@ -860,7 +876,7 @@ Provide a concise psychological narrative summary."""
                         {"role": "system", "content": system_message},
                         {"role": "user", "content": user_message},
                     ],
-                    temperature=0.6,
+                    temperature=0,
                     max_tokens=1200,
                 )
                 final_text = response.choices[0].message.content
@@ -876,6 +892,8 @@ Provide a concise psychological narrative summary."""
             return production_result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
 
