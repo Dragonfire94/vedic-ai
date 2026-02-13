@@ -50,10 +50,6 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────────────────────
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-INTERPRETATIONS_FILE = os.getenv(
-    "INTERPRETATIONS_FILE",
-    os.path.join(os.path.dirname(__file__), "..", "assets", "data", "interpretations.kr_final.json")
-)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Pretendard 폰트 등록
@@ -98,16 +94,6 @@ if OPENAI_API_KEY:
 # ─────────────────────────────────────────────────────────────────────────────
 AI_CACHE = {}
 AI_CACHE_TTL = 1800  # 30분
-
-# 규칙 기반 해석 데이터
-INTERPRETATIONS_KO_ATOMIC = {}
-try:
-    with open(INTERPRETATIONS_FILE, "r", encoding="utf-8") as f:
-        interpretations_data = json.load(f)
-        INTERPRETATIONS_KO_ATOMIC = interpretations_data.get("ko", {}).get("atomic", {})
-        print(f"[INFO] Loaded rule-based interpretations: {len(INTERPRETATIONS_KO_ATOMIC)} entries")
-except Exception as e:
-    print(f"[WARN] Failed to load interpretation DB from {INTERPRETATIONS_FILE}: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Swiss Ephemeris 초기화
@@ -263,41 +249,6 @@ def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: f
     print(f"🔍 Julian day: {jd}")
     return jd
 
-
-def _pick_interpretation_text(key: str) -> Optional[str]:
-    """규칙 기반 해석 텍스트 조회"""
-    row = INTERPRETATIONS_KO_ATOMIC.get(key)
-    if isinstance(row, dict):
-        return row.get("text")
-    return None
-
-
-def build_rule_based_reading(chart: dict, language: str) -> Optional[str]:
-    """정적 해석 JSON을 이용한 기본 리딩 생성"""
-    if language != "ko" or not INTERPRETATIONS_KO_ATOMIC:
-        return None
-
-    asc_sign = chart["houses"]["ascendant"]["rasi"]["name"]
-    moon_sign = chart["planets"]["Moon"]["rasi"]["name"]
-    sun_sign = chart["planets"]["Sun"]["rasi"]["name"]
-
-    sections = []
-    asc_text = _pick_interpretation_text(f"asc:{asc_sign}")
-    moon_text = _pick_interpretation_text(f"ps:Moon:{moon_sign}")
-    sun_text = _pick_interpretation_text(f"ps:Sun:{sun_sign}")
-
-    if asc_text:
-        sections.append(f"[상승궁 해석]\n{asc_text}")
-    if moon_text:
-        sections.append(f"[달 별자리 해석]\n{moon_text}")
-    if sun_text:
-        sections.append(f"[태양 별자리 해석]\n{sun_text}")
-
-    if not sections:
-        return None
-
-    return "\n\n".join(sections)
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: Health Check
 # ─────────────────────────────────────────────────────────────────────────────
@@ -346,7 +297,7 @@ def get_chart(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(0),
     include_interpretation: int = Query(0),
@@ -565,22 +516,17 @@ def get_ai_reading(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
     language: str = Query("ko"),
     gender: str = Query("male"),
-    use_cache: int = Query(1),
-    reading_mode: str = Query("hybrid")
+    use_cache: int = Query(1)
 ):
     """AI 리딩 생성"""
-    reading_mode = (reading_mode or "hybrid").lower()
-    if reading_mode not in {"hybrid", "openai", "rule_based"}:
-        reading_mode = "hybrid"
-
     # 캐시 키
-    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}_{reading_mode}"
-
+    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}"
+    
     if use_cache and cache_key in AI_CACHE:
         cached = AI_CACHE[cache_key]
         return {
@@ -588,48 +534,23 @@ def get_ai_reading(
             "ai_cache_key": cache_key,
             **cached
         }
-
+    
     # 차트 계산
     chart = get_chart(year, month, day, hour, lat, lon, house_system, include_nodes, include_d9, gender=gender)
-
+    
     # 요약 생성
     asc = chart["houses"]["ascendant"]["rasi"]["name_kr" if language == "ko" else "name"]
     moon_sign = chart["planets"]["Moon"]["rasi"]["name_kr" if language == "ko" else "name"]
-
+    
     summary = {
         "ascendant": asc,
         "moon_sign": moon_sign,
-        "language": language,
-        "reading_mode": reading_mode
+        "language": language
     }
-
-    rule_based_reading = build_rule_based_reading(chart, language)
-
-    if reading_mode == "rule_based":
-        result = {
-            "cached": False,
-            "fallback": False,
-            "model": "rule-based-json",
-            "summary": summary,
-            "reading": rule_based_reading or "[No rule-based interpretation available]",
-            "ai_cache_key": cache_key,
-            "reading_source": "json_rule_based",
-            "debug_info": {
-                "interpretations_loaded": bool(INTERPRETATIONS_KO_ATOMIC),
-                "interpretations_entries": len(INTERPRETATIONS_KO_ATOMIC),
-                "reading_mode": reading_mode
-            }
-        }
-        if use_cache:
-            AI_CACHE[cache_key] = result
-        return result
-
+    
     # OpenAI 호출
     if not client:
         reading_text = "[OpenAI not configured]"
-        if reading_mode == "hybrid" and rule_based_reading:
-            reading_text = f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n[AI 종합 리딩]\n[OpenAI not configured]"
-
         result = {
             "cached": False,
             "fallback": True,
@@ -637,7 +558,6 @@ def get_ai_reading(
             "summary": summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
-            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
@@ -649,7 +569,7 @@ def get_ai_reading(
         if use_cache:
             AI_CACHE[cache_key] = result
         return result
-
+    
     try:
         # 프롬프트 생성
         prompt = f"""당신은 베딕 점성학 전문가입니다. 다음 출생 차트를 분석하여 {'한국어' if language == 'ko' else 'English'}로 상세한 리딩을 제공하세요.
@@ -663,7 +583,7 @@ def get_ai_reading(
             rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
             house = data.get("house", "?")
             prompt += f"- {name}: {rasi} (House {house})\n"
-
+        
         prompt += f"""
 다음 섹션으로 구성하여 작성하세요:
 1. [Overview] - 핵심 특징 3가지
@@ -674,22 +594,16 @@ def get_ai_reading(
 6. [Actionable Advice] - 실천 가능한 조언
 
 총 800-1000단어로 작성하되, 구체적이고 실용적인 조언을 포함하세요.
-특히 상담형 관점에서 사용자가 실제 선택에 활용할 수 있도록 종합적인 맥락을 연결해 주세요.
 """
-
+        
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=[{"role": "user", "content": prompt}],
             temperature=0.7,
             max_tokens=2000
         )
-
+        
         reading_text = response.choices[0].message.content
-        if reading_mode == "hybrid" and rule_based_reading:
-            reading_text = (
-                f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n"
-                f"[AI 종합 리딩]\n{reading_text}"
-            )
 
         result = {
             "cached": False,
@@ -698,7 +612,6 @@ def get_ai_reading(
             "summary": summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
-            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
@@ -708,19 +621,14 @@ def get_ai_reading(
                 "client_initialized": client is not None
             }
         }
-
+        
         if use_cache:
             AI_CACHE[cache_key] = result
-
+        
         return result
-
+        
     except Exception as e:
         reading_text = f"[AI Error: {str(e)}]"
-        if reading_mode == "hybrid" and rule_based_reading:
-            reading_text = (
-                f"[빠른 규칙 기반 요약]\n{rule_based_reading}\n\n"
-                f"[AI 종합 리딩]\n{reading_text}"
-            )
         result = {
             "cached": False,
             "fallback": True,
@@ -729,7 +637,6 @@ def get_ai_reading(
             "summary": summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
-            "reading_source": "openai_hybrid" if reading_mode == "hybrid" else "openai",
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
@@ -936,7 +843,7 @@ def generate_pdf(
     hour: float = Query(...),
     lat: float = Query(...),
     lon: float = Query(...),
-    house_system: str = Query("P"),
+    house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
     include_ai: int = Query(1),
@@ -1085,7 +992,6 @@ try:
         generate_time_brackets,
         calculate_vimshottari_dasha,
         get_dasha_at_date,
-        get_event_rule,
     )
     BTR_ENGINE_AVAILABLE = True
     print("[INFO] BTR engine loaded successfully")
@@ -1152,18 +1058,6 @@ def get_btr_questions(
         "language": language,
         "total_questions": len(formatted),
         "questions": formatted,
-    }
-
-
-@app.get("/btr/event-rules")
-def get_btr_event_rules(event_type: str = Query("generic", description="이벤트 타입")):
-    """BTR 이벤트 규칙 조회 (JSON 기반)"""
-    if not BTR_ENGINE_AVAILABLE:
-        raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
-    return {
-        "status": "ok",
-        "event_type": event_type,
-        "rule": get_event_rule(event_type),
     }
 
 
