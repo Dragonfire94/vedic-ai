@@ -22,10 +22,12 @@ if "swisseph" not in sys.modules:
 from typing import Any, Dict, List, Tuple
 
 from backend.btr_engine import (
+    _has_mahadasha_range_overlap,
     _score_candidate,
     calculate_vimshottari_dasha,
     convert_age_range_to_year_range,
     date_to_jd,
+    get_information_weight,
     jd_to_year_frac,
 )
 
@@ -186,9 +188,9 @@ class TestBTREnginePhase1Scenarios(unittest.TestCase):
 
         print("[range-only]", {"score_match": score_match, "score_none": score_none, "conf_match": conf_match, "conf_none": conf_none, "matched_match": matched_match, "matched_none": matched_none})
 
-        # For matched range-only events with weight=1 and no house bonus:
-        # raw each=1.0, utility=0.7 => total expected 3.5
-        self._assert_with_summary(abs(score_match - 3.5) < 1e-6, f"Expected score_match ~= 3.5. got {score_match}")
+        # For matched range-only events with width=2 and weight=1 (no house bonus):
+        # utility=0.7, information_weight=(1 - 2/30)=0.9333... => each=0.6533...
+        self._assert_with_summary(abs(score_match - (5 * 0.7 * (1 - (2 / 30)))) < 1e-6, f"Expected weighted score_match. got {score_match}")
         self._assert_with_summary(score_match > score_none, f"Expected overlap candidate to score higher. score_match={score_match}, score_none={score_none}")
         self._assert_with_summary(matched_match == 5 and matched_none == 0, f"Expected matched 5 vs 0. got {matched_match} vs {matched_none}")
         self._assert_with_summary(total_match == 5 and total_none == 5, f"Expected reported total events to stay 5. got {total_match}, {total_none}")
@@ -296,8 +298,9 @@ class TestBTREnginePhase1Scenarios(unittest.TestCase):
         print("[mixed]", {"score": score, "matched": matched, "total": total, "confidence": confidence, "fallback_levels": fallback_levels})
 
         # Expected contribution when all non-unknown events match:
-        # exact(1.0) + exact(1.0) + range(0.7) + range(0.7) + unknown(0.0) = 3.4
-        self._assert_with_summary(abs(score - 3.4) < 1e-6, f"Expected mixed score ~= 3.4. got {score}")
+        # exact(1.0) + exact(1.0) + range(0.7*14/15) + range(0.7*14/15) + unknown(0.0)
+        expected = 2.0 + 2 * (0.7 * (1 - (2 / 30)))
+        self._assert_with_summary(abs(score - expected) < 1e-6, f"Expected mixed score ~= {expected}. got {score}")
         self._assert_with_summary(matched == 4, f"Expected 4 matched non-unknown events. got matched={matched}")
         self._assert_with_summary(total == 5, f"Expected total reported events to remain 5. got total={total}")
         self._assert_with_summary(confidence > 0.0, f"Expected positive confidence with 4 matched events. got confidence={confidence}")
@@ -308,6 +311,50 @@ class TestBTREnginePhase1Scenarios(unittest.TestCase):
             exact_event_contrib > range_event_contrib,
             f"Expected exact contribution > range contribution. exact={exact_event_contrib}, range={range_event_contrib}",
         )
+
+
+    def test_adaptive_range_buffer_overlap(self) -> None:
+        """Adaptive range buffer should expand Mahadasha overlap by age-range width."""
+        birth_jd = date_to_jd(1990, 1, 15)
+        moon_longitude = 85.0
+        md0 = calculate_vimshottari_dasha(birth_jd, moon_longitude)[0]
+        md_start, md_end = _md_window_years(md0)
+
+        # Event starts 2 years after md_end, only wide ranges (buffer >=2) should match
+        event_start = md_end + 2
+        event_end = md_end + 2
+
+        narrow_match = _has_mahadasha_range_overlap(
+            birth_jd=birth_jd,
+            birth_moon_lon=moon_longitude,
+            event_start_year=event_start,
+            event_end_year=event_end,
+            dasha_lords=[md0["lord"]],
+            age_range_width=5,  # buffer=1
+        )
+        wide_match = _has_mahadasha_range_overlap(
+            birth_jd=birth_jd,
+            birth_moon_lon=moon_longitude,
+            event_start_year=event_start,
+            event_end_year=event_end,
+            dasha_lords=[md0["lord"]],
+            age_range_width=20,  # buffer=2
+        )
+
+        self._assert_with_summary(not narrow_match, f"Expected no overlap with narrow buffer. narrow_match={narrow_match}")
+        self._assert_with_summary(wide_match, f"Expected overlap with wider adaptive buffer. wide_match={wide_match}")
+
+    def test_information_weight_scaling(self) -> None:
+        """Information weight should decrease as age_range width grows."""
+        exact_weight = get_information_weight({"precision_level": "exact"})
+        unknown_weight = get_information_weight({"precision_level": "unknown"})
+        narrow_range_weight = get_information_weight({"precision_level": "range", "age_range": (20, 22)})
+        wide_range_weight = get_information_weight({"precision_level": "range", "age_range": (10, 40)})
+
+        self._assert_with_summary(exact_weight == 1.0, f"Expected exact information weight 1.0. got {exact_weight}")
+        self._assert_with_summary(unknown_weight == 0.0, f"Expected unknown information weight 0.0. got {unknown_weight}")
+        self._assert_with_summary(narrow_range_weight > wide_range_weight, f"Expected narrow > wide weight. narrow={narrow_range_weight}, wide={wide_range_weight}")
+        self._assert_with_summary(abs(wide_range_weight - 0.3) < 1e-9, f"Expected floor 0.3 for wide range. got {wide_range_weight}")
 
 
 if __name__ == "__main__":

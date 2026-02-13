@@ -30,6 +30,7 @@ DASHA_YEARS = {
     "Rahu": 18, "Jupiter": 16, "Saturn": 19, "Mercury": 17
 }
 DASHA_TOTAL = 120  # 총 120년
+MAX_AGE_RANGE_ALLOWABLE = 30  # Bound for information scaling
 
 # 27 나크샤트라 → Dasha Lord 매핑
 # 나크샤트라는 0번부터 순서대로 9개 행성 순환
@@ -221,7 +222,7 @@ def refine_time_bracket(
             "time_range": f"{_hour_to_str(sub_start)}-{_hour_to_str(sub_end)}",
             "mid_hour": round(sub_mid, 2),
             "score": round(score, 2),
-            "confidence": round(confidence, 1),
+            "confidence": round(confidence, 3),
             "ascendant": chart["ascendant"],
             "ascendant_degree": chart["asc_degree_in_sign"],
             "matched_events": matched,
@@ -466,12 +467,15 @@ def match_event_to_chart(
             (int(age_range[0]), int(age_range[1]))
         )
 
+        age_range_width = max(0, int(age_range[1]) - int(age_range[0]))
+
         range_match = _has_mahadasha_range_overlap(
             birth_jd=birth_jd,
             birth_moon_lon=birth_moon_lon,
             event_start_year=start_year,
             event_end_year=end_year,
             dasha_lords=dasha_lords,
+            age_range_width=age_range_width,
         )
         if not range_match:
             return 0.0, 4
@@ -510,18 +514,21 @@ def _has_mahadasha_range_overlap(
     birth_moon_lon: float,
     event_start_year: int,
     event_end_year: int,
-    dasha_lords: List[str]
+    dasha_lords: List[str],
+    age_range_width: int,
 ) -> bool:
     """
     Range 이벤트의 Mahadasha 연도 구간 겹침 여부를 확인한다.
 
     겹침 규칙:
     - 이벤트 구간: [event_start_year, event_end_year]
-    - Mahadasha 구간: [md_start_year, md_end_year] 를 ±1년 확장
-      => [md_start_year - 1, md_end_year + 1]
+    - Mahadasha 구간: [md_start_year, md_end_year] 를 가변 버퍼로 확장
+      => buffer_years = max(1, int(age_range_width * 0.1))
+      => [md_start_year - buffer_years, md_end_year + buffer_years]
     - 표준 interval overlap:
       event_start_year <= md_end_year_adj and event_end_year >= md_start_year_adj
     """
+    buffer_years: int = max(1, int(age_range_width * 0.1))
     mahadashas = calculate_vimshottari_dasha(birth_jd, birth_moon_lon)
 
     for md in mahadashas:
@@ -531,8 +538,8 @@ def _has_mahadasha_range_overlap(
         md_start_year = int(math.floor(jd_to_year_frac(md["start_jd"])))
         md_end_year = int(math.ceil(jd_to_year_frac(md["end_jd"])))
 
-        md_start_year_adj = md_start_year - 1
-        md_end_year_adj = md_end_year + 1
+        md_start_year_adj: int = md_start_year - buffer_years
+        md_end_year_adj: int = md_end_year + buffer_years
 
         if event_start_year <= md_end_year_adj and event_end_year >= md_start_year_adj:
             return True
@@ -936,6 +943,28 @@ def get_precision_utility(event: Dict[str, Any]) -> float:
         return 0.0
     return 1.0
 
+
+def get_information_weight(event: Dict[str, Any]) -> float:
+    """Return certainty weight based on precision and age-range width.
+
+    - exact: 1.0
+    - range: max(0.3, 1.0 - age_range_width / MAX_AGE_RANGE_ALLOWABLE)
+    - unknown: 0.0
+    """
+    precision_level: Literal["exact", "range", "unknown"] = event.get("precision_level", "exact")
+    if precision_level == "unknown":
+        return 0.0
+    if precision_level == "exact":
+        return 1.0
+
+    age_range: Optional[Tuple[int, int]] = event.get("age_range")
+    if not age_range:
+        return 0.3
+
+    age_range_width = max(0, int(age_range[1]) - int(age_range[0]))
+    inv_certainty: float = age_range_width / float(MAX_AGE_RANGE_ALLOWABLE)
+    return max(0.3, 1.0 - inv_certainty)
+
 def _hour_to_str(hour_float: float) -> str:
     """시간(소수점) → 'HH:MM' 문자열"""
     h = int(hour_float) % 24
@@ -968,6 +997,8 @@ def _score_candidate(
     max_possible = 0.0
     fallback_levels: List[int] = []
     scored_event_count = 0
+    confidence_score_total = 0.0
+    confidence_score_max = 0.0
 
     for event in events:
         precision_level = event.get("precision_level", "exact")
@@ -976,9 +1007,10 @@ def _score_candidate(
             continue
 
         utility = get_precision_utility(event)
+        information_weight = get_information_weight(event)
         event_weight = event.get("weight", 1.0)
-        effective_weight = event_weight * utility
-        max_possible += effective_weight + (0.2 * utility)
+        effective_weight = event_weight * utility * information_weight
+        max_possible += effective_weight + (0.2 * utility * information_weight)
 
         raw_score, fb_level = match_event_to_chart(
             chart, event, birth_jd, birth_moon_lon,
@@ -989,18 +1021,19 @@ def _score_candidate(
 
         if raw_score > 0:
             matched_count += 1
-            event_score = raw_score * utility
+            event_score = raw_score * utility * information_weight
+            confidence_score_total += raw_score * information_weight
         else:
-            event_score = (-0.5 * event_weight) * utility
+            event_score = (-0.5 * event_weight) * utility * information_weight
 
         total_score += event_score
+        confidence_score_max += (event_weight + 0.2) * information_weight
 
-    # Confidence 계산 (unknown 이벤트 제외)
-    confidence = calculate_confidence(
-        total_score, max_possible,
-        scored_event_count, matched_count,
-        fallback_levels
-    )
+    # Confidence 계산 (unknown 제외, 정보량 가중 적용)
+    if confidence_score_max <= 0:
+        confidence = 0.0
+    else:
+        confidence = max(0.0, min(1.0, confidence_score_total / confidence_score_max))
 
     return total_score, matched_count, len(events), confidence, fallback_levels
 
@@ -1096,20 +1129,22 @@ def analyze_birth_time(
             birth_date, mid_hour, chart, events, lat, lon
         )
 
-        grade = get_confidence_grade(confidence)
+        confidence_percent = confidence * 100.0
+        grade = get_confidence_grade(confidence_percent)
         candidates.append({
             "time_range": f"{_hour_to_str(bracket['start'])}-{_hour_to_str(bracket['end'])}",
             "bracket_start": bracket["start"],
             "bracket_end": bracket["end"],
             "mid_hour": round(mid_hour, 2),
             "score": round(score, 2),
-            "confidence": round(confidence, 1),
+            "confidence": round(confidence, 3),
             "confidence_grade": grade,
             "ascendant": chart["ascendant"],
             "ascendant_degree": chart["asc_degree_in_sign"],
             "matched_events": matched,
             "total_events": total,
             "moon_nakshatra": chart.get("moon_nakshatra", ""),
+            "fallback_level": round(sum(fb_levels) / len(fb_levels), 2) if fb_levels else 0.0,
             "grade_message": get_grade_message(grade),
         })
 
