@@ -13,6 +13,8 @@ import base64
 from datetime import datetime
 from typing import Optional, Any
 
+from astro_engine import build_structural_summary
+
 import swisseph as swe
 import pytz
 from timezonefinder import TimezoneFinder
@@ -685,14 +687,13 @@ def get_ai_reading(
     # 차트 계산
     chart = get_chart(year, month, day, hour, lat, lon, house_system, include_nodes, include_d9, gender=gender)
     
-    # 요약 생성
-    asc = chart["houses"]["ascendant"]["rasi"]["name_kr" if language == "ko" else "name"]
-    moon_sign = chart["planets"]["Moon"]["rasi"]["name_kr" if language == "ko" else "name"]
-    
+    # 구조화 요약 생성 (deterministic engine)
+    structured_summary = build_structural_summary(chart)
+
+    # 기존 summary 필드 호환 유지
     summary = {
-        "ascendant": asc,
-        "moon_sign": moon_sign,
-        "language": language
+        "language": language,
+        "structured_summary": structured_summary,
     }
     
     # OpenAI 호출
@@ -703,6 +704,7 @@ def get_ai_reading(
             "fallback": True,
             "model": OPENAI_MODEL,
             "summary": summary,
+            "structured_summary": structured_summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
             "debug_info": {
@@ -726,73 +728,43 @@ def get_ai_reading(
         context_list: list[str] = []
         context_data = ""
 
-        if language == "ko" and INTERPRETATIONS_ATOMIC_KO:
-            mapped_keys = build_atomic_keys_from_chart(chart)
-            for key in mapped_keys:
-                text_item = extract_atomic_interpretation_text(INTERPRETATIONS_ATOMIC_KO.get(key))
-                if text_item:
-                    context_list.append(text_item)
-            context_list = list(dict.fromkeys(context_list))
-            mapped_texts = context_list[:]
-            mapped_section_counts["atomic"] = len(mapped_texts)
-
         if language == "ko":
-            if context_list:
-                static_context_used = True
-                context_data = "\n\n".join(context_list)
-            else:
-                # atomic 매핑 실패 시에도 차트 요약 기반으로 최소 컨텍스트 생성
-                fallback_context = [
-                    f"asc:{chart['houses']['ascendant']['rasi']['name']}",
-                    f"Moon:{moon_sign}",
-                ]
-                for name, data in chart["planets"].items():
-                    sign_name = data["rasi"]["name"]
-                    house_num = data.get("house", "?")
-                    fallback_context.append(f"ps:{name}:{sign_name}")
-                    fallback_context.append(f"ph:{name}:{house_num}")
-                context_data = "\n".join(fallback_context)
+            system_message = """너는 점성학 구조 데이터를 심리적으로 이해하기 쉬운 상담 언어로 풀어주는 전문 컨설턴트다.
 
-            system_message = """너는 대한민국 상위 1% 점성학 컨설턴트다. 1회 상담료가 100만원인 프리미엄 상담가로서 공백 포함 2,000자 이상의 심층 리포트를 반드시 작성해야 하며, 말투는 정중하고 따뜻한 ~합니다/~하세요 체를 사용한다.
+중요 원칙:
+- 제공된 structured_summary 데이터만 사용한다.
+- 데이터에 없는 사실을 단정하거나 추가하지 않는다.
+- 과장된 예언 대신 실행 가능한 행동 조언으로 재구성한다.
+- 정중하고 따뜻한 ~합니다/~하세요 체를 유지한다."""
 
-리포트는 반드시 다음을 포함한다:
-1) 오프닝: 내담자를 상징하는 시적이고 강렬한 한 줄 비유
-2) 심층 분석: 상승궁(겉모습)과 달(속마음)의 이중성과 갈등을 드라마틱하게 분석
-3) 부와 성취: 직업 적성, 재물 흐름, 리스크 관리법
-4) Premium 솔루션: 행운의 장소/방향(구체 지명·방향), 행운 아이템/색상, 즉시 실천 행동 강령
+            user_message = f"""다음은 내담자의 구조화 점성학 분석 JSON입니다.
 
-절대 데이터에 없는 사실을 단정적으로 꾸며내지 말고, 제공된 데이터에 근거해 통찰적으로 재구성한다."""
+{json.dumps(structured_summary, ensure_ascii=False, indent=2)}
 
-            user_message = f"""다음은 내담자의 차트 해석 데이터이다:
-
-{context_data}
-
-위 데이터를 바탕으로 아래 형식의 고급 보고서를 작성하라.
-
-[오프닝] 당신을 한 줄로 정의한다면
-[심층 분석] 겉모습과 속마음의 이중주 (분량 30% 이상)
-[부와 성취] 당신의 그릇을 키우는 법
-[Premium 솔루션] 운을 부르는 구체적 처방
+위 JSON만 근거로 다음 형식으로 한국어 리포트를 작성하세요.
+[핵심 테마] 삶의 주제 한 줄 요약
+[심리 축] 내적 갈등/강점 해설
+[관계·커리어] 관계 벡터와 커리어 벡터의 실제 적용 조언
+[현재 시기 전략] current_dasha_vector 기반 리스크/기회 관리
 
 요구사항:
-- 공백 포함 2,000자 이상
-- 문체는 끝까지 정중한 상담 어조
-- 막연한 조언 금지, 실제 적용 가능한 지침 제시"""
+- 추측 금지, JSON 근거 명시적 반영
+- 실천 가능한 조언 중심
+- 과도한 운세 문구 금지"""
         else:
-            context_data = "\n".join(
-                f"- {name}: {data['rasi']['name']} (House {data.get('house', '?')})"
-                for name, data in chart["planets"].items()
-            )
             system_message = (
-                "You are an elite astrology consultant. Write a deep, practical report with clear sections "
-                "and warm professional tone."
+                "You are a psychological language renderer for structured astrology output. "
+                "Use only the provided structured_summary JSON, avoid adding external claims, "
+                "and provide practical guidance."
             )
-            user_message = f"""Chart data:
-Ascendant: {asc}
-Moon Sign: {moon_sign}
-{context_data}
+            user_message = f"""Use only this structured_summary JSON:
+{json.dumps(structured_summary, ensure_ascii=False, indent=2)}
 
-Write a detailed report in English with actionable advice."""
+Write a concise, practical English report with sections:
+1) Core life theme
+2) Psychological axis
+3) Relationship and career vectors
+4) Current dasha strategy (risk vs opportunity)"""
 
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
@@ -811,6 +783,7 @@ Write a detailed report in English with actionable advice."""
             "fallback": False,
             "model": OPENAI_MODEL,
             "summary": summary,
+            "structured_summary": structured_summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
             "debug_info": {
@@ -845,6 +818,7 @@ Write a detailed report in English with actionable advice."""
             "error": str(e),
             "model": OPENAI_MODEL,
             "summary": summary,
+            "structured_summary": structured_summary,
             "reading": reading_text,
             "ai_cache_key": cache_key,
             "debug_info": {
