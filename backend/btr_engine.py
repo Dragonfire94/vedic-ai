@@ -1116,7 +1116,8 @@ def _score_candidate(
     chart: Dict,
     events: List[Dict],
     lat: float,
-    lon: float
+    lon: float,
+    use_dignity: bool = True,
 ) -> Tuple[float, int, int, float, List[int]]:
     """
     후보 시간에 대한 종합 스코어 계산
@@ -1157,7 +1158,7 @@ def _score_candidate(
         for planet in planet_houses:
             base_strength = 1.0 if planet_houses.get(planet) in (1, 5, 9, 10) else 0.6
             planet_sign = planet_signs.get(planet, "")
-            dignity_multiplier = compute_planet_dignity_score(planet, planet_sign)
+            dignity_multiplier = compute_planet_dignity_score(planet, planet_sign) if use_dignity else 1.0
             final_strength = base_strength * dignity_multiplier
             strength_data[planet] = {"score": final_strength}
         influence_matrix: Dict[str, float] = {
@@ -1216,7 +1217,8 @@ def analyze_birth_time(
     lat: float,
     lon: float,
     num_brackets: int = 8,
-    top_n: int = 3
+    top_n: int = 3,
+    use_dignity: bool = True,
 ) -> List[Dict]:
     """
     메인 BTR 분석 함수
@@ -1294,7 +1296,7 @@ def analyze_birth_time(
             continue
 
         score, matched, total, confidence, fb_levels = _score_candidate(
-            birth_date, mid_hour, chart, events, lat, lon
+            birth_date, mid_hour, chart, events, lat, lon, use_dignity=use_dignity
         )
 
         confidence_percent = confidence * 100.0
@@ -1326,3 +1328,91 @@ def analyze_birth_time(
             c["grade_message"] = "이벤트 정보가 부족하여 정확한 추정이 어렵습니다."
 
     return candidates[:top_n]
+
+
+def _safe_variance(values: List[float]) -> float:
+    """Return deterministic population variance for finite values."""
+    finite_values = [float(v) for v in values if isinstance(v, (int, float)) and math.isfinite(float(v))]
+    if not finite_values:
+        return 0.0
+    mean_val = sum(finite_values) / len(finite_values)
+    variance = sum((v - mean_val) ** 2 for v in finite_values) / len(finite_values)
+    return max(0.0, variance)
+
+
+def _extract_candidate_metrics(candidates: List[Dict[str, Any]]) -> Dict[str, float]:
+    """Extract summary metrics from candidate rows with safe clamps."""
+    if not candidates:
+        return {
+            "top_candidate_score": 0.0,
+            "second_candidate_score": 0.0,
+            "score_gap": 0.0,
+            "average_score": 0.0,
+            "max_confidence": 0.0,
+            "confidence_variance": 0.0,
+        }
+
+    score_values = [float(c.get("score", 0.0)) for c in candidates]
+    conf_values = [float(c.get("confidence", 0.0)) for c in candidates]
+    sorted_scores = sorted(score_values, reverse=True)
+
+    top_score = sorted_scores[0] if sorted_scores else 0.0
+    second_score = sorted_scores[1] if len(sorted_scores) > 1 else 0.0
+    score_gap = max(0.0, top_score - second_score)
+    average_score = sum(score_values) / len(score_values) if score_values else 0.0
+    max_confidence = max(conf_values) if conf_values else 0.0
+    confidence_variance = _safe_variance(conf_values)
+
+    return {
+        "top_candidate_score": round(top_score, 6),
+        "second_candidate_score": round(second_score, 6),
+        "score_gap": round(score_gap, 6),
+        "average_score": round(average_score, 6),
+        "max_confidence": round(max(0.0, min(1.0, max_confidence)), 6),
+        "confidence_variance": round(confidence_variance, 6),
+    }
+
+
+def evaluate_dignity_impact(
+    birth_data: Dict[str, Any],
+    events: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    """Compare BTR candidate separation with dignity multipliers on vs off."""
+    birth_date = birth_data["birth_date"]
+    lat = float(birth_data["lat"])
+    lon = float(birth_data["lon"])
+    num_brackets = int(birth_data.get("num_brackets", 8))
+    top_n = int(birth_data.get("top_n", 3))
+
+    with_dignity_candidates = analyze_birth_time(
+        birth_date=birth_date,
+        events=events,
+        lat=lat,
+        lon=lon,
+        num_brackets=num_brackets,
+        top_n=top_n,
+        use_dignity=True,
+    )
+    without_dignity_candidates = analyze_birth_time(
+        birth_date=birth_date,
+        events=events,
+        lat=lat,
+        lon=lon,
+        num_brackets=num_brackets,
+        top_n=top_n,
+        use_dignity=False,
+    )
+
+    with_metrics = _extract_candidate_metrics(with_dignity_candidates)
+    without_metrics = _extract_candidate_metrics(without_dignity_candidates)
+
+    delta_score_gap = with_metrics["score_gap"] - without_metrics["score_gap"]
+    delta_confidence = with_metrics["max_confidence"] - without_metrics["max_confidence"]
+
+    return {
+        "with_dignity": with_metrics,
+        "without_dignity": without_metrics,
+        "delta_score_gap": round(delta_score_gap, 6),
+        "delta_confidence": round(delta_confidence, 6),
+        "separation_improved": bool(with_metrics["score_gap"] > without_metrics["score_gap"]),
+    }
