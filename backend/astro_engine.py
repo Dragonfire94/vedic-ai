@@ -681,6 +681,101 @@ def compute_behavioral_risks(
     return {k: round(max(0.0, min(10.0, v)), 2) for k, v in risks.items()}
 
 
+def calculate_interaction_risks(
+    personality_vector: dict[str, float],
+    influence_matrix: dict[str, Any],
+    behavioral_risks: dict[str, float],
+    house_clusters: dict[str, Any],
+) -> dict[str, float]:
+    """Compute deterministic cross-interaction risk amplifiers from structural signals."""
+    interaction_risks: dict[str, float] = {
+        "narcissistic_instability": 0.0,
+        "authority_breakdown_risk": 0.0,
+        "impulsive_sabotage_risk": 0.0,
+        "chronic_stress_amplification": 0.0,
+        "emotional_oscillation": 0.0,
+    }
+
+    # Pull personality metrics with safe defaults.
+    ego_power = float(personality_vector.get("ego_power", 0.0))
+    emotional_regulation = float(personality_vector.get("emotional_regulation", 0.0))
+    authority_orientation = float(personality_vector.get("authority_orientation", 0.0))
+    discipline_index = float(personality_vector.get("discipline_index", 0.0))
+    risk_appetite = float(personality_vector.get("risk_appetite", 0.0))
+    emotional_volatility = float(behavioral_risks.get("emotional_volatility", 0.0))
+
+    # 1) Ego vs emotion imbalance creates narcissistic instability pressure.
+    if ego_power > 75.0 and emotional_regulation < 40.0:
+        interaction_risks["narcissistic_instability"] = (ego_power - emotional_regulation) / 2.0
+
+    # 2) Authority orientation without discipline can fracture leadership behavior.
+    if authority_orientation > 80.0 and discipline_index < 50.0:
+        interaction_risks["authority_breakdown_risk"] = (authority_orientation - discipline_index) / 2.0
+
+    # 3) High risk appetite plus low discipline predicts impulsive self-defeating decisions.
+    if risk_appetite > 70.0 and discipline_index < 60.0:
+        interaction_risks["impulsive_sabotage_risk"] = (risk_appetite - discipline_index) / 1.8
+
+    # 4) Saturn conflict operates as a chronic stress multiplier.
+    saturn_conflict_score = float(influence_matrix.get("saturn_conflict_score", 0.0))
+    if saturn_conflict_score > 50.0:
+        interaction_risks["chronic_stress_amplification"] = saturn_conflict_score * 0.2
+
+    # 5) Low regulation + volatility produces emotional oscillation spirals.
+    if emotional_regulation < 30.0 and emotional_volatility > 5.0:
+        interaction_risks["emotional_oscillation"] = (30.0 - emotional_regulation) + emotional_volatility
+
+    # House-cluster contextual pressure: dusthana emphasis slightly magnifies stress buildup.
+    cluster_scores = house_clusters.get("cluster_scores", {}) or {}
+    dusthana_load = float(cluster_scores.get(6, 0.0) + cluster_scores.get(8, 0.0) + cluster_scores.get(12, 0.0))
+    if dusthana_load > 18.0:
+        interaction_risks["chronic_stress_amplification"] += (dusthana_load - 18.0) * 0.1
+
+    return {key: round(_clamp(value, 0.0, 100.0), 2) for key, value in interaction_risks.items()}
+
+
+def enhance_behavioral_risks_with_interactions(
+    base_risks: dict[str, float],
+    interaction_risks: dict[str, float],
+) -> dict[str, float]:
+    """Apply deterministic interaction amplifiers onto base behavioral risks."""
+    authority_conflict_risk = float(base_risks.get("authority_conflict_risk", 0.0))
+    emotional_volatility = float(base_risks.get("emotional_volatility", 0.0))
+    self_sabotage_risk = float(base_risks.get("self_sabotage_risk", 0.0))
+    burnout_risk = float(base_risks.get("burnout_risk", 0.0))
+
+    # narcissistic_instability -> authority_conflict_risk
+    authority_conflict_risk += float(interaction_risks.get("narcissistic_instability", 0.0)) * 0.3
+    # authority_breakdown_risk -> emotional_volatility
+    emotional_volatility += float(interaction_risks.get("authority_breakdown_risk", 0.0)) * 0.25
+    # impulsive_sabotage_risk -> self_sabotage_risk
+    self_sabotage_risk += float(interaction_risks.get("impulsive_sabotage_risk", 0.0)) * 0.8
+    # chronic_stress_amplification -> burnout_risk
+    burnout_risk += float(interaction_risks.get("chronic_stress_amplification", 0.0)) * 0.4
+    # emotional_oscillation -> emotional_volatility
+    emotional_volatility += float(interaction_risks.get("emotional_oscillation", 0.0)) * 0.5
+
+    enhanced = {
+        "authority_conflict_risk": round(_clamp(authority_conflict_risk, 0.0, 10.0), 2),
+        "emotional_volatility": round(_clamp(emotional_volatility, 0.0, 10.0), 2),
+        "self_sabotage_risk": round(_clamp(self_sabotage_risk, 0.0, 10.0), 2),
+        "burnout_risk": round(_clamp(burnout_risk, 0.0, 10.0), 2),
+    }
+    enhanced["emotional_volatility_amplified"] = enhanced["emotional_volatility"]
+    return enhanced
+
+
+def build_interaction_summary(
+    interaction_risks: dict[str, float],
+    enhanced_risks: dict[str, float],
+) -> dict[str, dict[str, float]]:
+    """Return a JSON-safe summary of interaction and enhanced behavioral risk vectors."""
+    return {
+        "raw_interaction_risks": interaction_risks,
+        "enhanced_behavioral_risks": enhanced_risks,
+    }
+
+
 def _influence_derived_metrics(influence_matrix: dict[str, Any]) -> dict[str, float]:
     """Derive scalar metrics used by higher structural layers from influence matrix."""
     matrix = influence_matrix.get("matrix", {})
@@ -891,6 +986,9 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
     behavioral_risks = compute_behavioral_risks(strength, influence_matrix, house_clusters, karmic, lagna_lord_score)
     stability_metrics = calculate_stability_index(strength, influence_matrix, house_clusters, behavioral_risks, yogas)
     personality_vector = calculate_personality_vector(strength, influence_matrix, house_clusters, karmic)
+    interaction_risks = calculate_interaction_risks(personality_vector, influence_matrix, behavioral_risks, house_clusters)
+    enhanced_behavioral_risks = enhance_behavioral_risks_with_interactions(behavioral_risks, interaction_risks)
+    interaction_summary = build_interaction_summary(interaction_risks, enhanced_behavioral_risks)
 
     current_dasha = chart_data.get("current_dasha")
     if not current_dasha or current_dasha not in planets:
@@ -924,6 +1022,8 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
         "dominant_house_cluster": house_clusters["dominant_house"],
         "purushartha_profile": purushartha_profile,
         "behavioral_risk_profile": behavioral_risks,
+        "interaction_risks": interaction_risks,
+        "enhanced_behavioral_risks": enhanced_behavioral_risks,
         "stability_metrics": stability_metrics,
         "personality_vector": personality_vector,
         "probability_forecast": probability_forecast,
@@ -946,6 +1046,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
             "house_clusters": house_clusters,
             "purushartha_profile": purushartha_profile,
             "behavioral_risks": behavioral_risks,
+            "interaction_summary": interaction_summary,
             "stability_metrics": stability_metrics,
             "personality_vector": personality_vector,
             "probability_forecast": probability_forecast,
