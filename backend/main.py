@@ -35,16 +35,6 @@ from reportlab.platypus import (
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 
-app = FastAPI(title="Vedic AI Backend")
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
 # ─────────────────────────────────────────────────────────────────────────────
 # 환경 변수
 # ─────────────────────────────────────────────────────────────────────────────
@@ -58,26 +48,48 @@ FONT_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
 FONT_REGULAR = os.path.join(FONT_DIR, 'Pretendard-Regular.ttf')
 FONT_BOLD = os.path.join(FONT_DIR, 'Pretendard-Bold.ttf')
 
-# 폰트 등록 (파일 존재 시)
 KOREAN_FONT_AVAILABLE = False
-if os.path.exists(FONT_REGULAR) and os.path.exists(FONT_BOLD):
+PDF_FONT_REG = 'Helvetica'
+PDF_FONT_BOLD = 'Helvetica-Bold'
+PDF_FONT_MONO = 'Courier'
+
+
+def init_fonts() -> None:
+    """PDF 폰트를 초기화하고 실패 시 Helvetica로 안전하게 fallback 한다."""
+    global KOREAN_FONT_AVAILABLE, PDF_FONT_REG, PDF_FONT_BOLD, PDF_FONT_MONO
+
+    # 기본 fallback 값
+    KOREAN_FONT_AVAILABLE = False
+    PDF_FONT_REG = 'Helvetica'
+    PDF_FONT_BOLD = 'Helvetica-Bold'
+    PDF_FONT_MONO = 'Courier'
+
     try:
+        if not (os.path.exists(FONT_REGULAR) and os.path.exists(FONT_BOLD)):
+            raise FileNotFoundError(f"Pretendard fonts not found in {FONT_DIR}")
+
         pdfmetrics.registerFont(TTFont('Pretendard', FONT_REGULAR))
         pdfmetrics.registerFont(TTFont('Pretendard-Bold', FONT_BOLD))
         KOREAN_FONT_AVAILABLE = True
         PDF_FONT_REG = 'Pretendard'
         PDF_FONT_BOLD = 'Pretendard-Bold'
         PDF_FONT_MONO = 'Pretendard'
+        print("[INFO] Pretendard fonts loaded successfully")
     except Exception as e:
-        print(f"[WARN] Pretendard font registration failed: {e}")
-        PDF_FONT_REG = 'Helvetica'
-        PDF_FONT_BOLD = 'Helvetica-Bold'
-        PDF_FONT_MONO = 'Courier'
-else:
-    print(f"[WARN] Pretendard fonts not found in {FONT_DIR}")
-    PDF_FONT_REG = 'Helvetica'
-    PDF_FONT_BOLD = 'Helvetica-Bold'
-    PDF_FONT_MONO = 'Courier'
+        print(f"[WARN] Font initialization failed. Fallback to Helvetica: {e}")
+
+
+init_fonts()
+
+app = FastAPI(title="Vedic AI Backend")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # OpenAI 클라이언트
@@ -711,108 +723,84 @@ def get_ai_reading(
         mapped_texts: list[str] = []
         mapped_section_counts = {"atomic": 0, "lagna_lord": 0, "yogas": 0, "patterns": 0}
         static_context_used = False
+        context_list: list[str] = []
+        context_data = ""
 
         if language == "ko" and INTERPRETATIONS_ATOMIC_KO:
-            mapped_keys, mapped_texts, mapped_section_counts = collect_interpretation_context(chart)
+            mapped_keys = build_atomic_keys_from_chart(chart)
+            for key in mapped_keys:
+                text_item = extract_atomic_interpretation_text(INTERPRETATIONS_ATOMIC_KO.get(key))
+                if text_item:
+                    context_list.append(text_item)
+            context_list = list(dict.fromkeys(context_list))
+            mapped_texts = context_list[:]
+            mapped_section_counts["atomic"] = len(mapped_texts)
 
-        if language == "ko" and mapped_texts:
-            static_context_used = True
-            context_blob = "\n\n".join(f"[{i}] {t}" for i, t in enumerate(mapped_texts, 1))
-            prompt = f"""당신은 단순한 점성가가 아니라, 내담자의 인생을 꿰뚫어 보는 심층 심리 분석가이자 인생 컨설턴트입니다.
-아래 [차트 해석 재료]는 단편적인 조각입니다. 이 조각들을 유기적으로 종합해 하나의 완성도 높은 프리미엄 상담 리포트를 작성하세요.
-절대 제공되지 않은 사실을 지어내지 말고, 반드시 제공된 재료를 근거로만 통찰을 전개하세요.
-
-[작성 원칙]
-1) 단편 나열 금지: 성격 키워드를 병렬로 늘어놓지 말고, 서로 상충하는 지점의 긴장과 이중성을 분석하세요.
-2) 입체적 분석: 겉모습(Persona)과 속마음(Inner Self)의 괴리를 분명히 짚고, 실제 삶에서 어떻게 나타나는지 설명하세요.
-3) 문체: 전문적이되 따뜻한 상담 어조로 "~합니다/~하세요"를 사용하세요.
-4) 첫 문장: 반드시 한 줄의 시적인 비유로 시작하세요.
-5) 실용성: 뜬구름 조언 금지. 바로 적용 가능한 행동 지침을 구체적으로 제시하세요.
-6) 금지: 전문용어 나열식 설명, 근거 없는 단정, 데이터에 없는 예측 생성.
-
-[출력 형식: Markdown]
-# [한 줄 요약 비유: ~~~한 당신]
-
-## 1. 심층 성향 분석: 겉과 속의 이중주
-- 제공 재료를 교차 해석해 내면의 갈등 구조와 심리 패턴을 입체적으로 설명하세요.
-
-## 2. 당신의 무기와 잠재적 함정
-- 강점이 빛나는 조건과, 약점이 문제를 만드는 구체적 트리거를 함께 제시하세요.
-
-## 3. 현실적 개운 솔루션 (Premium Insight)
-- **최적의 환경**: 구체적 지역 특성/방향/공간 구성 팁
-- **행운의 키워드**: 색상, 숫자, 아이템
-- **처세술**: 당장 실천 가능한 대화법/관계 전략/업무 루틴
-- **직업적 조언**: 직무 성향, 협업 방식, 커리어 운영 원칙
-
-분량은 공백 포함 2,000자 이상으로 작성하세요.
-
-[차트 해석 재료]
-{context_blob}
-"""
-        else:
-            # JSON 파일 로드 실패/키 매핑 실패 시 기존 창작형 프롬프트로 fallback
-            if language == "ko":
-                prompt = f"""당신은 사용자의 성향을 날카롭게 짚고 현실적인 조언을 주는 상담가입니다. 아래 출생 차트를 바탕으로 한국어 AI 리딩을 작성하세요.
-
-첫 기준:
-- 첫 문장은 반드시 한 줄 비유로 시작하세요. (예: "당신은 바위틈에서 피어나는 들꽃 같습니다.")
-- 문체는 반드시 "~합니다", "~하세요"를 사용하세요.
-- 사용자는 "당신" 또는 "이 별을 가진 분"으로 지칭하세요.
-
-핵심 스타일:
-- 전문 용어를 절대 쓰지 마세요.
-- 특히 다음 단어는 금지입니다: "라히리", "시데리얼", "켄드라", "트리코나", "아스펙트", "로드", "상승궁".
-- 대신 "당신이 타고난 기운", "별의 흐름", "운명의 방" 같은 자연스러운 표현으로 의역하세요.
-- 자연물/상황 비유를 적극 사용하세요. (흙, 나무, 불, 바위, 정원, 보석, 폭풍, 스포츠카 등)
-
-구성:
-1) 첫 문장: 성향을 한 줄로 압축한 강렬한 비유
-2) 본문: 겉으로 보이는 모습과 내면의 갈등(이중성)을 분명하게 짚기
-3) 결론: 뜬구름 없는 현실 행동 지침(개운법) 3~5개 제시
-
-작성 규칙:
-- 설명조 도입("이 배치는...", "~기준에서...") 없이 바로 본론으로 시작하세요.
-- 위로만 하지 말고, 필요한 부분은 직설적으로 짚되 상담처럼 따뜻하게 마무리하세요.
-- 총 700~900자 분량으로 작성하세요.
-
-차트 요약 정보:
-- 당신이 타고난 기운의 시작점: {asc}
-- 감정의 기본 결: {moon_sign}
-
-별의 흐름:
-"""
+        if language == "ko":
+            if context_list:
+                static_context_used = True
+                context_data = "\n\n".join(context_list)
             else:
-                prompt = f"""You are an insightful astrology counselor. Analyze the chart below and provide a detailed reading in English.
+                # atomic 매핑 실패 시에도 차트 요약 기반으로 최소 컨텍스트 생성
+                fallback_context = [
+                    f"asc:{chart['houses']['ascendant']['rasi']['name']}",
+                    f"Moon:{moon_sign}",
+                ]
+                for name, data in chart["planets"].items():
+                    sign_name = data["rasi"]["name"]
+                    house_num = data.get("house", "?")
+                    fallback_context.append(f"ps:{name}:{sign_name}")
+                    fallback_context.append(f"ph:{name}:{house_num}")
+                context_data = "\n".join(fallback_context)
 
+            system_message = """너는 대한민국 상위 1% 점성학 컨설턴트다. 1회 상담료가 100만원인 프리미엄 상담가로서 공백 포함 2,000자 이상의 심층 리포트를 반드시 작성해야 하며, 말투는 정중하고 따뜻한 ~합니다/~하세요 체를 사용한다.
+
+리포트는 반드시 다음을 포함한다:
+1) 오프닝: 내담자를 상징하는 시적이고 강렬한 한 줄 비유
+2) 심층 분석: 상승궁(겉모습)과 달(속마음)의 이중성과 갈등을 드라마틱하게 분석
+3) 부와 성취: 직업 적성, 재물 흐름, 리스크 관리법
+4) Premium 솔루션: 행운의 장소/방향(구체 지명·방향), 행운 아이템/색상, 즉시 실천 행동 강령
+
+절대 데이터에 없는 사실을 단정적으로 꾸며내지 말고, 제공된 데이터에 근거해 통찰적으로 재구성한다."""
+
+            user_message = f"""다음은 내담자의 차트 해석 데이터이다:
+
+{context_data}
+
+위 데이터를 바탕으로 아래 형식의 고급 보고서를 작성하라.
+
+[오프닝] 당신을 한 줄로 정의한다면
+[심층 분석] 겉모습과 속마음의 이중주 (분량 30% 이상)
+[부와 성취] 당신의 그릇을 키우는 법
+[Premium 솔루션] 운을 부르는 구체적 처방
+
+요구사항:
+- 공백 포함 2,000자 이상
+- 문체는 끝까지 정중한 상담 어조
+- 막연한 조언 금지, 실제 적용 가능한 지침 제시"""
+        else:
+            context_data = "\n".join(
+                f"- {name}: {data['rasi']['name']} (House {data.get('house', '?')})"
+                for name, data in chart["planets"].items()
+            )
+            system_message = (
+                "You are an elite astrology consultant. Write a deep, practical report with clear sections "
+                "and warm professional tone."
+            )
+            user_message = f"""Chart data:
 Ascendant: {asc}
 Moon Sign: {moon_sign}
+{context_data}
 
-Planetary placements:
-"""
-
-            for name, data in chart["planets"].items():
-                rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
-                house = data.get("house", "?")
-                prompt += f"- {name}: {rasi} (House {house})\n"
-
-            if language != "ko":
-                prompt += """
-Please structure your response with these sections:
-1. [Overview] - 3 key traits
-2. [Career & Wealth]
-3. [Relationships]
-4. [Strengths]
-5. [Challenges]
-6. [Actionable Advice]
-
-Write 800-1000 words with practical guidance.
-"""
+Write a detailed report in English with actionable advice."""
 
         response = client.chat.completions.create(
             model=OPENAI_MODEL,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.75,
+            messages=[
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.7,
             max_tokens=3200
         )
         
@@ -829,7 +817,9 @@ Write 800-1000 words with practical guidance.
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
                 "model_used": OPENAI_MODEL,
-                "prompt_length": len(prompt),
+                "system_prompt_length": len(system_message),
+                "user_prompt_length": len(user_message),
+                "context_length": len(context_data),
                 "response_tokens": response.usage.total_tokens if hasattr(response, 'usage') else 0,
                 "client_initialized": client is not None,
                 "static_context_used": static_context_used,
@@ -1091,94 +1081,92 @@ def generate_pdf(
             )
     
     # PDF 생성
-    buffer = BytesIO()
-    doc = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        rightMargin=2*cm,
-        leftMargin=2*cm,
-        topMargin=2*cm,
-        bottomMargin=2*cm,
-    )
-    
-    story = []
-    styles = create_pdf_styles()
-    
-    # 제목
-    title_text = "베딕 점성학 리포트" if language == "ko" else "Vedic Astrology Report"
-    story.append(Paragraph(title_text, styles['KoreanTitle']))
-    story.append(Spacer(1, 0.5*cm))
-    
-    # 출생 정보
-    birth_info = f"""
-    <b>출생 정보</b><br/>
-    날짜: {year}년 {month}월 {day}일<br/>
-    시간: {int(hour)}시 {int((hour % 1) * 60)}분<br/>
-    위치: {lat:.4f}°N, {lon:.4f}°E
-    """ if language == "ko" else f"""
-    <b>Birth Information</b><br/>
-    Date: {year}-{month:02d}-{day:02d}<br/>
-    Time: {int(hour)}:{int((hour % 1) * 60):02d}<br/>
-    Location: {lat:.4f}°N, {lon:.4f}°E
-    """
-    story.append(Paragraph(birth_info, styles['KoreanBody']))
-    story.append(Spacer(1, 0.5*cm))
-    
-    # D1 차트
-    story.append(Paragraph("D1 차트 (Rasi)" if language == "ko" else "D1 Chart (Rasi)", styles['KoreanHeading1']))
-    story.append(SouthIndianChart(chart, width=350, height=350))
-    story.append(Spacer(1, 0.5*cm))
-    
-    # 행성 테이블
-    story.append(Paragraph("행성 배치" if language == "ko" else "Planetary Positions", styles['KoreanHeading1']))
-    
-    planet_data = [["행성", "라시", "하우스", "나크샤트라", "Dignity"] if language == "ko" 
-                   else ["Planet", "Sign", "House", "Nakshatra", "Dignity"]]
-    
-    for name, data in chart["planets"].items():
-        rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
-        house = str(data.get("house", "-"))
-        nak = data["nakshatra"]["name"]
-        dignity = data["features"]["dignity"]
-        planet_data.append([name, rasi, house, nak, dignity])
-    
-    planet_table = Table(planet_data, colWidths=[3*cm, 4*cm, 2*cm, 4*cm, 3*cm])
-    planet_table.setStyle(TableStyle([
-        ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
-        ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
-        ('FONTSIZE', (0, 0), (-1, -1), 9),
-        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
-    ]))
-    story.append(planet_table)
-    story.append(Spacer(1, 0.5*cm))
-    
-    # D9 차트 (옵션)
-    if include_d9 and "d9" in chart:
-        story.append(PageBreak())
-        story.append(Paragraph("D9 차트 (Navamsa)" if language == "ko" else "D9 Chart (Navamsa)", styles['KoreanHeading1']))
-        story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
+    with BytesIO() as buffer:
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=2*cm,
+            leftMargin=2*cm,
+            topMargin=2*cm,
+            bottomMargin=2*cm,
+        )
+
+        story = []
+        styles = create_pdf_styles()
+
+        # 제목
+        title_text = "베딕 점성학 리포트" if language == "ko" else "Vedic Astrology Report"
+        story.append(Paragraph(title_text, styles['KoreanTitle']))
         story.append(Spacer(1, 0.5*cm))
-    
-    # AI 리딩
-    if ai_reading and ai_reading.get("reading"):
-        story.append(PageBreak())
-        story.append(Paragraph("AI 상세 리딩" if language == "ko" else "AI Detailed Reading", styles['KoreanHeading1']))
-        story.append(Spacer(1, 0.3*cm))
-        
-        reading_text = ai_reading["reading"]
-        flowables = parse_markdown_to_flowables(reading_text, styles)
-        story.extend(flowables)
-    
-    # PDF 빌드
-    doc.build(story)
-    
-    pdf_bytes = buffer.getvalue()
-    buffer.close()
+
+        # 출생 정보
+        birth_info = f"""
+        <b>출생 정보</b><br/>
+        날짜: {year}년 {month}월 {day}일<br/>
+        시간: {int(hour)}시 {int((hour % 1) * 60)}분<br/>
+        위치: {lat:.4f}°N, {lon:.4f}°E
+        """ if language == "ko" else f"""
+        <b>Birth Information</b><br/>
+        Date: {year}-{month:02d}-{day:02d}<br/>
+        Time: {int(hour)}:{int((hour % 1) * 60):02d}<br/>
+        Location: {lat:.4f}°N, {lon:.4f}°E
+        """
+        story.append(Paragraph(birth_info, styles['KoreanBody']))
+        story.append(Spacer(1, 0.5*cm))
+
+        # D1 차트
+        story.append(Paragraph("D1 차트 (Rasi)" if language == "ko" else "D1 Chart (Rasi)", styles['KoreanHeading1']))
+        story.append(SouthIndianChart(chart, width=350, height=350))
+        story.append(Spacer(1, 0.5*cm))
+
+        # 행성 테이블
+        story.append(Paragraph("행성 배치" if language == "ko" else "Planetary Positions", styles['KoreanHeading1']))
+
+        planet_data = [["행성", "라시", "하우스", "나크샤트라", "Dignity"] if language == "ko"
+                    else ["Planet", "Sign", "House", "Nakshatra", "Dignity"]]
+
+        for name, data in chart["planets"].items():
+            rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
+            house = str(data.get("house", "-"))
+            nak = data["nakshatra"]["name"]
+            dignity = data["features"]["dignity"]
+            planet_data.append([name, rasi, house, nak, dignity])
+
+        planet_table = Table(planet_data, colWidths=[3*cm, 4*cm, 2*cm, 4*cm, 3*cm])
+        planet_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+            ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+        ]))
+        story.append(planet_table)
+        story.append(Spacer(1, 0.5*cm))
+
+        # D9 차트 (옵션)
+        if include_d9 and "d9" in chart:
+            story.append(PageBreak())
+            story.append(Paragraph("D9 차트 (Navamsa)" if language == "ko" else "D9 Chart (Navamsa)", styles['KoreanHeading1']))
+            story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
+            story.append(Spacer(1, 0.5*cm))
+
+        # AI 리딩
+        if ai_reading and ai_reading.get("reading"):
+            story.append(PageBreak())
+            story.append(Paragraph("AI 상세 리딩" if language == "ko" else "AI Detailed Reading", styles['KoreanHeading1']))
+            story.append(Spacer(1, 0.3*cm))
+
+            reading_text = ai_reading["reading"]
+            flowables = parse_markdown_to_flowables(reading_text, styles)
+            story.extend(flowables)
+
+        # PDF 빌드
+        doc.build(story)
+        pdf_bytes = buffer.getvalue()
     
     return Response(
         content=pdf_bytes,
@@ -1401,4 +1389,5 @@ def refine_btr(request: BTRRefineRequest):
 # ─────────────────────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     import uvicorn
+    init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
