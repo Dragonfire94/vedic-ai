@@ -1621,6 +1621,9 @@ def analyze_birth_time(
     if not valid_events:
         raise ValueError("유효한 이벤트가 하나 이상 필요합니다.")
 
+    event_count = len(valid_events)
+    total_information_weight = sum(get_information_weight(ev) for ev in valid_events)
+
     # 1. 브래킷 생성
     brackets = generate_time_brackets(birth_date, num_brackets=num_brackets)
     logger.info(f"Generated {len(brackets)} brackets for {birth_date}")
@@ -1680,6 +1683,15 @@ def analyze_birth_time(
         for candidate in scored:
             raw_confidence = max(0.0, min(1.0, float(candidate.get("confidence", 0.0))))
             calibrated_confidence = calibrate_confidence(raw_confidence, calibration_features)
+
+            # ---- Minimum Information Confidence Guard ----
+            if event_count < 2:
+                calibrated_confidence = min(calibrated_confidence, 0.65)
+            if total_information_weight < 1.0:
+                calibrated_confidence = min(calibrated_confidence, 0.70)
+            if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
+                calibrated_confidence = min(calibrated_confidence, 0.60)
+
             candidate["raw_confidence"] = round(raw_confidence, 3)
             candidate["confidence"] = round(calibrated_confidence, 3)
             candidate["calibration_features"] = calibration_features
@@ -1695,6 +1707,14 @@ def analyze_birth_time(
     for candidate in calibrated:
         raw_confidence = max(0.0, min(1.0, float(candidate.get("confidence", 0.0))))
         calibrated_confidence = calibrate_confidence(raw_confidence, calibration_features)
+
+        # ---- Minimum Information Confidence Guard ----
+        if event_count < 2:
+            calibrated_confidence = min(calibrated_confidence, 0.65)
+        if total_information_weight < 1.0:
+            calibrated_confidence = min(calibrated_confidence, 0.70)
+        if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
+            calibrated_confidence = min(calibrated_confidence, 0.60)
 
         row: Dict[str, Any] = {
             "ascendant": candidate.get("ascendant", ""),
@@ -1737,6 +1757,8 @@ def analyze_birth_time(
             "entropy": float(calibration_features.get("entropy", 0.0)),
             "gap": float(calibration_features.get("gap", 0.0)),
             "top_probability": float(calibration_features.get("top_probability", 0.0)),
+            "event_count": event_count,
+            "total_information_weight": float(total_information_weight),
             "top_candidate_time_range": top_candidate.get("time_range", ""),
             "separation_gap": round(separation_gap, 6),
             "signal_strength_contributions": top_event_signal_contributions,
