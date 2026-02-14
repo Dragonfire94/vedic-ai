@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y \
     gcc \
     curl \
     ca-certificates \
+    xz-utils \
     fonts-nanum \
     fontconfig \
     && rm -rf /var/lib/apt/lists/*
@@ -31,7 +32,7 @@ RUN mkdir -p /usr/share/libswe/ephe \
         && tar -xJf /tmp/se_ephe.tar.xz -C /usr/share/libswe/ephe \
         && rm -f /tmp/se_ephe.tar.xz; \
        fi \
-    && if [ "$SWE_ENFORCE_EPHE" = "1" ] && [ -z "$(ls -A /usr/share/libswe/ephe 2>/dev/null)" ]; then \
+    && if [ "$SWE_ENFORCE_EPHE" = "1" ] && [ -z "$(ls /usr/share/libswe/ephe/*.se1 /usr/share/libswe/ephe/*.se2 2>/dev/null)" ]; then \
         echo "Missing Swiss Ephemeris files under /usr/share/libswe/ephe"; \
         echo "Set SWE_EPHE_URL at build time, or set SWE_ENFORCE_EPHE=0 for non-production."; \
         exit 1; \
@@ -43,6 +44,10 @@ ENV SWE_REQUIRE_SWIEPH=1
 # Copy backend source
 COPY backend ./backend
 COPY assets ./assets
+
+# Fail fast during image build if expected application fonts are missing.
+RUN test -f /app/backend/fonts/Pretendard-Regular.ttf \
+    && test -f /app/backend/fonts/Pretendard-Bold.ttf
 
 # Ensure fonts are discoverable
 RUN fc-cache -fv

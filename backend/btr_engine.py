@@ -76,6 +76,7 @@ CONFIDENCE_GRADES = [
 CONFIG_DIR = Path(__file__).resolve().parent / "config"
 EVENT_SIGNAL_PROFILE_PATH = CONFIG_DIR / "event_signal_profile.json"
 EVENT_SIGNAL_MAPPING_PATH = CONFIG_DIR / "event_signal_mapping.json"
+EVENT_RULES_PATH = Path(__file__).resolve().parent / "event_rules.json"
 
 _DEFAULT_EVENT_SIGNAL_MAPPING: Dict[str, str] = {
     "career_change": "career",
@@ -128,6 +129,19 @@ _DEFAULT_EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, Any]] = {
         "dasha_lords": [],
         "conflict_factors": [],
         "base_weight": 1.0,
+    },
+}
+
+_DEFAULT_EVENT_RULES: Dict[str, Any] = {
+    "version": "1.0.0",
+    "event_rules": {
+        "generic": {
+            "dasha_lords": [],
+            "house_triggers": [],
+            "base_weight": 1.0,
+            "weight_range": [0.5, 10.0],
+            "fallback_levels": [1, 2, 3],
+        }
     },
 }
 
@@ -189,8 +203,26 @@ def _load_event_signal_profile() -> Dict[str, Dict[str, Any]]:
     return profile or dict(_DEFAULT_EVENT_SIGNAL_PROFILE)
 
 
+def _load_event_rules() -> Dict[str, Any]:
+    raw = _load_json_config(EVENT_RULES_PATH, _DEFAULT_EVENT_RULES, "event_rules")
+    rules = raw.get("event_rules")
+    if not isinstance(rules, dict):
+        return dict(_DEFAULT_EVENT_RULES)
+    return raw
+
+
 EVENT_SIGNAL_MAPPING = _load_event_signal_mapping()
 EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, Any]] = _load_event_signal_profile()
+EVENT_RULES: Dict[str, Any] = _load_event_rules()
+
+
+def get_event_rule(event_type: str) -> Dict[str, Any]:
+    rules = EVENT_RULES.get("event_rules", {})
+    generic = _DEFAULT_EVENT_RULES["event_rules"]["generic"]
+    if not isinstance(rules, dict):
+        return dict(generic)
+    selected = rules.get(event_type) or rules.get("generic") or generic
+    return selected if isinstance(selected, dict) else dict(generic)
 
 EXALTATION_SIGNS: Dict[str, str] = {
     "Sun": "Aries",
@@ -870,9 +902,42 @@ def match_event_to_chart(
     precision_level = event.get("precision_level", "exact")
     event_year = event.get("year")
     event_month = event.get("month")
-    event_weight = event.get("weight", 1.0)
-    dasha_lords = event.get("dasha_lords", [])
-    house_triggers = event.get("house_triggers", [])
+
+    event_type = str(event.get("event_type") or event.get("type") or "generic")
+    rule = get_event_rule(event_type)
+
+    weight_range = rule.get("weight_range", [0.5, 10.0])
+    if not isinstance(weight_range, list) or len(weight_range) < 2:
+        weight_range = [0.5, 10.0]
+    min_w = float(weight_range[0])
+    max_w = float(weight_range[1])
+    base_weight = float(rule.get("base_weight", 1.0))
+    event_weight = float(event.get("weight", base_weight))
+    event_weight = max(min_w, min(max_w, event_weight))
+
+    dasha_lords = (
+        event.get("dasha_lords")
+        if ("dasha_lords" in event and event.get("dasha_lords") is not None)
+        else rule.get("dasha_lords", [])
+    )
+    house_triggers = (
+        event.get("house_triggers")
+        if ("house_triggers" in event and event.get("house_triggers") is not None)
+        else rule.get("house_triggers", [])
+    )
+    if not isinstance(dasha_lords, list):
+        dasha_lords = []
+    if not isinstance(house_triggers, list):
+        house_triggers = []
+
+    allowed_fallback_levels_raw = rule.get("fallback_levels", [1, 2, 3])
+    if not isinstance(allowed_fallback_levels_raw, list):
+        allowed_fallback_levels_raw = [1, 2, 3]
+    allowed_fallback_levels = {
+        int(level)
+        for level in allowed_fallback_levels_raw
+        if isinstance(level, (int, float))
+    }
 
     if precision_level == "range":
         age_range = event.get("age_range")
@@ -919,6 +984,8 @@ def match_event_to_chart(
 
     # 4단계 Fallback 매칭
     for level in range(5):
+        if level > 0 and level != 4 and level not in allowed_fallback_levels:
+            continue
         matched, score = _try_match_at_level(
             level, maha, antar, dasha_lords, house_triggers,
             chart, event_weight, event_year, event_month,
@@ -1171,14 +1238,11 @@ def calculate_confidence(
     if max_possible_score <= 0 or num_events <= 0:
         return 0.0
 
-    # 기본 점수 비율
-    score_ratio = total_score / max_possible_score
-
-    # 이벤트 매칭 비율
+    # 점수 비율을 로그 스케일로 압축해 과도한 confidence 포화를 줄인다.
+    score_ratio = max(0.0, total_score / max_possible_score)
+    log_component = math.log1p(score_ratio) / math.log(2.0)
     match_ratio = matched_events / num_events
-
-    # 기본 confidence (0~100)
-    base_confidence = (score_ratio * 0.6 + match_ratio * 0.4) * 100
+    base_confidence = (log_component * 0.7 + match_ratio * 0.3) * 100
 
     # Fallback penalty 적용
     total_penalty = sum(get_fallback_penalty(level) for level in fallback_penalties)
@@ -1669,8 +1733,12 @@ def analyze_birth_time(
     if not valid_events:
         raise ValueError("유효한 이벤트가 하나 이상 필요합니다.")
 
-    event_count = len(valid_events)
-    total_information_weight = sum(get_information_weight(ev) for ev in valid_events)
+    timed_events = [ev for ev in valid_events if ev.get("precision_level", "exact") != "unknown"]
+    if not timed_events:
+        raise ValueError("Please choose a timing for at least one event.")
+
+    event_count = len(timed_events)
+    total_information_weight = sum(get_information_weight(ev) for ev in timed_events)
 
     # 1. 브래킷 생성
     brackets = generate_time_brackets(birth_date, num_brackets=num_brackets)
@@ -1737,7 +1805,7 @@ def analyze_birth_time(
                 calibrated_confidence = min(calibrated_confidence, 0.65)
             if total_information_weight < 1.0:
                 calibrated_confidence = min(calibrated_confidence, 0.70)
-            if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
+            if event_count == 1 and timed_events[0].get("precision_level", "exact") == "exact":
                 calibrated_confidence = min(calibrated_confidence, 0.60)
 
             confidence_explanation = build_confidence_explanation(
@@ -1770,7 +1838,7 @@ def analyze_birth_time(
             calibrated_confidence = min(calibrated_confidence, 0.65)
         if total_information_weight < 1.0:
             calibrated_confidence = min(calibrated_confidence, 0.70)
-        if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
+        if event_count == 1 and timed_events[0].get("precision_level", "exact") == "exact":
             calibrated_confidence = min(calibrated_confidence, 0.60)
 
         confidence_explanation = build_confidence_explanation(
