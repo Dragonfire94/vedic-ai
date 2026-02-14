@@ -1,4 +1,18 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+function resolveApiBaseUrl(): string {
+  // Server-side (SSR / Route handlers): prefer internal service DNS.
+  if (typeof window === 'undefined') {
+    return (
+      process.env.API_URL ||
+      process.env.NEXT_PUBLIC_API_URL ||
+      'http://127.0.0.1:8000'
+    )
+  }
+
+  // Browser-side: only public URL should be used.
+  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+}
+
+const API_BASE_URL = resolveApiBaseUrl()
 
 export type EventType =
   | 'career_change'
@@ -103,7 +117,7 @@ export async function getChart(data: ChartRequest) {
     hour: data.hour.toString(),
     lat: data.lat.toString(),
     lon: data.lon.toString(),
-    house_system: data.house_system || 'P',
+    house_system: data.house_system || 'W',
     include_nodes: data.include_nodes !== false ? '1' : '0',
     include_d9: data.include_d9 ? '1' : '0',
     gender: data.gender || 'male',
@@ -124,7 +138,7 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
     hour: data.hour.toString(),
     lat: data.lat.toString(),
     lon: data.lon.toString(),
-    house_system: data.house_system || 'P',
+    house_system: data.house_system || 'W',
     include_nodes: data.include_nodes !== false ? '1' : '0',
     include_d9: data.include_d9 ? '1' : '0',
     language: data.language || 'ko',
@@ -146,7 +160,7 @@ export async function getPDF(data: ChartRequest & { language?: string }) {
     hour: data.hour.toString(),
     lat: data.lat.toString(),
     lon: data.lon.toString(),
-    house_system: data.house_system || 'P',
+    house_system: data.house_system || 'W',
     include_nodes: data.include_nodes !== false ? '1' : '0',
     include_d9: data.include_d9 ? '1' : '0',
     language: data.language || 'ko',

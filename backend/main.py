@@ -12,6 +12,7 @@ import math
 import base64
 import logging
 import asyncio
+import subprocess
 from pathlib import Path
 from enum import Enum
 from datetime import datetime
@@ -70,14 +71,92 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # Pretendard ?????????????????
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-FONT_DIR = os.path.join(os.path.dirname(__file__), 'fonts')
-FONT_REGULAR = os.path.join(FONT_DIR, 'Pretendard-Regular.ttf')
-FONT_BOLD = os.path.join(FONT_DIR, 'Pretendard-Bold.ttf')
+MODULE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = MODULE_DIR.parent
+FONT_REGULAR_CANDIDATES = [
+    MODULE_DIR / "fonts" / "Pretendard-Regular.ttf",
+    REPO_ROOT / "assets" / "fonts" / "Pretendard-Regular.ttf",
+]
+FONT_BOLD_CANDIDATES = [
+    MODULE_DIR / "fonts" / "Pretendard-Bold.ttf",
+    REPO_ROOT / "assets" / "fonts" / "Pretendard-Bold.ttf",
+]
+SYSTEM_KOREAN_FONT_CANDIDATES = [
+    Path("/usr/share/fonts/truetype/nanum/NanumGothic.ttf"),
+    Path("/usr/share/fonts/truetype/nanum/NanumBarunGothic.ttf"),
+    Path("/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc"),
+]
 
 KOREAN_FONT_AVAILABLE = False
 PDF_FONT_REG = 'Helvetica'
 PDF_FONT_BOLD = 'Helvetica-Bold'
 PDF_FONT_MONO = 'Courier'
+
+
+def _first_existing_path(candidates: list[Path]) -> Optional[Path]:
+    for candidate in candidates:
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
+
+
+def _fontconfig_match(family: str) -> Optional[Path]:
+    try:
+        result = subprocess.run(
+            ["fc-match", "-f", "%{file}\n", family],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    raw = result.stdout.strip()
+    if not raw:
+        return None
+
+    candidate = Path(raw)
+    if candidate.exists() and candidate.is_file():
+        return candidate
+    return None
+
+
+def _discover_system_korean_font() -> Optional[Path]:
+    direct = _first_existing_path(SYSTEM_KOREAN_FONT_CANDIDATES)
+    if direct:
+        return direct
+
+    for family in ("NanumGothic", "Noto Sans CJK KR", "Noto Sans KR"):
+        matched = _fontconfig_match(family)
+        if matched:
+            return matched
+
+    try:
+        result = subprocess.run(
+            ["fc-list", ":lang=ko", "file"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except Exception:
+        return None
+
+    if result.returncode != 0:
+        return None
+
+    for line in result.stdout.splitlines():
+        path_text = line.split(":", 1)[0].strip()
+        if not path_text:
+            continue
+        candidate = Path(path_text)
+        if candidate.exists() and candidate.is_file():
+            return candidate
+    return None
 
 
 def init_fonts() -> None:
@@ -89,18 +168,18 @@ def init_fonts() -> None:
     PDF_FONT_BOLD = 'Helvetica-Bold'
     PDF_FONT_MONO = 'Courier'
 
-    nanum_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
-
     try:
-        if os.path.exists(FONT_REGULAR):
-            pdfmetrics.registerFont(TTFont('Pretendard', FONT_REGULAR))
-            if os.path.exists(FONT_BOLD):
-                pdfmetrics.registerFont(TTFont('Pretendard-Bold', FONT_BOLD))
+        regular = _first_existing_path(FONT_REGULAR_CANDIDATES)
+        if regular:
+            pdfmetrics.registerFont(TTFont('Pretendard', str(regular)))
+            bold = _first_existing_path(FONT_BOLD_CANDIDATES)
+            if bold:
+                pdfmetrics.registerFont(TTFont('Pretendard-Bold', str(bold)))
                 PDF_FONT_BOLD = 'Pretendard-Bold'
             else:
-                PDF_FONT_BOLD = 'Helvetica-Bold'
+                PDF_FONT_BOLD = 'Pretendard'
                 logger.warning(
-                    'Pretendard-Bold.ttf not found; using system bold fallback Helvetica-Bold.'
+                    'Pretendard-Bold.ttf not found; using Pretendard regular for bold style.'
                 )
 
             KOREAN_FONT_AVAILABLE = True
@@ -109,17 +188,19 @@ def init_fonts() -> None:
             logger.info('Pretendard font loaded.')
             return
 
-        if os.path.exists(nanum_path):
-            pdfmetrics.registerFont(TTFont('NanumGothic', nanum_path))
+        system_font = _discover_system_korean_font()
+        if system_font:
+            pdfmetrics.registerFont(TTFont('KoreanFallback', str(system_font)))
             KOREAN_FONT_AVAILABLE = True
-            PDF_FONT_REG = 'NanumGothic'
-            PDF_FONT_BOLD = 'NanumGothic'
-            PDF_FONT_MONO = 'NanumGothic'
-            logger.info('NanumGothic font loaded from system.')
+            PDF_FONT_REG = 'KoreanFallback'
+            PDF_FONT_BOLD = 'KoreanFallback'
+            PDF_FONT_MONO = 'KoreanFallback'
+            logger.info('System Korean font loaded: %s', system_font)
             return
 
         raise FileNotFoundError(
-            f'Neither Pretendard ({FONT_REGULAR}) nor NanumGothic ({nanum_path}) was found.'
+            f'No Korean font found in bundle candidates={FONT_REGULAR_CANDIDATES} '
+            f'or system candidates={SYSTEM_KOREAN_FONT_CANDIDATES}.'
         )
     except Exception as e:
         logger.error(f'Font initialization failed: {e}')

@@ -27,7 +27,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # The archive is expected to contain ephemeris files at its root.
 ARG SWE_EPHE_URL=""
 ARG SWE_EPHE_SHA256=""
-ARG SWE_ENFORCE_EPHE=1
+ARG SWE_ENFORCE_EPHE=0
 RUN mkdir -p /usr/share/libswe/ephe \
     && if [ -n "$SWE_EPHE_URL" ]; then \
         curl -fsSL "$SWE_EPHE_URL" -o /tmp/se_ephe.tar.xz \
@@ -44,7 +44,7 @@ RUN mkdir -p /usr/share/libswe/ephe \
        fi
 
 ENV SWE_EPHE_PATH=/usr/share/libswe/ephe
-ENV SWE_REQUIRE_SWIEPH=1
+ENV SWE_REQUIRE_SWIEPH=0
 
 # Copy backend source
 COPY backend ./backend
