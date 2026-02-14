@@ -170,7 +170,21 @@
         "modifier": "moderate"
       }
     ],
-    "chain_followups": []
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "At moderate levels, this pattern tends to emerge first during transition windows where multiple roles compete for priority.",
+        "implication_extension": "If unattended, repeated role-switching can become a default identity reflex that degrades decision clarity.",
+        "example_extension": "It may appear as overcommitting to one expectation and then abruptly withdrawing to regain control."
+      },
+      "high": {
+        "analysis_extension": "Under sustained pressure, this pattern accelerates, tightening cognitive flexibility and amplifying emotional reactivity across domains.",
+        "implication_extension": "Without rapid integration, trust erosion and strategy fragmentation can compound simultaneously.",
+        "example_extension": "A common manifestation is rapid shifts between command mode and emotional shutdown within a single high-stakes cycle.",
+        "micro_scenario": "A typical manifestation would involve making a rapid decision under stress, later rationalizing it as inevitability.",
+        "long_term_projection": "If uninterrupted over several cycles, this may lead to reputational or relational fatigue."
+      }
+    }
   },
   {
     "id": "high_pressure_identity_fragmentation",
@@ -289,7 +303,21 @@
         "modifier": "moderate"
       }
     ],
-    "chain_followups": []
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "At moderate intensity, the mirroring dynamic is usually episodic and tied to unresolved stress carryover.",
+        "implication_extension": "Naming the pattern early can prevent avoidable escalation and shorten repair windows.",
+        "example_extension": "A small misunderstanding can quickly inherit the emotional residue of earlier unresolved conflicts."
+      },
+      "high": {
+        "analysis_extension": "At high intensity, mirroring becomes recursive, with each reaction validating the other person's threat perception.",
+        "implication_extension": "Relationship stability can decline unless both partners interrupt the trigger-response loop in real time.",
+        "example_extension": "Conflicts may escalate from minor logistics into identity-level accusations within minutes.",
+        "micro_scenario": "During a tense conversation, one defensive remark can trigger a chain of counterattacks that neither side originally intended.",
+        "long_term_projection": "If repeated without intervention, the relationship may normalize distrust and emotional distancing."
+      }
+    }
   },
   {
     "id": "identity_control_paradox",

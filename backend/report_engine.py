@@ -434,6 +434,35 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
                     payload_block[field] = str(content.get(field, chapter))
                 elif field in content:
                     payload_block[field] = str(content.get(field, ""))
+
+            variant = None
+            if intensity >= 0.85:
+                variant = "high"
+            elif intensity >= 0.65:
+                variant = "moderate"
+
+            scaling = block.get("scaling_variants", {})
+            if variant and isinstance(scaling, dict) and variant in scaling:
+                extensions = scaling[variant]
+                if isinstance(extensions, dict):
+                    for field, ext_text in extensions.items():
+                        if not isinstance(ext_text, str) or not ext_text.strip():
+                            continue
+                        base_field = field.replace("_extension", "")
+                        if base_field == "example":
+                            base_field = "examples"
+                        if base_field in payload_block and isinstance(payload_block[base_field], str):
+                            payload_block[base_field] += "\n\n" + ext_text
+
+                    if variant == "high":
+                        micro_scenario = extensions.get("micro_scenario")
+                        if isinstance(micro_scenario, str) and micro_scenario.strip():
+                            payload_block["micro_scenario"] = micro_scenario
+
+                        long_term_projection = extensions.get("long_term_projection")
+                        if isinstance(long_term_projection, str) and long_term_projection.strip():
+                            payload_block["long_term_projection"] = long_term_projection
+
             if payload_block:
                 chapter_payload.append(payload_block)
 
