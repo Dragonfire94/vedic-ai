@@ -3,7 +3,11 @@
     "id": "dharma_dominant",
     "chapter": "Purushartha Profile",
     "conditions": [
-      {"field": "dominant_purushartha", "operator": "==", "value": "Dharma"}
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Dharma"
+      }
     ],
     "logic": "AND",
     "priority": 90,
@@ -11,14 +15,30 @@
       "title": "Life Path: Dharma Focus",
       "summary": "In your life design, Dharma (duty and purpose) is strongly emphasized.",
       "analysis": "You are oriented toward principled contribution and long-horizon responsibility.",
-      "implication": "Decision quality improves when actions are anchored to mission and service."
-    }
+      "implication": "Decision quality improves when actions are anchored to mission and service.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "artha_dominant",
     "chapter": "Purushartha Profile",
     "conditions": [
-      {"field": "dominant_purushartha", "operator": "==", "value": "Artha"}
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
     ],
     "logic": "AND",
     "priority": 80,
@@ -26,14 +46,30 @@
       "title": "Life Path: Artha Focus",
       "summary": "Material structure, achievement, and practical ambition are central themes.",
       "analysis": "Execution is strongest when measurable objectives and systems are explicit.",
-      "implication": "Resource strategy and disciplined sequencing accelerate progress."
-    }
+      "implication": "Resource strategy and disciplined sequencing accelerate progress.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "kama_dominant",
     "chapter": "Purushartha Profile",
     "conditions": [
-      {"field": "dominant_purushartha", "operator": "==", "value": "Kama"}
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Kama"
+      }
     ],
     "logic": "AND",
     "priority": 70,
@@ -41,7 +77,83 @@
       "title": "Life Path: Kama Focus",
       "summary": "Relational fulfillment, creativity, and emotional richness shape major decisions.",
       "analysis": "Aesthetic and relational motivations contribute materially to life direction.",
-      "implication": "Outcomes are strongest when desire is balanced with clear boundaries."
+      "implication": "Outcomes are strongest when desire is balanced with clear boundaries.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "career_purushartha",
+    "chapter": "Career & Success",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
+    ],
+    "logic": "AND",
+    "priority": 84,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [
+      "career_karma_pattern_reinforcement"
+    ],
+    "content": {
+      "title": "Career Drive Anchored in Artha",
+      "summary": "Material strategy and structural advancement are central to your professional orientation.",
+      "analysis": "You perform best when progress metrics, ownership clarity, and leverage points are concrete.",
+      "implication": "Explicit milestone architecture improves both speed and strategic coherence.",
+      "examples": "Ambiguity-heavy roles may feel draining unless translated into measurable execution tracks."
+    }
+  },
+  {
+    "id": "career_karma_pattern_reinforcement",
+    "chapter": "Executive Summary",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
+    ],
+    "logic": "AND",
+    "priority": 93,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "Reinforced Career Narrative",
+      "summary": "Career outcomes are strongly shaped by the interaction between strategic ambition and karmic correction loops.",
+      "analysis": "When execution discipline aligns with lesson-integration, volatility decreases and compounding improves.",
+      "implication": "Treat each setback as structured calibration to preserve long-cycle momentum.",
+      "examples": "A repeated obstacle often resolves once the same decision-pattern is intentionally redesigned."
     }
   }
 ]

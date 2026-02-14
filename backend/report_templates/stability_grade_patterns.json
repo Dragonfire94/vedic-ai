@@ -3,7 +3,11 @@
     "id": "stability_high",
     "chapter": "Stability Metrics",
     "conditions": [
-      {"field": "stability_metrics.grade", "operator": "==", "value": "A"}
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "A"
+      }
     ],
     "logic": "AND",
     "priority": 80,
@@ -11,14 +15,30 @@
       "title": "Stability Grade: High",
       "summary": "Your structural stability appears strong and recoverable under stress.",
       "analysis": "Baseline resilience supports measured long-term commitments.",
-      "implication": "Use this window to consolidate durable systems."
-    }
+      "implication": "Use this window to consolidate durable systems.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "stability_moderate",
     "chapter": "Stability Metrics",
     "conditions": [
-      {"field": "stability_metrics.grade", "operator": "==", "value": "B"}
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "B"
+      }
     ],
     "logic": "AND",
     "priority": 70,
@@ -26,14 +46,30 @@
       "title": "Stability Grade: Moderate",
       "summary": "The profile indicates workable stability with periodic volatility windows.",
       "analysis": "Consistency is available but sensitive to accumulated load.",
-      "implication": "Rhythm management and boundary hygiene remain essential."
-    }
+      "implication": "Rhythm management and boundary hygiene remain essential.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "stability_low",
     "chapter": "Stability Metrics",
     "conditions": [
-      {"field": "stability_metrics.grade", "operator": "==", "value": "C"}
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "C"
+      }
     ],
     "logic": "AND",
     "priority": 60,
@@ -41,7 +77,50 @@
       "title": "Stability Grade: Fragile",
       "summary": "The system may become vulnerable during cumulative pressure periods.",
       "analysis": "Recovery capacity can degrade quickly under sustained overload.",
-      "implication": "Conservative pacing and energy budgeting are protective."
+      "implication": "Conservative pacing and energy budgeting are protective.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "high_stability_fall",
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 45
+      }
+    ],
+    "logic": "AND",
+    "priority": 92,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "Stability Degradation Window",
+      "summary": "Current indicators suggest a meaningful drop in resilience capacity under cumulative strain.",
+      "analysis": "Lower structural stability can magnify otherwise-manageable stressors and reduce correction speed.",
+      "implication": "Conservative load management and early intervention protocols are recommended.",
+      "examples": "Fatigue may convert minor interruptions into disproportionate disruptions in planning and execution."
     }
   }
 ]
