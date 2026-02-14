@@ -56,5 +56,5 @@ RUN fc-cache -fv
 # Expose port
 EXPOSE 8000
 
-# Run using module path to avoid import errors
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Run with environment-driven uvicorn tuning knobs.
+CMD ["python", "-m", "backend.server_runner"]
