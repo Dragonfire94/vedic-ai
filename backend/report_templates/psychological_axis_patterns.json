@@ -1,0 +1,20 @@
+[
+  {
+    "id": "high_internal_tension",
+    "conditions": {"psychological_tension_axis.tension_level": "high"},
+    "template": {
+      "title": "Psychological Axis: High Inner Tension",
+      "summary": "Your internal architecture shows meaningful friction between competing priorities.",
+      "insight": "This tension becomes productive when translated into deliberate routines and reflective decision gates."
+    }
+  },
+  {
+    "id": "balanced_axis",
+    "conditions": {"psychological_tension_axis.tension_level": "balanced"},
+    "template": {
+      "title": "Psychological Axis: Functional Balance",
+      "summary": "Your profile indicates relatively balanced emotional and strategic processing.",
+      "insight": "Stability can be preserved by protecting recovery cycles and role boundaries."
+    }
+  }
+]

@@ -117,7 +117,7 @@ class TestBTRStructuralIntegration(unittest.TestCase):
         self.assertEqual(result_1, result_2)
         self.assertEqual(
             sorted(result_1.keys()),
-            ["confidence", "final_psychological_summary", "probability", "rectified_time_range"],
+            ["chapter_count", "report_text"],
         )
 
 

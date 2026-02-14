@@ -1,0 +1,29 @@
+[
+  {
+    "id": "dharma_dominant",
+    "conditions": {"dominant_purushartha": "Dharma"},
+    "template": {
+      "title": "Life Path: Dharma Focus",
+      "summary": "In your life design, Dharma (duty and purpose) is strongly emphasized.",
+      "insight": "This reflects a sustained drive to create meaning through contribution, responsibility, and principled direction."
+    }
+  },
+  {
+    "id": "artha_dominant",
+    "conditions": {"dominant_purushartha": "Artha"},
+    "template": {
+      "title": "Life Path: Artha Focus",
+      "summary": "Material structure, achievement, and practical ambition are central themes.",
+      "insight": "Growth accelerates when goals are organized into measurable systems and long-horizon commitments."
+    }
+  },
+  {
+    "id": "kama_dominant",
+    "conditions": {"dominant_purushartha": "Kama"},
+    "template": {
+      "title": "Life Path: Kama Focus",
+      "summary": "Relational fulfillment, creativity, and emotional richness shape major decisions.",
+      "insight": "Your strongest momentum appears when desire is balanced with intentional boundaries and value clarity."
+    }
+  }
+]

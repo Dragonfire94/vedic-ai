@@ -1,0 +1,20 @@
+[
+  {
+    "id": "karmic_integration",
+    "conditions": {"karmic_pattern_profile.primary_pattern": "integration"},
+    "template": {
+      "title": "Karmic Theme: Integration",
+      "summary": "The chart narrative suggests a life process of integrating contrasting drives into a coherent identity.",
+      "insight": "Progress is strongest when old coping patterns are transformed into conscious, repeatable disciplines."
+    }
+  },
+  {
+    "id": "karmic_correction",
+    "conditions": {"karmic_pattern_profile.primary_pattern": "correction"},
+    "template": {
+      "title": "Karmic Theme: Correction",
+      "summary": "Recurring lessons point to iterative correction rather than linear progress.",
+      "insight": "Each cycle improves outcomes when feedback is treated as guidance instead of failure."
+    }
+  }
+]

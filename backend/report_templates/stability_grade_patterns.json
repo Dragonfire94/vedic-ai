@@ -1,0 +1,29 @@
+[
+  {
+    "id": "stability_high",
+    "conditions": {"stability_metrics.grade": "A"},
+    "template": {
+      "title": "Stability Grade: High",
+      "summary": "Your current structural stability appears strong and recoverable under stress.",
+      "insight": "This permits measured long-term commitments without excessive fragility."
+    }
+  },
+  {
+    "id": "stability_moderate",
+    "conditions": {"stability_metrics.grade": "B"},
+    "template": {
+      "title": "Stability Grade: Moderate",
+      "summary": "The profile indicates workable stability with periodic volatility windows.",
+      "insight": "Proactive rhythm management and boundary hygiene are key to preserving consistency."
+    }
+  },
+  {
+    "id": "stability_low",
+    "conditions": {"stability_metrics.grade": "C"},
+    "template": {
+      "title": "Stability Grade: Fragile",
+      "summary": "Your system may become vulnerable during cumulative pressure periods.",
+      "insight": "Conservative pacing, sleep discipline, and reduced cognitive load are protective factors."
+    }
+  }
+]

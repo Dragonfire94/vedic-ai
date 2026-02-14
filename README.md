@@ -98,3 +98,44 @@ Safety constraints:
 - `base_weight` is never reduced below `0.1`
 
 > Warning: Empirical tuning requires sufficient sample size (>100 events recommended).
+
+## Deterministic Report Engine
+
+The report pipeline now supports a deterministic narrative-first flow that minimizes model calls and constrains hallucination risk.
+
+### Template libraries
+Template blocks are stored in `backend/report_templates/*.json` and map structural signals to editorial fragments.
+
+Template schema:
+
+```json
+{
+  "id": "dharma_dominant",
+  "conditions": {
+    "dominant_purushartha": "Dharma"
+  },
+  "template": {
+    "title": "Life Path: Dharma Focus",
+    "summary": "In your life design, Dharma is strongly emphasized.",
+    "insight": "This reflects an internal drive toward meaningful contribution."
+  }
+}
+```
+
+### Pipeline
+1. Structural summary is produced by existing deterministic astro/BTR logic.
+2. `backend/report_engine.py` runs condition matching via `select_template_blocks(...)`.
+3. `build_report_payload(...)` enforces 15 fixed chapter slots (`REPORT_CHAPTERS`).
+4. One GPT call stitches chapter blocks into cohesive prose.
+
+### Single GPT stitching call
+- Model: `gpt-4o`
+- Temperature: `0.3`
+- Max tokens: `6000`
+- Prompt role: narrative editor only (no new astrology computation)
+
+### Safety constraints
+- Raw astrological fields are excluded from prompt payload.
+- GPT receives only chapter-level deterministic editorial blocks.
+- Chapter order is fixed and enforced.
+- Interpretation logic remains deterministic in code/templates.
