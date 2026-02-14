@@ -124,7 +124,34 @@ CHOICE_FORK_RULES = [
     },
 ]
 
-
+SCENARIO_COMPRESSION_RULES = [
+    {
+        "id": "structural_transition_window",
+        "conditions": {
+            "probability_forecast.career_shift_3yr": {">=": 0.6},
+            "probability_forecast.marriage_5yr": {">=": 0.6},
+        },
+        "chapter": "Final Summary",
+        "priority": 98,
+    },
+    {
+        "id": "burnout_risk_window",
+        "conditions": {
+            "probability_forecast.burnout_2yr": {">=": 0.7},
+            "stability_metrics.stability_index": {"<=": 50},
+        },
+        "chapter": "Stability Metrics",
+        "priority": 97,
+    },
+    {
+        "id": "financial_instability_window",
+        "conditions": {
+            "probability_forecast.financial_instability_3yr": {">=": 0.65},
+        },
+        "chapter": "Wealth & Material Flow",
+        "priority": 96,
+    },
+]
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -248,6 +275,12 @@ def _lookup_template_by_id(block_id: str, chapter: str | None = None) -> dict[st
     for block in TEMPLATES:
         if block.get("id") == block_id and (chapter is None or block.get("chapter") == chapter):
             return block
+
+    for blocks in DEFAULT_BLOCKS.values():
+        for block in blocks:
+            if block.get("id") == block_id and (chapter is None or block.get("chapter") == chapter):
+                return block
+
     return None
 
 
@@ -281,6 +314,7 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
             "repetition_cycle",
             "integration_path",
             "choice_fork",
+            "predictive_compression",
         ]
     elif intensity >= 0.75:
         include_fields = [
@@ -295,11 +329,12 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
             "repetition_cycle",
             "integration_path",
             "choice_fork",
+            "predictive_compression",
         ]
     elif intensity >= 0.5:
-        include_fields = ["title", "summary", "analysis", "implication"]
+        include_fields = ["title", "summary", "analysis", "implication", "predictive_compression"]
     else:
-        include_fields = ["title", "summary", "analysis"]
+        include_fields = ["title", "summary", "analysis", "predictive_compression"]
 
     payload_block: dict[str, Any] = {}
     for field in include_fields:
@@ -309,13 +344,15 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
         if field not in content:
             continue
 
+        value = content.get(field)
         if field == "choice_fork":
-            choice_fork = content.get("choice_fork")
-            if intensity >= 0.75 and isinstance(choice_fork, dict):
-                payload_block[field] = choice_fork
-            continue
-
-        payload_block[field] = str(content.get(field, ""))
+            if intensity >= 0.75 and isinstance(value, dict):
+                payload_block["choice_fork"] = value
+        elif field == "predictive_compression":
+            if isinstance(value, dict):
+                payload_block["predictive_compression"] = value
+        else:
+            payload_block[field] = str(value)
 
     variant = None
     if intensity >= 0.85:
@@ -398,6 +435,52 @@ def _inject_choice_forks(
         lowest_idx = min(range(len(meta)), key=lambda i: meta[i].get("priority", 0))
         meta[lowest_idx] = fork_block
         existing[lowest_idx] = rendered
+
+
+def _inject_scenario_compression(
+    structural_summary: dict[str, Any],
+    chapter_blocks: dict[str, list[dict[str, Any]]],
+    chapter_meta: dict[str, list[dict[str, Any]]],
+) -> None:
+    for rule in SCENARIO_COMPRESSION_RULES:
+        if not _evaluate_conditions(structural_summary, rule.get("conditions", {})):
+            continue
+
+        block_id = rule.get("id")
+        if not isinstance(block_id, str):
+            continue
+
+        block = _find_block_by_id(block_id)
+        if not block:
+            continue
+
+        chapter = rule.get("chapter")
+        if chapter not in chapter_blocks or chapter not in chapter_meta:
+            continue
+
+        if any(existing.get("id") == block.get("id") for existing in chapter_meta[chapter]):
+            continue
+
+        intensity = compute_block_intensity(block, structural_summary)
+        if intensity < 0.6:
+            continue
+
+        scenario_block = dict(block)
+        scenario_block["_intensity"] = intensity
+        rendered = _render_payload_fragment(scenario_block, str(chapter), intensity)
+        if not rendered:
+            continue
+
+        existing = chapter_blocks[chapter]
+        meta = chapter_meta[chapter]
+
+        if len(existing) < 5:
+            existing.insert(0, rendered)
+            meta.insert(0, scenario_block)
+        else:
+            lowest_idx = min(range(len(meta)), key=lambda i: meta[i].get("priority", 0))
+            existing[lowest_idx] = rendered
+            meta[lowest_idx] = scenario_block
 
 
 def _append_unique_block(
@@ -610,6 +693,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         chapter_meta[chapter] = chapter_payload_meta
 
     _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
+    _inject_scenario_compression(structural, chapter_blocks, chapter_meta)
 
     final_chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     for chapter in REPORT_CHAPTERS:
