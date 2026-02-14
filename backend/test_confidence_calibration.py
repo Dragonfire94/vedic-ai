@@ -67,6 +67,7 @@ class TestConfidenceCalibration(unittest.TestCase):
         )
         self.assertNotIn("raw_confidence", prod_result[0])
         self.assertNotIn("calibration_features", prod_result[0])
+        self.assertIn("confidence_explanation", prod_result[0])
 
         non_prod_result = analyze_birth_time(
             birth_date={"year": 1990, "month": 1, "day": 15},
@@ -78,6 +79,7 @@ class TestConfidenceCalibration(unittest.TestCase):
         )
         self.assertIn("raw_confidence", non_prod_result[0])
         self.assertIn("calibration_features", non_prod_result[0])
+        self.assertIn("confidence_explanation", non_prod_result[0])
 
 
 if __name__ == "__main__":

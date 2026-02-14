@@ -73,7 +73,7 @@ class TestBTRCalibration(unittest.TestCase):
         )
 
         self.assertEqual(len(result), 2)
-        self.assertEqual(set(result[0].keys()), {"ascendant", "score", "probability", "confidence", "fallback_level"})
+        self.assertEqual(set(result[0].keys()), {"ascendant", "score", "probability", "confidence", "confidence_explanation", "fallback_level"})
         self.assertTrue(math.isclose(sum(r["probability"] for r in result), 1.0, rel_tol=0.0, abs_tol=1e-6))
 
     def test_entropy_not_extreme(self) -> None:
