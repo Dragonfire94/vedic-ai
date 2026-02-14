@@ -1,29 +1,47 @@
 [
   {
     "id": "stability_high",
-    "conditions": {"stability_metrics.grade": "A"},
-    "template": {
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {"field": "stability_metrics.grade", "operator": "==", "value": "A"}
+    ],
+    "logic": "AND",
+    "priority": 80,
+    "content": {
       "title": "Stability Grade: High",
-      "summary": "Your current structural stability appears strong and recoverable under stress.",
-      "insight": "This permits measured long-term commitments without excessive fragility."
+      "summary": "Your structural stability appears strong and recoverable under stress.",
+      "analysis": "Baseline resilience supports measured long-term commitments.",
+      "implication": "Use this window to consolidate durable systems."
     }
   },
   {
     "id": "stability_moderate",
-    "conditions": {"stability_metrics.grade": "B"},
-    "template": {
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {"field": "stability_metrics.grade", "operator": "==", "value": "B"}
+    ],
+    "logic": "AND",
+    "priority": 70,
+    "content": {
       "title": "Stability Grade: Moderate",
       "summary": "The profile indicates workable stability with periodic volatility windows.",
-      "insight": "Proactive rhythm management and boundary hygiene are key to preserving consistency."
+      "analysis": "Consistency is available but sensitive to accumulated load.",
+      "implication": "Rhythm management and boundary hygiene remain essential."
     }
   },
   {
     "id": "stability_low",
-    "conditions": {"stability_metrics.grade": "C"},
-    "template": {
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {"field": "stability_metrics.grade", "operator": "==", "value": "C"}
+    ],
+    "logic": "AND",
+    "priority": 60,
+    "content": {
       "title": "Stability Grade: Fragile",
-      "summary": "Your system may become vulnerable during cumulative pressure periods.",
-      "insight": "Conservative pacing, sleep discipline, and reduced cognitive load are protective factors."
+      "summary": "The system may become vulnerable during cumulative pressure periods.",
+      "analysis": "Recovery capacity can degrade quickly under sustained overload.",
+      "implication": "Conservative pacing and energy budgeting are protective."
     }
   }
 ]
