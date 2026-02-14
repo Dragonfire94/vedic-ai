@@ -163,7 +163,21 @@
         "modifier": "moderate"
       }
     ],
-    "chain_followups": []
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "At moderate levels, depletion tends to appear first as reduced recovery quality rather than obvious collapse.",
+        "implication_extension": "Early pacing interventions can still reverse the trend before identity and performance become fused.",
+        "example_extension": "You may notice normal workloads feeling unusually heavy after periods of inconsistent rest."
+      },
+      "high": {
+        "analysis_extension": "At high intensity, recovery debt compounds nonlinearly, shrinking resilience margins and increasing reactivity.",
+        "implication_extension": "Ignoring biological limits at this stage can trigger prolonged underperformance despite high effort.",
+        "example_extension": "Short bursts of forced output are followed by deeper crashes and slower baseline recovery.",
+        "micro_scenario": "A demanding week is sustained through overdrive, then followed by abrupt exhaustion that disrupts both work and personal routines.",
+        "long_term_projection": "If sustained, the cycle may harden into chronic burnout patterns that require extended recovery windows."
+      }
+    }
   },
   {
     "id": "burnout_threshold_insight",

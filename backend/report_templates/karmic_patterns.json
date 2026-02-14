@@ -134,7 +134,21 @@
         "modifier": "moderate"
       }
     ],
-    "chain_followups": []
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "At moderate intensity, the loop often appears around high-urgency decisions where reflection is truncated.",
+        "implication_extension": "Small process corrections at each cycle can prevent compounding timeline friction.",
+        "example_extension": "Repeated short-term fixes can create the same obstacle in a new form one phase later."
+      },
+      "high": {
+        "analysis_extension": "At high intensity, correction cycles compress, reducing learning latency and increasing strategic volatility.",
+        "implication_extension": "Without a hard checkpoint discipline, credibility and timing costs may escalate faster than visible progress.",
+        "example_extension": "A rapid course-correction may solve immediate pressure while reintroducing the original structural mismatch.",
+        "micro_scenario": "A rushed launch is followed by emergency patching, a brief rebound, and another rushed launch under the same pressure cues.",
+        "long_term_projection": "Over multiple cycles, this can produce chronic reinvention fatigue and weakened stakeholder confidence."
+      }
+    }
   },
   {
     "id": "career_conflict_insight",

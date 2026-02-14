@@ -332,3 +332,60 @@ Inside `build_report_payload(...)`:
   }
 }
 ```
+
+## Adaptive Narrative Scaling (Phase 9)
+
+Phase 9 adds deterministic narrative expansion based on block intensity without changing chapter/block selection, without modifying BTR, and without adding GPT calls.
+
+### Thresholds
+- **Moderate scaling** applies when `intensity >= 0.65`
+- **High scaling** applies when `intensity >= 0.85`
+
+### Extension mechanics
+Templates can optionally define `scaling_variants` per block:
+- `analysis_extension`, `implication_extension`, `example_extension`
+- Extension text is appended to existing fragment fields (same selected block only)
+- No new blocks/fragments are created by scaling
+
+### High-only narrative keys
+For `high` scaling only:
+- `micro_scenario` is added as a separate fragment key when provided
+- `long_term_projection` is added as a separate fragment key when provided
+
+These keys increase specificity while preserving deterministic structure.
+
+### Deterministic guarantees
+- No extra GPT calls
+- No structural/raw signal values exposed
+- Existing selection and sorting behavior unchanged
+- Max `5` fragments per chapter remains enforced
+- Backward compatible for blocks that do not define `scaling_variants`
+
+### Example template JSON
+```json
+{
+  "id": "high_pressure_identity_fragmentation",
+  "chapter": "Psychological Architecture",
+  "content": {
+    "title": "High-Pressure Identity Fragmentation",
+    "summary": "...",
+    "analysis": "...",
+    "implication": "...",
+    "examples": "..."
+  },
+  "scaling_variants": {
+    "moderate": {
+      "analysis_extension": "At moderate levels, this pattern surfaces primarily during periods of transition.",
+      "implication_extension": "Without conscious correction, the pattern stabilizes as a personality reflex.",
+      "example_extension": "Early signs often appear as repeated over-corrections after moments of uncertainty."
+    },
+    "high": {
+      "analysis_extension": "Under sustained pressure, this pattern accelerates, narrowing cognitive flexibility and amplifying emotional reactivity.",
+      "implication_extension": "Without rapid integration, relational trust and strategic clarity can degrade together.",
+      "example_extension": "A common manifestation is rapid action under stress followed by post-hoc inevitability framing.",
+      "micro_scenario": "A typical manifestation would involve making a rapid decision under stress, later rationalizing it as inevitability.",
+      "long_term_projection": "If uninterrupted over several cycles, this may lead to reputational or relational fatigue."
+    }
+  }
+}
+```
