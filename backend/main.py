@@ -17,6 +17,7 @@ from typing import Optional, Any, Literal, Tuple, Dict, List
 # Structural engine import via the backend package to keep resolution stable
 # when running `uvicorn backend.main:app` from any working directory.
 from backend.astro_engine import build_structural_summary
+from backend.report_engine import build_report_payload, REPORT_CHAPTERS, SYSTEM_PROMPT, build_gpt_user_content
 
 import swisseph as swe
 import pytz
@@ -871,44 +872,26 @@ def get_ai_reading(
                 longitude=lon,
                 timezone=timezone,
             )
-            ai_psychological_input = build_ai_psychological_input(rectified_summary)
-            ai_payload = {
-                "rectified_meta": {
-                    "time_range": rectified_summary["rectified_time_range"],
-                    "probability": rectified_summary["rectified_probability"],
-                    "confidence": rectified_summary["rectified_confidence"],
-                },
-                "structural_summary": ai_psychological_input,
-            }
+            report_payload = build_report_payload(rectified_summary)
+            user_content = build_gpt_user_content(report_payload)
 
             if not client:
-                final_text = json.dumps(ai_psychological_input, ensure_ascii=False, sort_keys=True)
+                final_text = json.dumps(report_payload["chapter_blocks"], ensure_ascii=False, sort_keys=True)
             else:
-                system_message = (
-                    "You are not calculating astrology. "
-                    "You are interpreting structured psychological signals. "
-                    "Use only the provided JSON."
-                )
-                user_message = f"""Interpret only this JSON payload:
-{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
-
-Provide a concise psychological narrative summary."""
                 response = client.chat.completions.create(
-                    model=OPENAI_MODEL,
+                    model="gpt-4o",
+                    temperature=0.3,
+                    max_tokens=6000,
                     messages=[
-                        {"role": "system", "content": system_message},
-                        {"role": "user", "content": user_message},
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
                     ],
-                    temperature=0,
-                    max_tokens=1200,
                 )
                 final_text = response.choices[0].message.content
 
             production_result = {
-                "rectified_time_range": rectified_summary["rectified_time_range"],
-                "probability": round(float(rectified_summary["rectified_probability"]), 6),
-                "confidence": round(float(rectified_summary["rectified_confidence"]), 3),
-                "final_psychological_summary": final_text,
+                "report_text": final_text,
+                "chapter_count": len(REPORT_CHAPTERS),
             }
             if use_cache:
                 AI_CACHE[cache_key] = production_result

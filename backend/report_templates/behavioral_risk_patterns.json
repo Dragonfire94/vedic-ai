@@ -1,0 +1,20 @@
+[
+  {
+    "id": "risk_impulsivity",
+    "conditions": {"behavioral_risk_profile.primary_risk": "impulsivity"},
+    "template": {
+      "title": "Behavioral Risk: Impulsivity",
+      "summary": "Pressure periods may trigger speed-over-clarity decision patterns.",
+      "insight": "A mandatory pause protocol before major decisions reduces error cascades and relational strain."
+    }
+  },
+  {
+    "id": "risk_overcontrol",
+    "conditions": {"behavioral_risk_profile.primary_risk": "overcontrol"},
+    "template": {
+      "title": "Behavioral Risk: Overcontrol",
+      "summary": "Under uncertainty, there is a tendency to over-manage variables and delay action.",
+      "insight": "Better outcomes emerge when action thresholds are predefined and reviewed with objective metrics."
+    }
+  }
+]
