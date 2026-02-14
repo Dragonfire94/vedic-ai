@@ -389,3 +389,56 @@ These keys increase specificity while preserving deterministic structure.
   }
 }
 ```
+
+## Choice Fork Simulator (Phase 8)
+
+Phase 8 introduces deterministic **Choice Fork** fragments that simulate path branching at high structural pressure points.
+
+### Deterministic injection
+Choice forks are injected via static `CHOICE_FORK_RULES` in `backend/report_engine.py`:
+- psychological tension threshold
+- impulsivity primary risk
+- low stability threshold
+
+No randomness is used, and no additional GPT calls are added.
+
+### Intensity gate
+Choice forks are only visible when computed block intensity is **>= 0.75**.
+If intensity is below the threshold, the fork is not injected.
+
+### Cap-safe replacement
+Chapter fragment cap remains **5**.
+If a chapter is full, an injected fork replaces the lowest-priority existing block so the fork survives overflow.
+
+### Nested `choice_fork` JSON preservation
+Fork payloads remain structured and are not flattened into text:
+
+```json
+{
+  "title": "Identity Pressure Fork",
+  "summary": "You are entering a structural decision threshold.",
+  "choice_fork": {
+    "path_a": {
+      "label": "Tighten Control",
+      "trajectory": "Immediate authority reinforcement, long-term tension accumulation.",
+      "emotional_cost": "Suppressed vulnerability converts into rigidity."
+    },
+    "path_b": {
+      "label": "Relinquish Control",
+      "trajectory": "Short-term instability, long-term coherence growth.",
+      "emotional_cost": "Temporary emotional exposure."
+    }
+  }
+}
+```
+
+### Chapter alignment
+Fork rules inject only into chapters present in `REPORT_CHAPTERS`:
+- `Psychological Architecture`
+- `Behavioral Risks`
+- `Stability Metrics`
+
+### Cost and compatibility
+- No GPT cost increase
+- Fully deterministic behavior
+- Backward-compatible payload contract (`{"chapter_blocks": ...}`)
