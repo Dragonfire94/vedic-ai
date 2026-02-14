@@ -13,6 +13,14 @@ def _is_truthy(value: str) -> bool:
     return value.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _is_production_env() -> bool:
+    for key in ("APP_ENV", "ENVIRONMENT", "RAILWAY_ENVIRONMENT"):
+        raw = os.getenv(key, "").strip().lower()
+        if raw in {"prod", "production"}:
+            return True
+    return False
+
+
 def _probe_ephemeris_backend(log: logging.Logger) -> dict[str, Any]:
     """Probe whether Swiss Ephemeris binary files are used or Moshier fallback is active."""
     status: dict[str, Any] = {
@@ -63,7 +71,12 @@ def initialize_swe_context(logger: logging.Logger | None = None) -> dict[str, An
     """
     log = logger or logging.getLogger("swe_config")
     ephe_path = os.getenv("SWE_EPHE_PATH", "/usr/share/libswe/ephe")
-    require_swieph = _is_truthy(os.getenv("SWE_REQUIRE_SWIEPH", "0"))
+    require_swieph_raw = os.getenv("SWE_REQUIRE_SWIEPH")
+    require_swieph = (
+        _is_truthy(require_swieph_raw)
+        if require_swieph_raw is not None
+        else _is_production_env()
+    )
     status: dict[str, Any] = {
         "ephemeris_path": ephe_path,
         "sidereal_mode": "unknown",

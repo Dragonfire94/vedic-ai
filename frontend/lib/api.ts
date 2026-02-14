@@ -8,8 +8,17 @@ function resolveApiBaseUrl(): string {
     )
   }
 
-  // Browser-side: only public URL should be used.
-  return process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000'
+  // Browser-side: require explicit public API URL in non-dev deployments.
+  const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim()
+  if (publicApiUrl) {
+    return publicApiUrl
+  }
+  if (process.env.NODE_ENV === 'development') {
+    return 'http://127.0.0.1:8000'
+  }
+  throw new Error(
+    'NEXT_PUBLIC_API_URL is required in production. Set it to your public backend URL.'
+  )
 }
 
 const API_BASE_URL = resolveApiBaseUrl()

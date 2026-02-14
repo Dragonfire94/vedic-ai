@@ -44,7 +44,9 @@ RUN mkdir -p /usr/share/libswe/ephe \
        fi
 
 ENV SWE_EPHE_PATH=/usr/share/libswe/ephe
-ENV SWE_REQUIRE_SWIEPH=0
+# Runtime policy:
+# - APP_ENV=production (or ENVIRONMENT/RAILWAY_ENVIRONMENT=production) enforces SWIEPH.
+# - SWE_REQUIRE_SWIEPH can explicitly override (1/0).
 
 # Copy backend source
 COPY backend ./backend

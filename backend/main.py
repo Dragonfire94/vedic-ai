@@ -31,10 +31,7 @@ try:
 except Exception as e:
     raise RuntimeError("Swiss Ephemeris not properly installed in container") from e
 import pytz
-try:
-    from timezonefinder import TimezoneFinder
-except Exception:
-    TimezoneFinder = None  # type: ignore[assignment]
+from timezonefinder import TimezoneFinder
 from openai import AsyncOpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
@@ -91,6 +88,8 @@ KOREAN_FONT_AVAILABLE = False
 PDF_FONT_REG = 'Helvetica'
 PDF_FONT_BOLD = 'Helvetica-Bold'
 PDF_FONT_MONO = 'Courier'
+PDF_FEATURE_AVAILABLE = False
+PDF_FEATURE_ERROR: Optional[str] = None
 
 
 def _first_existing_path(candidates: list[Path]) -> Optional[Path]:
@@ -162,11 +161,14 @@ def _discover_system_korean_font() -> Optional[Path]:
 def init_fonts() -> None:
     """Initialize PDF fonts with a safe fallback chain."""
     global KOREAN_FONT_AVAILABLE, PDF_FONT_REG, PDF_FONT_BOLD, PDF_FONT_MONO
+    global PDF_FEATURE_AVAILABLE, PDF_FEATURE_ERROR
 
     KOREAN_FONT_AVAILABLE = False
     PDF_FONT_REG = 'Helvetica'
     PDF_FONT_BOLD = 'Helvetica-Bold'
     PDF_FONT_MONO = 'Courier'
+    PDF_FEATURE_AVAILABLE = False
+    PDF_FEATURE_ERROR = None
 
     try:
         regular = _first_existing_path(FONT_REGULAR_CANDIDATES)
@@ -185,6 +187,7 @@ def init_fonts() -> None:
             KOREAN_FONT_AVAILABLE = True
             PDF_FONT_REG = 'Pretendard'
             PDF_FONT_MONO = 'Pretendard'
+            PDF_FEATURE_AVAILABLE = True
             logger.info('Pretendard font loaded.')
             return
 
@@ -195,6 +198,7 @@ def init_fonts() -> None:
             PDF_FONT_REG = 'KoreanFallback'
             PDF_FONT_BOLD = 'KoreanFallback'
             PDF_FONT_MONO = 'KoreanFallback'
+            PDF_FEATURE_AVAILABLE = True
             logger.info('System Korean font loaded: %s', system_font)
             return
 
@@ -203,8 +207,9 @@ def init_fonts() -> None:
             f'or system candidates={SYSTEM_KOREAN_FONT_CANDIDATES}.'
         )
     except Exception as e:
-        logger.error(f'Font initialization failed: {e}')
-        raise RuntimeError('No valid Korean font available in production container.') from e
+        PDF_FEATURE_ERROR = str(e)
+        logger.error('Font initialization failed; PDF feature disabled: %s', e)
+        return
 
 
 init_fonts()
@@ -659,6 +664,8 @@ def health():
         "ai_cache_items": len(cache),
         "ai_cache_ttl_sec": AI_CACHE_TTL,
         "korean_font": KOREAN_FONT_AVAILABLE,
+        "pdf_feature_available": PDF_FEATURE_AVAILABLE,
+        "pdf_feature_error": PDF_FEATURE_ERROR,
         "pdf_font_reg": PDF_FONT_REG,
         "pdf_font_bold": PDF_FONT_BOLD,
         "pdf_font_mono": PDF_FONT_MONO,
@@ -1619,6 +1626,15 @@ async def generate_pdf(
     cache_only: int = Query(0)
 ):
     """Generate PDF report."""
+    if not PDF_FEATURE_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "PDF generation is unavailable because Korean font initialization failed. "
+                f"error={PDF_FEATURE_ERROR}"
+            ),
+        )
+
     from io import BytesIO
     
     # ????????????????
