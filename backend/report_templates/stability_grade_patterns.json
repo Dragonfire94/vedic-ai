@@ -164,5 +164,50 @@
       }
     ],
     "chain_followups": []
+  },
+  {
+    "id": "burnout_threshold_insight",
+    "chapter": "Health & Body Patterns",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 52
+      },
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 68
+      }
+    ],
+    "logic": "AND",
+    "priority": 89,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "insight_spike": {
+      "text": "Your body begins to speak when your discipline refuses to listen.",
+      "min_intensity": 0.75
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "Burnout Threshold Insight",
+      "summary": "Sustained intensity without recovery can convert discipline into systemic depletion.",
+      "analysis": "When stress debt outpaces restoration, cognition and physiology signal overload through reduced resilience.",
+      "implication": "Performance quality improves when recovery becomes a required input, not an optional reward.",
+      "examples": "Persistent fatigue, sleep fragmentation, and irritability may appear before visible collapse.",
+      "shadow_pattern": "Endurance is mistaken for invulnerability.",
+      "defense_mechanism": "Minimizing warning signals while escalating effort.",
+      "emotional_trigger": "Fear of losing relevance or momentum.",
+      "repetition_cycle": "Overextend → suppress signals → output dip → panic effort → deeper depletion.",
+      "integration_path": "Tie high-output periods to mandatory recovery checkpoints."
+    }
   }
 ]

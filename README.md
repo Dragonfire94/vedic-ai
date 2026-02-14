@@ -265,3 +265,70 @@ This increases report density only where structural pressure is stronger.
 - No direct numeric signal leakage to final prose
 - Deterministic selection/chaining only
 - Max blocks per chapter = 5
+
+## Insight Spike Generator (Phase 7)
+
+Phase 7 adds deterministic high-impact narrative spike fragments that are inserted at the top of a chapter when both condition matching and intensity thresholds are satisfied.
+
+### `insight_spike` schema
+
+Template blocks in `backend/report_templates/*.json` may include this optional object:
+
+```json
+"insight_spike": {
+  "text": "High-impact declarative sentence.",
+  "min_intensity": 0.8
+}
+```
+
+Rules:
+- `text` is required and must be a string.
+- `min_intensity` is required and must be a float between `0.0` and `1.0`.
+- Spike text is injected only when the block matches and its computed intensity is `>= min_intensity`.
+- Blocks without `insight_spike` are processed normally (backward compatible).
+
+### Injection behavior
+
+Inside `build_report_payload(...)`:
+1. Selected blocks are evaluated for eligible spikes.
+2. Spike texts are de-duplicated while preserving order.
+3. Spikes are inserted first in chapter output as top-level fragments:
+
+```json
+{"spike_text": "..."}
+```
+
+4. Normal content fragments are appended after spikes.
+5. The chapter cap remains deterministic and strict: maximum `5` total fragments (spikes + content).
+
+### Deterministic and safe by design
+
+- No additional GPT calls.
+- No changes to BTR or structural engines.
+- No structural numeric data is exposed in the payload.
+- Chapter order and structure remain unchanged.
+
+### Example block with spike
+
+```json
+{
+  "id": "identity_control_paradox",
+  "chapter": "Psychological Architecture",
+  "conditions": [
+    {"field": "psychological_tension_axis.score", "operator": ">=", "value": 75},
+    {"field": "stability_metrics.stability_index", "operator": "<=", "value": 50}
+  ],
+  "logic": "AND",
+  "priority": 90,
+  "insight_spike": {
+    "text": "Your inner drive to control outcomes paradoxically undermines your sense of agency.",
+    "min_intensity": 0.8
+  },
+  "content": {
+    "title": "Identity-Control Paradox",
+    "summary": "...",
+    "analysis": "...",
+    "implication": "..."
+  }
+}
+```
