@@ -258,6 +258,7 @@ class BTRAnalyzeRequest(BaseModel):
     lat: float = Field(..., description="위도")
     lon: float = Field(..., description="경도")
     events: list[BTREvent] = Field(..., description="이벤트 리스트")
+    tune_mode: bool = Field(False, description="유저 데이터 기반 튜닝 모드 (기본 False)")
 
 class BTRRefineRequest(BaseModel):
     year: int = Field(..., description="출생 년도")
@@ -1549,6 +1550,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
             lon=request.lon,
             num_brackets=8,
             top_n=3,
+            tune_mode=request.tune_mode,
         )
 
         return {

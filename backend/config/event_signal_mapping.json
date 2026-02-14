@@ -1,0 +1,8 @@
+{
+  "career_change": "career",
+  "relationship": "relationship",
+  "relocation": "relocation",
+  "health": "health",
+  "finance": "finance",
+  "other": "other"
+}
