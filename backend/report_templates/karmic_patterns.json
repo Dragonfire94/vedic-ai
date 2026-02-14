@@ -93,5 +93,47 @@
       "implication": "Career growth accelerates when feedback is converted into process-level adjustments.",
       "examples": "Similar collaboration breakdowns may recur across teams unless boundary and expectation contracts are explicit."
     }
+  },
+  {
+    "id": "recursive_correction_loop",
+    "chapter": "Life Timeline Interpretation",
+    "conditions": [
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "correction"
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 94,
+    "content": {
+      "title": "Recursive Correction Loop",
+      "summary": "Timeline momentum can fall into a rapid correction loop when impulsive action outruns reflection.",
+      "analysis": "The sequence often follows fast decision → friction → correction → reset → repeat, creating the illusion of progress while compounding hidden costs.",
+      "implication": "If uninterrupted, cycle cost increases across credibility, energy, and opportunity timing.",
+      "examples": "Quick pivots may solve immediate pain but recreate the same structural mismatch in the next cycle.",
+      "shadow_pattern": "Urgency is unconsciously used to avoid uncertainty tolerance.",
+      "defense_mechanism": "Acting out followed by corrective overcompensation.",
+      "emotional_trigger": "Pressure to prove momentum or avoid perceived stagnation.",
+      "repetition_cycle": "Fast action → resistance → repair sprint → temporary reset → renewed fast action.",
+      "integration_path": "Insert a pre-commitment review checkpoint before irreversible choices and enforce post-decision learning windows.",
+      "choice_fork": "Unchecked cycles compound losses; interrupted cycles convert correction into genuine trajectory refinement."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   }
 ]
