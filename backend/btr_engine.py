@@ -418,6 +418,50 @@ def calibrate_confidence(raw_confidence: float, features: Dict[str, float]) -> f
     return max(0.05, min(0.95, calibrated))
 
 
+def build_confidence_explanation(
+    raw_confidence: float,
+    calibrated_confidence: float,
+    features: dict,
+    event_count: int,
+    total_information_weight: float,
+) -> dict:
+    """
+    Build structured explanation of confidence adjustments.
+    Purely descriptive. Does NOT affect scoring.
+    """
+
+    explanation = {
+        "base": round(raw_confidence, 4),
+        "final": round(calibrated_confidence, 4),
+        "event_count": event_count,
+        "total_information_weight": round(total_information_weight, 4),
+        "entropy": round(features.get("entropy", 0.0), 4),
+        "gap": round(features.get("gap", 0.0), 4),
+        "top_probability": round(features.get("top_probability", 0.0), 4),
+    }
+
+    penalties = []
+
+    if features.get("entropy", 0.0) > 1.2:
+        penalties.append("High entropy reduced confidence.")
+
+    if features.get("gap", 0.0) < 0.5:
+        penalties.append("Low score separation reduced confidence.")
+
+    if event_count < 2:
+        penalties.append("Low event count capped confidence.")
+
+    if total_information_weight < 1.0:
+        penalties.append("Low information weight capped confidence.")
+
+    if not penalties:
+        penalties.append("Strong event signals with clear separation.")
+
+    explanation["reason_summary"] = " ".join(penalties)
+
+    return explanation
+
+
 def evaluate_calibration_distribution(candidates: List[Dict[str, Any]]) -> Dict[str, float | bool]:
     """Summarize calibration distribution quality from candidate probabilities/confidence."""
     if not candidates:
@@ -1692,9 +1736,18 @@ def analyze_birth_time(
             if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
                 calibrated_confidence = min(calibrated_confidence, 0.60)
 
+            confidence_explanation = build_confidence_explanation(
+                raw_confidence,
+                calibrated_confidence,
+                calibration_features,
+                event_count,
+                total_information_weight,
+            )
+
             candidate["raw_confidence"] = round(raw_confidence, 3)
             candidate["confidence"] = round(calibrated_confidence, 3)
             candidate["calibration_features"] = calibration_features
+            candidate["confidence_explanation"] = confidence_explanation
         return scored
 
     calibrated = normalize_candidate_scores(candidates)
@@ -1716,11 +1769,20 @@ def analyze_birth_time(
         if event_count == 1 and valid_events[0].get("precision_level", "exact") == "exact":
             calibrated_confidence = min(calibrated_confidence, 0.60)
 
+        confidence_explanation = build_confidence_explanation(
+            raw_confidence,
+            calibrated_confidence,
+            calibration_features,
+            event_count,
+            total_information_weight,
+        )
+
         row: Dict[str, Any] = {
             "ascendant": candidate.get("ascendant", ""),
             "score": round(float(candidate.get("score", 0.0)), 2),
             "probability": round(max(0.0, min(1.0, float(candidate.get("probability", 0.0)))), 6),
             "confidence": round(max(0.0, min(1.0, calibrated_confidence)), 3),
+            "confidence_explanation": confidence_explanation,
             "fallback_level": round(float(candidate.get("fallback_level", 0.0)), 2),
         }
         production_rows.append(row)
