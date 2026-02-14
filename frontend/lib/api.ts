@@ -15,6 +15,9 @@ export type BTREvent = {
   year?: number
   age_range?: [number, number]
   other_label?: string
+  weight?: number
+  dasha_lords?: string[]
+  house_triggers?: number[]
 }
 
 export interface BTRAnalyzeRequest {
