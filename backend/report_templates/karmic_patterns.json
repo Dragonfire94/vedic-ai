@@ -1,20 +1,32 @@
 [
   {
     "id": "karmic_integration",
-    "conditions": {"karmic_pattern_profile.primary_pattern": "integration"},
-    "template": {
+    "chapter": "Karmic Patterns",
+    "conditions": [
+      {"field": "karmic_pattern_profile.primary_pattern", "operator": "==", "value": "integration"}
+    ],
+    "logic": "AND",
+    "priority": 80,
+    "content": {
       "title": "Karmic Theme: Integration",
-      "summary": "The chart narrative suggests a life process of integrating contrasting drives into a coherent identity.",
-      "insight": "Progress is strongest when old coping patterns are transformed into conscious, repeatable disciplines."
+      "summary": "The narrative suggests integrating contrasting drives into a coherent identity.",
+      "analysis": "Growth appears through reconciling inner contradictions and reducing fragmentation.",
+      "implication": "Consistency rises when repetitive lessons are turned into clear practices."
     }
   },
   {
     "id": "karmic_correction",
-    "conditions": {"karmic_pattern_profile.primary_pattern": "correction"},
-    "template": {
+    "chapter": "Karmic Patterns",
+    "conditions": [
+      {"field": "karmic_pattern_profile.primary_pattern", "operator": "==", "value": "correction"}
+    ],
+    "logic": "AND",
+    "priority": 70,
+    "content": {
       "title": "Karmic Theme: Correction",
       "summary": "Recurring lessons point to iterative correction rather than linear progress.",
-      "insight": "Each cycle improves outcomes when feedback is treated as guidance instead of failure."
+      "analysis": "Improvement is cumulative when feedback loops are explicit and accepted early.",
+      "implication": "Stable results come from adjustment discipline, not one-time breakthroughs."
     }
   }
 ]

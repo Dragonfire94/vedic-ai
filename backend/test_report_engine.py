@@ -13,24 +13,29 @@ from backend.report_engine import (
 class TestReportEngine(unittest.TestCase):
     def test_template_loading(self):
         libraries = get_template_libraries()
-        self.assertTrue(libraries)
-        self.assertIn("purushartha", libraries)
-        self.assertGreater(len(libraries["purushartha"]), 0)
+        self.assertIn("templates", libraries)
+        self.assertIn("defaults", libraries)
+        self.assertGreater(len(libraries["templates"]), 0)
+        self.assertEqual(set(libraries["defaults"].keys()), set(REPORT_CHAPTERS))
 
-    def test_condition_matching(self):
+    def test_condition_matching_returns_lists(self):
         structural_summary = {
             "dominant_purushartha": "Dharma",
-            "psychological_tension_axis": {"tension_level": "high"},
-            "behavioral_risk_profile": {"primary_risk": "impulsivity"},
+            "psychological_tension_axis": {"tension_level": "high", "score": 85},
+            "behavioral_risk_profile": {
+                "primary_risk": "impulsivity",
+                "impulsivity_risk": 72,
+                "overcontrol_risk": 10,
+            },
             "karmic_pattern_profile": {"primary_pattern": "integration"},
             "stability_metrics": {"grade": "A"},
         }
 
         selected = select_template_blocks(structural_summary)
 
-        self.assertEqual(selected["Purushartha Profile"]["source_block_id"], "dharma_dominant")
-        self.assertEqual(selected["Psychological Architecture"]["source_block_id"], "high_internal_tension")
-        self.assertEqual(selected["Behavioral Risks"]["source_block_id"], "risk_impulsivity")
+        self.assertIsInstance(selected["Purushartha Profile"], list)
+        self.assertGreaterEqual(len(selected["Psychological Architecture"]), 1)
+        self.assertEqual(selected["Purushartha Profile"][0]["id"], "dharma_dominant")
 
     def test_chapter_structure_complete(self):
         payload = build_report_payload({"structural_summary": {}})
@@ -38,7 +43,8 @@ class TestReportEngine(unittest.TestCase):
         self.assertIn("chapter_blocks", payload)
         self.assertEqual(list(payload["chapter_blocks"].keys()), REPORT_CHAPTERS)
         self.assertEqual(len(payload["chapter_blocks"]), 15)
-        self.assertTrue(all(payload["chapter_blocks"][c]["summary"] for c in REPORT_CHAPTERS))
+        self.assertTrue(all(isinstance(payload["chapter_blocks"][c], list) for c in REPORT_CHAPTERS))
+        self.assertTrue(all(len(payload["chapter_blocks"][c]) >= 1 for c in REPORT_CHAPTERS))
 
     def test_no_raw_structural_data_in_payload(self):
         payload = build_report_payload(

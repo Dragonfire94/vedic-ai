@@ -1,29 +1,47 @@
 [
   {
     "id": "dharma_dominant",
-    "conditions": {"dominant_purushartha": "Dharma"},
-    "template": {
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {"field": "dominant_purushartha", "operator": "==", "value": "Dharma"}
+    ],
+    "logic": "AND",
+    "priority": 90,
+    "content": {
       "title": "Life Path: Dharma Focus",
       "summary": "In your life design, Dharma (duty and purpose) is strongly emphasized.",
-      "insight": "This reflects a sustained drive to create meaning through contribution, responsibility, and principled direction."
+      "analysis": "You are oriented toward principled contribution and long-horizon responsibility.",
+      "implication": "Decision quality improves when actions are anchored to mission and service."
     }
   },
   {
     "id": "artha_dominant",
-    "conditions": {"dominant_purushartha": "Artha"},
-    "template": {
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {"field": "dominant_purushartha", "operator": "==", "value": "Artha"}
+    ],
+    "logic": "AND",
+    "priority": 80,
+    "content": {
       "title": "Life Path: Artha Focus",
       "summary": "Material structure, achievement, and practical ambition are central themes.",
-      "insight": "Growth accelerates when goals are organized into measurable systems and long-horizon commitments."
+      "analysis": "Execution is strongest when measurable objectives and systems are explicit.",
+      "implication": "Resource strategy and disciplined sequencing accelerate progress."
     }
   },
   {
     "id": "kama_dominant",
-    "conditions": {"dominant_purushartha": "Kama"},
-    "template": {
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {"field": "dominant_purushartha", "operator": "==", "value": "Kama"}
+    ],
+    "logic": "AND",
+    "priority": 70,
+    "content": {
       "title": "Life Path: Kama Focus",
       "summary": "Relational fulfillment, creativity, and emotional richness shape major decisions.",
-      "insight": "Your strongest momentum appears when desire is balanced with intentional boundaries and value clarity."
+      "analysis": "Aesthetic and relational motivations contribute materially to life direction.",
+      "implication": "Outcomes are strongest when desire is balanced with clear boundaries."
     }
   }
 ]

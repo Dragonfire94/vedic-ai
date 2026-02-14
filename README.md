@@ -73,7 +73,6 @@ PII must not be logged.
 
 > Do not expose tune mode in production without authorization controls.
 
-
 ### Empirical tuning (Phase 5)
 Empirical tuning uses accumulated `data/tuning_inputs.log` (JSONL) to derive conservative base-weight multipliers per `event_type`.
 
@@ -99,43 +98,81 @@ Safety constraints:
 
 > Warning: Empirical tuning requires sufficient sample size (>100 events recommended).
 
-## Deterministic Report Engine
+## Deterministic Report Engine (Multi-Block)
 
-The report pipeline now supports a deterministic narrative-first flow that minimizes model calls and constrains hallucination risk.
+The report pipeline now supports deterministic **multi-block selection per chapter**.
+Selector behavior remains rule-based and does not add additional GPT calls.
 
-### Template libraries
-Template blocks are stored in `backend/report_templates/*.json` and map structural signals to editorial fragments.
-
-Template schema:
+### Template schema
+All templates in `backend/report_templates/*.json` use:
 
 ```json
 {
-  "id": "dharma_dominant",
-  "conditions": {
-    "dominant_purushartha": "Dharma"
-  },
-  "template": {
-    "title": "Life Path: Dharma Focus",
-    "summary": "In your life design, Dharma is strongly emphasized.",
-    "insight": "This reflects an internal drive toward meaningful contribution."
+  "id": "high_tension_axis_behavior",
+  "chapter": "Psychological Architecture",
+  "conditions": [
+    {"field": "psychological_tension_axis.score", "operator": ">=", "value": 70},
+    {"field": "behavioral_risk_profile.impulsivity_risk", "operator": ">=", "value": 60}
+  ],
+  "logic": "AND",
+  "priority": 95,
+  "content": {
+    "title": "High Tension with Impulsive Tendencies",
+    "summary": "...",
+    "analysis": "...",
+    "implication": "..."
   }
 }
 ```
 
-### Pipeline
-1. Structural summary is produced by existing deterministic astro/BTR logic.
-2. `backend/report_engine.py` runs condition matching via `select_template_blocks(...)`.
-3. `build_report_payload(...)` enforces 15 fixed chapter slots (`REPORT_CHAPTERS`).
-4. One GPT call stitches chapter blocks into cohesive prose.
+Rules:
+- `conditions` is always a list.
+- `logic` supports `AND` / `OR` (defaults to `AND`).
+- `priority` is numeric (defaults to `0`) and used for sorting.
+- `content` is the only payload returned to GPT.
 
-### Single GPT stitching call
-- Model: `gpt-4o`
-- Temperature: `0.3`
-- Max tokens: `6000`
-- Prompt role: narrative editor only (no new astrology computation)
+### Operator support
+
+| Operator | Meaning |
+|---|---|
+| `==` | equal |
+| `!=` | not equal |
+| `<` | less than |
+| `<=` | less than or equal |
+| `>` | greater than |
+| `>=` | greater than or equal |
+
+### Nested field support
+`field` accepts dot-path lookup, e.g. `behavioral_risk_profile.impulsivity_risk`.
+
+### Selection model
+1. Evaluate every block against structural summary conditions.
+2. Keep all passing blocks per chapter.
+3. Sort by `priority` descending.
+4. Cap to maximum `5` blocks per chapter.
+5. If no block matches, use JSON fallback blocks from `backend/report_templates/default_patterns.json`.
+
+### Payload shape
+`build_report_payload(...)` always returns all 15 chapters with list payloads:
+
+```json
+{
+  "chapter_blocks": {
+    "Executive Summary": [
+      {
+        "title": "...",
+        "summary": "...",
+        "analysis": "...",
+        "implication": "..."
+      }
+    ]
+  }
+}
+```
 
 ### Safety constraints
-- Raw astrological fields are excluded from prompt payload.
-- GPT receives only chapter-level deterministic editorial blocks.
-- Chapter order is fixed and enforced.
-- Interpretation logic remains deterministic in code/templates.
+- Deterministic selection only.
+- No additional GPT calls.
+- Maximum 5 blocks per chapter.
+- All 15 chapters always present.
+- No raw astrological values (e.g., longitude/aspects) in report payload.

@@ -1,20 +1,48 @@
 [
   {
     "id": "high_internal_tension",
-    "conditions": {"psychological_tension_axis.tension_level": "high"},
-    "template": {
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {"field": "psychological_tension_axis.tension_level", "operator": "==", "value": "high"}
+    ],
+    "logic": "AND",
+    "priority": 85,
+    "content": {
       "title": "Psychological Axis: High Inner Tension",
       "summary": "Your internal architecture shows meaningful friction between competing priorities.",
-      "insight": "This tension becomes productive when translated into deliberate routines and reflective decision gates."
+      "analysis": "Conflicting drives increase cognitive load but can fuel constructive output.",
+      "implication": "Structured reflection and pre-commitment reduce avoidable volatility."
     }
   },
   {
     "id": "balanced_axis",
-    "conditions": {"psychological_tension_axis.tension_level": "balanced"},
-    "template": {
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {"field": "psychological_tension_axis.tension_level", "operator": "==", "value": "balanced"}
+    ],
+    "logic": "AND",
+    "priority": 60,
+    "content": {
       "title": "Psychological Axis: Functional Balance",
       "summary": "Your profile indicates relatively balanced emotional and strategic processing.",
-      "insight": "Stability can be preserved by protecting recovery cycles and role boundaries."
+      "analysis": "Regulation capacity appears sufficient for sustained planning and adaptation.",
+      "implication": "Protecting recovery cycles helps preserve this baseline stability."
+    }
+  },
+  {
+    "id": "high_tension_axis_behavior",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {"field": "psychological_tension_axis.score", "operator": ">=", "value": 70},
+      {"field": "behavioral_risk_profile.impulsivity_risk", "operator": ">=", "value": 60}
+    ],
+    "logic": "AND",
+    "priority": 95,
+    "content": {
+      "title": "High Tension with Impulsive Tendencies",
+      "summary": "High internal tension combines with elevated impulse risk under pressure.",
+      "analysis": "Fast-reactive patterns are more likely in high-friction phases.",
+      "implication": "Decision gates and cooldown windows are essential safeguards."
     }
   }
 ]
