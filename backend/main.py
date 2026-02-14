@@ -93,7 +93,10 @@ def init_fonts() -> None:
                 pdfmetrics.registerFont(TTFont('Pretendard-Bold', FONT_BOLD))
                 PDF_FONT_BOLD = 'Pretendard-Bold'
             else:
-                PDF_FONT_BOLD = 'Pretendard'
+                PDF_FONT_BOLD = 'Helvetica-Bold'
+                logger.warning(
+                    'Pretendard-Bold.ttf not found; using system bold fallback Helvetica-Bold.'
+                )
 
             KOREAN_FONT_AVAILABLE = True
             PDF_FONT_REG = 'Pretendard'
