@@ -369,6 +369,54 @@ def recalibrate_confidence(candidates: List[Dict[str, Any]]) -> List[Dict[str, A
     return candidates
 
 
+def compute_confidence_features(scores: List[float], probabilities: List[float]) -> Dict[str, float]:
+    """Extract confidence-shape features from score/probability distributions."""
+    safe_scores = [float(s) for s in scores if isinstance(s, (int, float)) and math.isfinite(float(s))]
+    safe_probabilities = [
+        max(0.0, min(1.0, float(p))) for p in probabilities if isinstance(p, (int, float)) and math.isfinite(float(p))
+    ]
+
+    sorted_scores = sorted(safe_scores, reverse=True)
+    top_score = sorted_scores[0] if sorted_scores else 0.0
+    second_score = sorted_scores[1] if len(sorted_scores) > 1 else top_score
+    gap = max(0.0, top_score - second_score)
+
+    entropy = 0.0
+    for p in safe_probabilities:
+        entropy += -(p * math.log(p + 1e-9))
+
+    score_variance_raw = _safe_variance(safe_scores)
+    normalized_variance = score_variance_raw / (1.0 + score_variance_raw)
+    top_probability = max(safe_probabilities) if safe_probabilities else 0.0
+
+    return {
+        "gap": round(gap, 6),
+        "entropy": round(max(0.0, entropy), 6),
+        "score_variance": round(max(0.0, min(1.0, normalized_variance)), 6),
+        "top_probability": round(max(0.0, min(1.0, top_probability)), 6),
+    }
+
+
+def calibrate_confidence(raw_confidence: float, features: Dict[str, float]) -> float:
+    """Applies statistical dampening based on distribution shape."""
+    calibrated = max(0.0, min(1.0, float(raw_confidence)))
+
+    entropy = float(features.get("entropy", 0.0))
+    gap = float(features.get("gap", 0.0))
+    top_probability = float(features.get("top_probability", 0.0))
+
+    if entropy > 1.2:
+        calibrated *= 0.85
+    if gap < 0.5:
+        calibrated *= 0.8
+    if top_probability < 0.4:
+        calibrated = min(calibrated, 0.6)
+    if entropy < 0.5 and gap > 2.0:
+        calibrated = min(calibrated + 0.05, raw_confidence + 0.05)
+
+    return max(0.05, min(0.95, calibrated))
+
+
 def evaluate_calibration_distribution(candidates: List[Dict[str, Any]]) -> Dict[str, float | bool]:
     """Summarize calibration distribution quality from candidate probabilities/confidence."""
     if not candidates:
@@ -1621,24 +1669,43 @@ def analyze_birth_time(
             c["grade_message"] = "이벤트 정보가 부족하여 정확한 추정이 어렵습니다."
 
     if not production_mode:
-        return candidates
+        scored = normalize_candidate_scores(candidates)
+        all_scores = [float(candidate.get("score", 0.0)) for candidate in scored]
+        all_probabilities = [float(candidate.get("probability", 0.0)) for candidate in scored]
+        calibration_features = compute_confidence_features(all_scores, all_probabilities)
+
+        for candidate in scored:
+            raw_confidence = max(0.0, min(1.0, float(candidate.get("confidence", 0.0))))
+            calibrated_confidence = calibrate_confidence(raw_confidence, calibration_features)
+            candidate["raw_confidence"] = round(raw_confidence, 3)
+            candidate["confidence"] = round(calibrated_confidence, 3)
+            candidate["calibration_features"] = calibration_features
+        return scored
 
     calibrated = normalize_candidate_scores(candidates)
-    calibrated = recalibrate_confidence(calibrated)
+
+    all_scores = [float(candidate.get("score", 0.0)) for candidate in calibrated]
+    all_probabilities = [float(candidate.get("probability", 0.0)) for candidate in calibrated]
+    calibration_features = compute_confidence_features(all_scores, all_probabilities)
 
     production_rows: List[Dict[str, Any]] = []
     for candidate in calibrated:
-        production_rows.append({
+        raw_confidence = max(0.0, min(1.0, float(candidate.get("confidence", 0.0))))
+        calibrated_confidence = calibrate_confidence(raw_confidence, calibration_features)
+
+        row: Dict[str, Any] = {
             "ascendant": candidate.get("ascendant", ""),
             "score": round(float(candidate.get("score", 0.0)), 2),
             "probability": round(max(0.0, min(1.0, float(candidate.get("probability", 0.0)))), 6),
-            "confidence": round(max(0.0, min(1.0, float(candidate.get("confidence", 0.0)))), 3),
+            "confidence": round(max(0.0, min(1.0, calibrated_confidence)), 3),
             "fallback_level": round(float(candidate.get("fallback_level", 0.0)), 2),
-        })
+        }
+        production_rows.append(row)
 
     if calibrated:
         now_utc = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
         top_candidate = calibrated[0]
+        top_row = production_rows[0] if production_rows else {}
         second_probability = float(calibrated[1].get("probability", 0.0)) if len(calibrated) > 1 else 0.0
         separation_gap = float(top_candidate.get("probability", 0.0)) - second_probability
         safe_events = [
@@ -1662,7 +1729,11 @@ def analyze_birth_time(
                 }
                 for row in calibrated
             ],
-            "confidence": float(top_candidate.get("confidence", 0.0)),
+            "raw_confidence": float(top_candidate.get("confidence", 0.0)),
+            "calibrated_confidence": float(top_row.get("confidence", 0.0)),
+            "entropy": float(calibration_features.get("entropy", 0.0)),
+            "gap": float(calibration_features.get("gap", 0.0)),
+            "top_probability": float(calibration_features.get("top_probability", 0.0)),
             "top_candidate_time_range": top_candidate.get("time_range", ""),
             "separation_gap": round(separation_gap, 6),
             "signal_strength_contributions": top_event_signal_contributions,
