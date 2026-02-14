@@ -6,7 +6,9 @@ interpretations stable and reduce LLM dependency.
 
 from __future__ import annotations
 
+import json
 from collections import Counter, defaultdict
+from pathlib import Path
 from typing import Any
 
 PLANET_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
@@ -90,6 +92,207 @@ HOUSE_RELEVANCE_WEIGHTS = {
     12: 0.85,
 }
 
+# Approximate directional anchors for Dig Bala.
+DIG_BALA_TARGET_HOUSE = {
+    "Sun": 10,
+    "Mars": 10,
+    "Moon": 4,
+    "Venus": 4,
+    "Mercury": 1,
+    "Jupiter": 1,
+    "Saturn": 7,
+}
+
+# Normalized natural strength ordering for Naisargika Bala.
+NAISARGIKA_BALA = {
+    "Sun": 1.00,
+    "Moon": 0.85,
+    "Venus": 0.72,
+    "Jupiter": 0.57,
+    "Mercury": 0.43,
+    "Mars": 0.28,
+    "Saturn": 0.15,
+}
+
+_DEFAULT_YOGA_RULES: dict[str, dict[str, Any]] = {
+    "raja_yoga": {"enabled": True, "strength": 0.75, "apply_if": [], "weaken_if": [], "cancel_if": []},
+    "dhana_yoga": {"enabled": True, "strength": 0.72, "apply_if": [], "weaken_if": [], "cancel_if": []},
+    "parivartana_yoga": {"enabled": True, "strength": 0.7, "apply_if": [], "weaken_if": [], "cancel_if": []},
+    "vipareeta_raja_yoga": {
+        "enabled": True,
+        "min_hits": 2,
+        "base_strength": 0.68,
+        "extra_per_hit": 0.08,
+        "max_extra": 0.2,
+        "apply_if": [],
+        "weaken_if": [],
+        "cancel_if": [],
+    },
+    "gaja_kesari_yoga": {
+        "enabled": True,
+        "strength": 0.8,
+        "allowed_relative_houses": [1, 4, 7, 10],
+        "apply_if": [],
+        "weaken_if": [],
+        "cancel_if": [],
+    },
+    "neecha_bhanga": {"enabled": True, "strength": 0.65, "apply_if": [], "weaken_if": [], "cancel_if": []},
+    "kemadruma": {
+        "enabled": True,
+        "strength": 0.85,
+        "flank_planets": ["Sun", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"],
+        "apply_if": [],
+        "weaken_if": [],
+        "cancel_if": [],
+    },
+    "daridra_yoga": {"enabled": True, "strength": 0.7, "apply_if": [], "weaken_if": [], "cancel_if": []},
+}
+YOGA_RULES_PATH = Path(__file__).resolve().parent / "config" / "yoga_rules.json"
+YOGA_RULES: dict[str, dict[str, Any]] = {}
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(value: Any, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_yoga_rules(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    normalized = json.loads(json.dumps(_DEFAULT_YOGA_RULES))
+    if not isinstance(raw, dict):
+        return normalized
+
+    for key, base in normalized.items():
+        override = raw.get(key)
+        if not isinstance(override, dict):
+            continue
+        base["enabled"] = bool(override.get("enabled", base.get("enabled", True)))
+        for cond_key in ("apply_if", "weaken_if", "cancel_if"):
+            cond_val = override.get(cond_key)
+            if isinstance(cond_val, list):
+                base[cond_key] = cond_val
+        if key in {"raja_yoga", "dhana_yoga", "parivartana_yoga", "neecha_bhanga", "daridra_yoga"}:
+            base["strength"] = _safe_float(override.get("strength"), _safe_float(base.get("strength"), 0.7))
+        if key == "vipareeta_raja_yoga":
+            base["min_hits"] = _safe_int(override.get("min_hits"), _safe_int(base.get("min_hits"), 2))
+            base["base_strength"] = _safe_float(override.get("base_strength"), _safe_float(base.get("base_strength"), 0.68))
+            base["extra_per_hit"] = _safe_float(override.get("extra_per_hit"), _safe_float(base.get("extra_per_hit"), 0.08))
+            base["max_extra"] = _safe_float(override.get("max_extra"), _safe_float(base.get("max_extra"), 0.2))
+        if key == "gaja_kesari_yoga":
+            base["strength"] = _safe_float(override.get("strength"), _safe_float(base.get("strength"), 0.8))
+            rel = override.get("allowed_relative_houses")
+            if isinstance(rel, list):
+                parsed = [v for v in (_safe_int(x, -1) for x in rel) if 1 <= v <= 12]
+                if parsed:
+                    base["allowed_relative_houses"] = parsed
+        if key == "kemadruma":
+            base["strength"] = _safe_float(override.get("strength"), _safe_float(base.get("strength"), 0.85))
+            flank = override.get("flank_planets")
+            if isinstance(flank, list):
+                parsed = [str(x) for x in flank if isinstance(x, str) and x]
+                if parsed:
+                    base["flank_planets"] = parsed
+    return normalized
+
+
+def _load_yoga_rules() -> dict[str, dict[str, Any]]:
+    try:
+        payload = json.loads(YOGA_RULES_PATH.read_text(encoding="utf-8"))
+        return _normalize_yoga_rules(payload)
+    except Exception:
+        return _normalize_yoga_rules({})
+
+
+YOGA_RULES = _load_yoga_rules()
+
+
+def _context_get(context: dict[str, Any], field: str) -> Any:
+    cur: Any = context
+    for part in field.split("."):
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _eval_condition(actual: Any, operator: str, expected: Any) -> bool:
+    if operator == "==":
+        return actual == expected
+    if operator == "!=":
+        return actual != expected
+    try:
+        a = float(actual)
+        b = float(expected)
+    except (TypeError, ValueError):
+        return False
+    if operator == ">":
+        return a > b
+    if operator == ">=":
+        return a >= b
+    if operator == "<":
+        return a < b
+    if operator == "<=":
+        return a <= b
+    return False
+
+
+def _conditions_match(conditions: list[dict[str, Any]], context: dict[str, Any], logic: str = "AND") -> bool:
+    if not conditions:
+        return False
+    checks: list[bool] = []
+    for cond in conditions:
+        if not isinstance(cond, dict):
+            checks.append(False)
+            continue
+        field = cond.get("field")
+        operator = cond.get("operator", "==")
+        expected = cond.get("value")
+        if not isinstance(field, str):
+            checks.append(False)
+            continue
+        actual = _context_get(context, field)
+        checks.append(_eval_condition(actual, str(operator), expected))
+    return any(checks) if logic == "OR" else all(checks)
+
+
+def _evaluate_yoga_status(rule: dict[str, Any], context: dict[str, Any], base_strength: float) -> tuple[str, float, list[str]]:
+    reasons: list[str] = []
+    strength = base_strength
+
+    apply_if = rule.get("apply_if", [])
+    if isinstance(apply_if, list) and apply_if:
+        if not _conditions_match(apply_if, context, "AND"):
+            return "cancelled", 0.0, ["apply_if_not_met"]
+
+    cancel_if = rule.get("cancel_if", [])
+    if isinstance(cancel_if, list):
+        for cond in cancel_if:
+            if isinstance(cond, dict) and _conditions_match([cond], context, "AND"):
+                reasons.append(str(cond.get("reason_tag", "cancel_rule_hit")))
+                return "cancelled", 0.0, reasons
+
+    status = "active"
+    weaken_if = rule.get("weaken_if", [])
+    if isinstance(weaken_if, list):
+        for cond in weaken_if:
+            if not isinstance(cond, dict):
+                continue
+            if _conditions_match([cond], context, "AND"):
+                mult = _safe_float(cond.get("strength_multiplier"), 0.7)
+                strength *= max(0.0, min(mult, 1.0))
+                status = "weakened"
+                reasons.append(str(cond.get("reason_tag", "weaken_rule_hit")))
+
+    return status, strength, reasons
+
 
 def _planet_sign(planets: dict[str, Any], name: str) -> str | None:
     data = planets.get(name, {})
@@ -133,10 +336,133 @@ def _strength_level(score: float) -> str:
     return "very_weak"
 
 
+def _strength_band(score_0_to_1: float) -> str:
+    if score_0_to_1 >= 0.66:
+        return "strong"
+    if score_0_to_1 >= 0.40:
+        return "medium"
+    return "weak"
+
+
+def _opposite_house(house: int) -> int:
+    return ((house + 5) % 12) + 1
+
+
+def _estimate_sun_chart_phase(planets: dict[str, Any]) -> str:
+    sun_house = _planet_house(planets, "Sun")
+    if sun_house in {7, 8, 9, 10, 11, 12}:
+        return "day"
+    if sun_house in {1, 2, 3, 4, 5, 6}:
+        return "night"
+    return "unknown"
+
+
+def _compute_shadbala_components(
+    *,
+    planet: str,
+    sign: str | None,
+    house: int | None,
+    feats: dict[str, Any],
+    score: float,
+    chart_phase: str,
+) -> dict[str, float]:
+    # 1) Sthana Bala: dignity + house support proxy.
+    sthana = 0.5
+    if sign and EXALTATION_SIGNS.get(planet) == sign:
+        sthana += 0.35
+    elif sign and sign in OWN_SIGNS.get(planet, set()):
+        sthana += 0.25
+    elif sign and DEBILITATION_SIGNS.get(planet) == sign:
+        sthana -= 0.30
+    elif sign and sign in ENEMY_SIGNS.get(planet, set()):
+        sthana -= 0.15
+    if house in TRINE_HOUSES:
+        sthana += 0.08
+    if house in DUSTHANA_HOUSES:
+        sthana -= 0.10
+
+    # 2) Dig Bala: directional fit by house anchor.
+    dig_target = DIG_BALA_TARGET_HOUSE.get(planet)
+    if house is None or dig_target is None:
+        dig = 0.5
+    elif house == dig_target:
+        dig = 1.0
+    elif house == _opposite_house(dig_target):
+        dig = 0.2
+    else:
+        dig = 0.6
+
+    # 3) Kala Bala: day/night compatibility proxy.
+    if planet == "Mercury" or chart_phase == "unknown":
+        kala = 0.65
+    elif planet in {"Sun", "Jupiter", "Saturn"}:
+        kala = 0.8 if chart_phase == "day" else 0.45
+    else:
+        kala = 0.8 if chart_phase == "night" else 0.45
+
+    # 4) Chesta Bala: motion state proxy.
+    retro = bool(feats.get("retrograde", False))
+    if planet in {"Sun", "Moon"}:
+        chesta = 0.55
+    else:
+        chesta = 0.85 if retro else 0.55
+
+    # 5) Naisargika Bala: natural baseline.
+    naisargika = float(NAISARGIKA_BALA.get(planet, 0.5))
+
+    # 6) Drik Bala: benefic/malefic pressure proxy.
+    drik = 0.65
+    if bool(feats.get("combust", False)):
+        drik -= 0.25
+    if house in DUSTHANA_HOUSES:
+        drik -= 0.1
+    if score >= 7.5:
+        drik += 0.1
+    elif score <= 3.0:
+        drik -= 0.1
+
+    return {
+        "sthana": round(_clamp(sthana, 0.0, 1.0), 4),
+        "dig": round(_clamp(dig, 0.0, 1.0), 4),
+        "kala": round(_clamp(kala, 0.0, 1.0), 4),
+        "chesta": round(_clamp(chesta, 0.0, 1.0), 4),
+        "naisargika": round(_clamp(naisargika, 0.0, 1.0), 4),
+        "drik": round(_clamp(drik, 0.0, 1.0), 4),
+    }
+
+
+def _classify_avastha(planet: str, sign: str | None, feats: dict[str, Any], score: float) -> tuple[str, list[str]]:
+    tags: list[str] = []
+    if sign and EXALTATION_SIGNS.get(planet) == sign:
+        tags.append("Exalted")
+    if sign and sign in OWN_SIGNS.get(planet, set()):
+        tags.append("Own Sign")
+    if bool(feats.get("combust", False)):
+        tags.append("Combust")
+    if bool(feats.get("retrograde", False)):
+        tags.append("Retrograde Motion")
+    if sign and DEBILITATION_SIGNS.get(planet) == sign:
+        tags.append("Debilitated")
+
+    if bool(feats.get("combust", False)):
+        return "asta", tags or ["Combust"]
+    if sign and EXALTATION_SIGNS.get(planet) == sign:
+        return "deepta", tags or ["Exalted"]
+    if bool(feats.get("retrograde", False)) and score >= 5.0:
+        return "chesta", tags or ["Retrograde Motion"]
+    if score >= 7.0:
+        return "yuva", tags or ["Strong Expression"]
+    if score <= 3.0:
+        return "dina", tags or ["Weak Expression"]
+    return "madhya", tags or ["Balanced Expression"]
+
+
 def calculate_planet_strength(planets: dict[str, Any], houses: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Calculate deterministic planet strength scores normalized to 0..10."""
     _ = houses
     result: dict[str, dict[str, Any]] = {}
+
+    chart_phase = _estimate_sun_chart_phase(planets)
 
     for name in PLANET_ORDER:
         if name not in planets:
@@ -175,10 +501,36 @@ def calculate_planet_strength(planets: dict[str, Any], houses: dict[str, Any]) -
             factors.append("retrograde:+1")
 
         score = _normalize_score(raw_score)
+        shadbala_components = _compute_shadbala_components(
+            planet=name,
+            sign=sign,
+            house=house,
+            feats=feats,
+            score=score,
+            chart_phase=chart_phase,
+        )
+        shadbala_total = round(sum(shadbala_components.values()) / 6.0, 4)
+        avastha_state, avastha_tags = _classify_avastha(name, sign, feats, score)
+        evidence_tags = list(dict.fromkeys(avastha_tags + [
+            "Directional Strength" if shadbala_components["dig"] >= 0.75 else "",
+            "Temporal Strength" if shadbala_components["kala"] >= 0.75 else "",
+            "Aspect Support" if shadbala_components["drik"] >= 0.70 else "",
+        ]))
+        evidence_tags = [t for t in evidence_tags if t]
         result[name] = {
             "score": score,
             "strength_level": _strength_level(score),
             "factors": factors,
+            "shadbala": {
+                "total": shadbala_total,
+                "band": _strength_band(shadbala_total),
+                "components": shadbala_components,
+                "evidence_tags": evidence_tags,
+            },
+            "avastha": {
+                "state": avastha_state,
+                "evidence_tags": avastha_tags,
+            },
         }
 
     return result
@@ -259,15 +611,27 @@ def analyze_dispositor_chains(planets: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def detect_yogas(planets: dict[str, Any], houses: dict[str, Any]) -> list[dict[str, Any]]:
+def detect_yogas(planets: dict[str, Any], houses: dict[str, Any], include_cancelled: bool = False) -> list[dict[str, Any]]:
     """Detect a core set of deterministic yogas with heuristic strength 0..1."""
     _ = houses
     yogas: list[dict[str, Any]] = []
 
-    def add(name: str, strength: float, involved: list[str]) -> None:
-        yogas.append({"name": name, "strength": round(max(0.0, min(strength, 1.0)), 2), "planets_involved": involved})
+    def add(rule_key: str, name: str, strength: float, involved: list[str], context: dict[str, Any]) -> None:
+        rule = YOGA_RULES.get(rule_key, {})
+        status, adjusted_strength, reason_tags = _evaluate_yoga_status(rule, context, strength)
+        yogas.append(
+            {
+                "name": name,
+                "strength": round(max(0.0, min(adjusted_strength, 1.0)), 2),
+                "planets_involved": involved,
+                "status": status,
+                "reason_tags": reason_tags,
+                "rule_key": rule_key,
+            }
+        )
 
     # Raja Yoga: trine lord with kendra lord conjunction
+    raja_rule = YOGA_RULES.get("raja_yoga", {})
     trine_lords = {1: None, 5: None, 9: None}
     kendra_lords = {1: None, 4: None, 7: None, 10: None}
     asc_sign = ((houses.get("ascendant") or {}).get("rasi") or {}).get("name")
@@ -288,66 +652,143 @@ def detect_yogas(planets: dict[str, Any], houses: dict[str, Any]) -> list[dict[s
             if _planet_house(planets, p1) and _planet_house(planets, p1) == _planet_house(planets, p2):
                 raja_hits = [p1, p2]
                 break
-    if raja_hits:
-        add("Raja Yoga", 0.75, raja_hits)
+    if raja_rule.get("enabled", True) and raja_hits:
+        add(
+            "raja_yoga",
+            "Raja Yoga",
+            _safe_float(raja_rule.get("strength"), 0.75),
+            raja_hits,
+            {"asc_sign": asc_sign, "hit_count": len(raja_hits)},
+        )
 
     # Dhana Yoga: 2nd/11th lord association
+    dhana_rule = YOGA_RULES.get("dhana_yoga", {})
     if asc_sign in SIGN_NAMES:
         asc_idx = SIGN_NAMES.index(asc_sign)
         lord_2 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 1) % 12]]
         lord_11 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 10) % 12]]
-        if _planet_house(planets, lord_2) == _planet_house(planets, lord_11):
-            add("Dhana Yoga", 0.72, [lord_2, lord_11])
+        lord_2_house = _planet_house(planets, lord_2)
+        lord_11_house = _planet_house(planets, lord_11)
+        if dhana_rule.get("enabled", True) and lord_2_house == lord_11_house:
+            add(
+                "dhana_yoga",
+                "Dhana Yoga",
+                _safe_float(dhana_rule.get("strength"), 0.72),
+                [lord_2, lord_11],
+                {"asc_sign": asc_sign, "lord_2_house": lord_2_house, "lord_11_house": lord_11_house},
+            )
 
     # Parivartana Yoga
     disp = analyze_dispositor_chains(planets)
-    for pair in disp["parivartana"]:
-        add("Parivartana Yoga", 0.7, pair["planets"])
+    parivartana_rule = YOGA_RULES.get("parivartana_yoga", {})
+    if parivartana_rule.get("enabled", True):
+        for pair in disp["parivartana"]:
+            add(
+                "parivartana_yoga",
+                "Parivartana Yoga",
+                _safe_float(parivartana_rule.get("strength"), 0.7),
+                pair["planets"],
+                {"pair_count": len(disp.get("parivartana", [])), "asc_sign": asc_sign},
+            )
 
     # Vipareeta Raja Yoga: lords of 6/8/12 in dusthana
+    vip_rule = YOGA_RULES.get("vipareeta_raja_yoga", {})
     if asc_sign in SIGN_NAMES:
         asc_idx = SIGN_NAMES.index(asc_sign)
         l6 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 5) % 12]]
         l8 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 7) % 12]]
         l12 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 11) % 12]]
         hits = [p for p in [l6, l8, l12] if _planet_house(planets, p) in DUSTHANA_HOUSES]
-        if len(hits) >= 2:
-            add("Vipareeta Raja Yoga", 0.68 + min(0.2, 0.08 * (len(hits) - 2)), hits)
+        min_hits = _safe_int(vip_rule.get("min_hits"), 2)
+        if vip_rule.get("enabled", True) and len(hits) >= min_hits:
+            base_strength = _safe_float(vip_rule.get("base_strength"), 0.68)
+            extra_per_hit = _safe_float(vip_rule.get("extra_per_hit"), 0.08)
+            max_extra = _safe_float(vip_rule.get("max_extra"), 0.2)
+            strength = base_strength + min(max_extra, extra_per_hit * (len(hits) - min_hits))
+            add(
+                "vipareeta_raja_yoga",
+                "Vipareeta Raja Yoga",
+                strength,
+                hits,
+                {"hits_count": len(hits), "min_hits": min_hits, "asc_sign": asc_sign},
+            )
 
     # Gaja Kesari Yoga: Jupiter-Moon in kendra from each other
+    gaja_rule = YOGA_RULES.get("gaja_kesari_yoga", {})
     moon_h = _planet_house(planets, "Moon")
     jup_h = _planet_house(planets, "Jupiter")
     if moon_h and jup_h:
         rel = ((jup_h - moon_h) % 12) + 1
-        if rel in {1, 4, 7, 10}:
-            add("Gaja Kesari Yoga", 0.8, ["Moon", "Jupiter"])
+        allowed_rel = set(gaja_rule.get("allowed_relative_houses", [1, 4, 7, 10]))
+        if gaja_rule.get("enabled", True) and rel in allowed_rel:
+            add(
+                "gaja_kesari_yoga",
+                "Gaja Kesari Yoga",
+                _safe_float(gaja_rule.get("strength"), 0.8),
+                ["Moon", "Jupiter"],
+                {
+                    "relative_house": rel,
+                    "moon_combust": bool(_planet_features(planets, "Moon").get("combust", False)),
+                    "jupiter_combust": bool(_planet_features(planets, "Jupiter").get("combust", False)),
+                    "asc_sign": asc_sign,
+                },
+            )
 
     # Neecha Bhanga (basic): debilitated planet with dispositor in kendra/trine
+    neecha_rule = YOGA_RULES.get("neecha_bhanga", {})
     for p in ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]:
         sign = _planet_sign(planets, p)
         if sign and DEBILITATION_SIGNS.get(p) == sign:
             disp_planet = SIGN_LORDS.get(sign)
-            if disp_planet and _planet_house(planets, disp_planet) in TRINE_HOUSES | KENDRA_HOUSES:
-                add("Neecha Bhanga", 0.65, [p, disp_planet])
+            if (
+                neecha_rule.get("enabled", True)
+                and disp_planet
+                and _planet_house(planets, disp_planet) in TRINE_HOUSES | KENDRA_HOUSES
+            ):
+                add(
+                    "neecha_bhanga",
+                    "Neecha Bhanga",
+                    _safe_float(neecha_rule.get("strength"), 0.65),
+                    [p, disp_planet],
+                    {"planet": p, "dispositor": disp_planet, "asc_sign": asc_sign},
+                )
 
     # Kemadruma: no planets in 2nd/12th from Moon (excluding nodes)
+    kemadruma_rule = YOGA_RULES.get("kemadruma", {})
     if moon_h:
         flank_houses = {((moon_h + 10) % 12) + 1, (moon_h % 12) + 1}
+        flank_planet_names = kemadruma_rule.get("flank_planets", ["Sun", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"])
         flank_planets = [
-            p for p in ["Sun", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+            p for p in flank_planet_names
             if _planet_house(planets, p) in flank_houses
         ]
-        if not flank_planets:
-            add("Kemadruma", 0.85, ["Moon"])
+        if kemadruma_rule.get("enabled", True) and not flank_planets:
+            add(
+                "kemadruma",
+                "Kemadruma",
+                _safe_float(kemadruma_rule.get("strength"), 0.85),
+                ["Moon"],
+                {"moon_house": moon_h, "flank_planet_count": len(flank_planets), "asc_sign": asc_sign},
+            )
 
     # Daridra Yoga (heuristic): 11th lord in 6/8/12 or afflicted 2nd house
+    daridra_rule = YOGA_RULES.get("daridra_yoga", {})
     if asc_sign in SIGN_NAMES:
         asc_idx = SIGN_NAMES.index(asc_sign)
         lord_11 = SIGN_LORDS[SIGN_NAMES[(asc_idx + 10) % 12]]
-        if _planet_house(planets, lord_11) in DUSTHANA_HOUSES:
-            add("Daridra Yoga", 0.7, [lord_11])
+        lord_11_house = _planet_house(planets, lord_11)
+        if daridra_rule.get("enabled", True) and lord_11_house in DUSTHANA_HOUSES:
+            add(
+                "daridra_yoga",
+                "Daridra Yoga",
+                _safe_float(daridra_rule.get("strength"), 0.7),
+                [lord_11],
+                {"lord_11_house": lord_11_house, "asc_sign": asc_sign},
+            )
 
-    return yogas
+    if include_cancelled:
+        return yogas
+    return [y for y in yogas if y.get("status") != "cancelled"]
 
 
 def extract_karmic_patterns(
@@ -1025,14 +1466,54 @@ def compute_varga_alignment(chart_data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
-    """Build the full 4D structural summary payload from chart data."""
+def build_shadbala_summary(strength_data: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    by_planet: dict[str, Any] = {}
+    for planet in PLANET_ORDER:
+        row = strength_data.get(planet, {})
+        if not isinstance(row, dict):
+            continue
+        shadbala = row.get("shadbala", {})
+        avastha = row.get("avastha", {})
+        if not isinstance(shadbala, dict):
+            shadbala = {}
+        if not isinstance(avastha, dict):
+            avastha = {}
+        by_planet[planet] = {
+            "band": shadbala.get("band", "medium"),
+            "total": shadbala.get("total", 0.5),
+            "evidence_tags": shadbala.get("evidence_tags", []),
+            "avastha_state": avastha.get("state", "madhya"),
+            "avastha_tags": avastha.get("evidence_tags", []),
+        }
+
+    planets_sorted = sorted(
+        by_planet.items(),
+        key=lambda item: float((item[1] or {}).get("total", 0.0)),
+        reverse=True,
+    )
+    top3 = [name for name, _ in planets_sorted[:3]]
+
+    return {
+        "top3_planets": top3,
+        "by_planet": by_planet,
+    }
+
+
+def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "standard") -> dict[str, Any]:
+    """Build the structural summary payload from chart data.
+
+    `analysis_mode` supports:
+    - `standard`: lightweight deterministic path for high-throughput API usage.
+    - `pro`: includes additional diagnostic payloads for advanced report depth.
+    """
     planets = chart_data.get("planets", {})
     houses = chart_data.get("houses", {})
+    pro_mode = str(analysis_mode).strip().lower() == "pro"
 
     strength = calculate_planet_strength(planets, houses)
     dispositor = analyze_dispositor_chains(planets)
-    yogas = detect_yogas(planets, houses)
+    yogas = detect_yogas(planets, houses, include_cancelled=False)
+    yogas_all = detect_yogas(planets, houses, include_cancelled=True) if pro_mode else []
     karmic = extract_karmic_patterns(planets, strength, yogas)
     influence_matrix = build_influence_matrix(planets, strength, yogas)
     house_clusters = compute_house_clusters(planets, houses, strength, yogas)
@@ -1046,7 +1527,11 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
     personality_vector = calculate_personality_vector(strength, influence_matrix, house_clusters, karmic)
     interaction_risks = calculate_interaction_risks(personality_vector, influence_matrix, behavioral_risks, house_clusters)
     enhanced_behavioral_risks = enhance_behavioral_risks_with_interactions(behavioral_risks, interaction_risks)
-    interaction_summary = build_interaction_summary(interaction_risks, enhanced_behavioral_risks)
+    interaction_summary = (
+        build_interaction_summary(interaction_risks, enhanced_behavioral_risks)
+        if pro_mode
+        else {"top_risks": [], "amplifiers": [], "mitigators": []}
+    )
 
     current_dasha = chart_data.get("current_dasha")
     if not current_dasha or current_dasha not in planets:
@@ -1059,6 +1544,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
     dasha_summary = summarize_dasha_timeline(planets, strength, yogas, current_dasha)
     probability_forecast = calculate_probability_forecast(strength, house_clusters, dasha_summary, behavioral_risks)
     varga_alignment = compute_varga_alignment(chart_data)
+    shadbala_summary = build_shadbala_summary(strength)
 
     dominant_theme = max(karmic.items(), key=lambda x: x[1])[0] if karmic else "balanced_growth_pattern"
     relationship_vector = "stability_oriented" if (strength.get("Venus", {}).get("score", 5.0) >= 5.0) else "attachment_healing_required"
@@ -1087,6 +1573,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
         "personality_vector": personality_vector,
         "probability_forecast": probability_forecast,
         "varga_alignment": varga_alignment,
+        "shadbala_summary": shadbala_summary,
         "karmic_pattern_profile": karmic,
         "current_dasha_vector": dasha_summary,
         "dominant_life_theme": dominant_theme,
@@ -1095,9 +1582,11 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
         "career_vector": career_vector,
         "karmic_axis": dispositor.get("dominant_final_dispositor") or "Moon",
         "engine": {
+            "analysis_mode": "pro" if pro_mode else "standard",
             "planet_strength": strength,
             "dispositor_analysis": dispositor,
             "yogas": yogas,
+            "yogas_all": yogas_all,
             "karmic_patterns": karmic,
             "influence_matrix": {
                 **influence_matrix,
@@ -1111,6 +1600,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
             "personality_vector": personality_vector,
             "probability_forecast": probability_forecast,
             "varga_alignment": varga_alignment,
+            "shadbala_summary": shadbala_summary,
             "current_dasha": current_dasha,
         },
     }

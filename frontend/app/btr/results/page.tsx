@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import { Sparkles, ChevronDown, ChevronUp, Target, TrendingUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Compass, Home, Sparkles } from 'lucide-react'
 import { ASCENDANT_TRAITS } from '@/lib/utils'
 
 function formatConfidencePercent(value: unknown): number {
@@ -16,224 +16,174 @@ function formatConfidencePercent(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(normalized)))
 }
 
+function parseMidHour(candidate: any): string {
+  const direct = Number(candidate?.mid_hour)
+  if (Number.isFinite(direct)) return direct.toFixed(2)
+
+  const range = String(candidate?.time_range || '')
+  const m = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/)
+  if (!m) return ''
+  const start = Number(m[1]) + Number(m[2]) / 60
+  const end = Number(m[3]) + Number(m[4]) / 60
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return ''
+  const mid = (start + end) / 2
+  return mid.toFixed(2)
+}
+
+function confidenceLabel(pct: number): string {
+  if (pct >= 80) return '높음'
+  if (pct >= 60) return '보통 이상'
+  if (pct >= 40) return '보통'
+  return '참고'
+}
+
 export default function BTRResultsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  
+
   const [result, setResult] = useState<any>(null)
   const [expandedCard, setExpandedCard] = useState<number | null>(0)
-  const [selectedAscendant, setSelectedAscendant] = useState<string | null>(null)
 
   useEffect(() => {
     const resultParam = searchParams.get('result')
-    if (resultParam) {
-      try {
-        const parsed = JSON.parse(resultParam)
-        setResult(parsed)
-      } catch (error) {
-        console.error('Failed to parse result:', error)
-      }
+    if (!resultParam) return
+    try {
+      setResult(JSON.parse(resultParam))
+    } catch (error) {
+      console.error('Failed to parse result:', error)
     }
   }, [searchParams])
 
-  const handleSelectAscendant = (ascendant: string) => {
-    setSelectedAscendant(ascendant)
-    
-    // 차트 페이지로 이동 (선택된 상승궁으로)
+  const candidates = useMemo(() => {
+    const rows = Array.isArray(result?.candidates) ? result.candidates : []
+    return rows.slice(0, 3)
+  }, [result])
+
+  const top = candidates[0]
+  const topPct = formatConfidencePercent(top?.confidence)
+
+  const handleSelectCandidate = (candidate: any) => {
+    const hour = parseMidHour(candidate)
     const params = new URLSearchParams({
       year: searchParams.get('year') || '',
       month: searchParams.get('month') || '',
       day: searchParams.get('day') || '',
       lat: searchParams.get('lat') || '',
       lon: searchParams.get('lon') || '',
-      ascendant: ascendant,
-      btr_result: 'true',
+      hour: hour || searchParams.get('hour') || '',
+      gender: searchParams.get('gender') || 'female',
+      house_system: 'W',
     })
     router.push(`/chart?${params}`)
   }
 
-  if (!result || !result.candidates) {
+  if (!result || candidates.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600">결과를 불러오는 중...</p>
-        </div>
+      <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
+        <Card className="max-w-md w-full">
+          <CardHeader>
+            <CardTitle>분석 결과를 불러오지 못했어요</CardTitle>
+            <CardDescription>다시 분석을 실행해 주세요.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => router.push('/btr/questions')} className="w-full">
+              다시 분석하기
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     )
   }
 
-  const candidates = result.candidates || []
-  const topCandidate = candidates[0]
-  const topConfidence = formatConfidencePercent(topCandidate?.confidence)
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
-      <div className="container mx-auto px-4 py-16">
-        {/* Header */}
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="w-8 h-8 text-purple-600" />
-            <h1 className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              생시 분석 결과
-            </h1>
-          </div>
-          <p className="text-xl text-gray-700 mb-2">
-            가능성 높은 출생 시간대
-          </p>
-          <p className="text-gray-600">
-            총 {result.total_events || 0}개의 이벤트를 분석했습니다
-          </p>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f6f3_0%,#fff_36%)]">
+      <div className="container mx-auto px-4 py-12 max-w-4xl">
+        <div className="text-center mb-8">
+          <p className="text-sm tracking-[0.18em] uppercase text-[#8a808a] mb-3">Birth Time Check</p>
+          <h1 className="text-3xl font-semibold text-[#2b2731]">가장 가능성 높은 시간대</h1>
+          <p className="text-[#5f5a64] mt-3">입력한 이벤트를 기준으로 후보를 정리했어요.</p>
         </div>
 
-        {/* Top Result Summary */}
-        <Card className="max-w-3xl mx-auto mb-8 border-2 border-purple-200 bg-gradient-to-br from-purple-50 to-white">
+        <Card className="mb-7 border-[#e5d9de] bg-white">
           <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-2xl mb-2">
-                  가장 가능성 높은 시간대
-                </CardTitle>
-                <CardDescription>
-                  {topCandidate?.time_range || '알 수 없음'}
-                </CardDescription>
-              </div>
-              <div className="text-right">
-                <div className="text-3xl font-bold text-purple-600">
-                  {topConfidence}%
-                </div>
-                <div className="text-sm text-gray-600">신뢰도</div>
-              </div>
-            </div>
+            <CardTitle className="flex items-center gap-2 text-[#3a3240]">
+              <Sparkles className="w-5 h-5 text-[#8d3d56]" />
+              추천 후보
+            </CardTitle>
+            <CardDescription>우선 이 후보부터 확인하는 것을 권장해요.</CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-3 gap-4 text-center">
-              <div className="p-4 bg-white rounded-lg">
-                <div className="text-2xl font-bold text-purple-600">
-                  {topCandidate?.ascendant || '-'}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">상승궁</div>
-              </div>
-              <div className="p-4 bg-white rounded-lg">
-                <div className="text-2xl font-bold text-green-600">
-                  {topCandidate?.matched_events || 0}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">매칭 이벤트</div>
-              </div>
-              <div className="p-4 bg-white rounded-lg">
-                <div className="text-2xl font-bold text-blue-600">
-                  {topCandidate?.score?.toFixed(1) || '0.0'}
-                </div>
-                <div className="text-sm text-gray-600 mt-1">점수</div>
-              </div>
+          <CardContent className="grid md:grid-cols-3 gap-3">
+            <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
+              <p className="text-xs text-[#877b86] mb-1">시간대</p>
+              <p className="font-semibold text-[#302a33]">{top?.time_range || '-'}</p>
+            </div>
+            <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
+              <p className="text-xs text-[#877b86] mb-1">신뢰도</p>
+              <p className="font-semibold text-[#302a33]">{topPct}% ({confidenceLabel(topPct)})</p>
+            </div>
+            <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
+              <p className="text-xs text-[#877b86] mb-1">상승궁</p>
+              <p className="font-semibold text-[#302a33]">{top?.ascendant || '-'}</p>
             </div>
           </CardContent>
         </Card>
 
-        {/* All Candidates */}
-        <div className="max-w-3xl mx-auto space-y-4">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <Target className="w-6 h-6 text-purple-600" />
-            후보 시간대 (Top 3)
-          </h2>
-
-          {candidates.slice(0, 3).map((candidate: any, index: number) => {
-            const isExpanded = expandedCard === index
-            const ascendantInfo = ASCENDANT_TRAITS[candidate.ascendant] || {
-              name_kr: candidate.ascendant,
-              emoji: '✨',
+        <div className="space-y-4">
+          {candidates.map((candidate: any, index: number) => {
+            const open = expandedCard === index
+            const pct = formatConfidencePercent(candidate?.confidence)
+            const ascInfo = ASCENDANT_TRAITS[candidate?.ascendant] || {
+              name_kr: candidate?.ascendant || '알 수 없음',
+              emoji: '⭐',
               keywords: [],
               preview: '',
             }
 
             return (
-              <Card 
-                key={index}
-                className={`cursor-pointer transition-all ${
-                  index === 0 ? 'border-2 border-purple-300' : ''
-                }`}
-              >
-                <CardHeader 
-                  onClick={() => setExpandedCard(isExpanded ? null : index)}
-                  className="cursor-pointer hover:bg-gray-50"
+              <Card key={`${candidate?.time_range}-${index}`} className="border-[#e9e1e6]">
+                <CardHeader
+                  className="cursor-pointer"
+                  onClick={() => setExpandedCard(open ? null : index)}
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="text-3xl">{index + 1}</div>
-                      <div>
-                        <CardTitle className="flex items-center gap-2">
-                          <span className="text-2xl">{ascendantInfo.emoji}</span>
-                          {candidate.time_range}
-                          {index === 0 && (
-                            <Badge className="bg-purple-600">추천</Badge>
-                          )}
-                        </CardTitle>
-                        <CardDescription className="mt-1">
-                          {ascendantInfo.name_kr} 상승궁 • 신뢰도 {formatConfidencePercent(candidate.confidence)}%
-                        </CardDescription>
-                      </div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-base text-[#352f38] flex items-center gap-2">
+                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#f5edf1] text-[#6e4557] text-sm">
+                          {index + 1}
+                        </span>
+                        {candidate?.time_range || '시간대 정보 없음'}
+                        {index === 0 && <Badge className="bg-[#8d3d56]">추천</Badge>}
+                      </CardTitle>
+                      <CardDescription className="mt-1">
+                        {ascInfo.emoji} {ascInfo.name_kr} 상승궁 후보
+                      </CardDescription>
                     </div>
-                    <div className="text-right">
-                      {isExpanded ? (
-                        <ChevronUp className="w-5 h-5 text-gray-400" />
-                      ) : (
-                        <ChevronDown className="w-5 h-5 text-gray-400" />
-                      )}
-                    </div>
+                    {open ? <ChevronUp className="w-4 h-4 text-[#8e8390]" /> : <ChevronDown className="w-4 h-4 text-[#8e8390]" />}
                   </div>
-                  
-                  {/* Progress bar */}
-                  <div className="mt-4">
-                    <Progress value={formatConfidencePercent(candidate.confidence)} className="h-2" />
+                  <div className="mt-2">
+                    <Progress value={pct} className="h-2" />
+                    <p className="text-xs text-[#7a707c] mt-1">신뢰도 {pct}%</p>
                   </div>
                 </CardHeader>
 
-                {isExpanded && (
-                  <CardContent>
-                    {/* Stats */}
-                    <div className="grid grid-cols-2 gap-4 mb-6">
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1">매칭 이벤트</div>
-                        <div className="text-xl font-bold">
-                          {candidate.matched_events} / {result.total_events}
-                        </div>
-                      </div>
-                      <div className="p-3 bg-gray-50 rounded-lg">
-                        <div className="text-sm text-gray-600 mb-1">분석 점수</div>
-                        <div className="text-xl font-bold">
-                          {candidate.score?.toFixed(1) || '0.0'}
-                        </div>
-                      </div>
+                {open && (
+                  <CardContent className="space-y-4 text-sm text-[#5b5560]">
+                    <div className="rounded-md bg-[#f6f2f4] border border-[#e9dde2] p-3">
+                      {ascInfo.preview || '이 후보는 성향 일치율이 높게 계산되었습니다.'}
                     </div>
-
-                    {/* Keywords */}
-                    <div className="mb-6">
-                      <div className="text-sm font-medium text-gray-700 mb-2">
-                        핵심 성향
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {ascendantInfo.keywords.map((keyword: string, i: number) => (
-                          <Badge key={i} variant="outline" className="text-sm">
-                            {keyword}
-                          </Badge>
-                        ))}
-                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(ascInfo.keywords || []).slice(0, 4).map((k: string, i: number) => (
+                        <Badge key={`${k}-${i}`} variant="secondary" className="bg-[#f3ecf0] text-[#684857]">
+                          {k}
+                        </Badge>
+                      ))}
                     </div>
-
-                    {/* Preview */}
-                    <div className="mb-6 p-4 bg-purple-50 rounded-lg">
-                      <div className="text-sm text-gray-700">
-                        {ascendantInfo.preview}
-                      </div>
-                    </div>
-
-                    {/* Action Button */}
-                    <Button 
-                      onClick={() => handleSelectAscendant(candidate.ascendant)}
-                      className="w-full"
-                      variant={index === 0 ? 'default' : 'outline'}
+                    <Button
+                      className="w-full bg-[#8d3d56] hover:bg-[#7a344a]"
+                      onClick={() => handleSelectCandidate(candidate)}
                     >
-                      <TrendingUp className="w-4 h-4 mr-2" />
-                      이 상승궁으로 상세 보기
+                      <Compass className="w-4 h-4 mr-2" />
+                      이 시간대로 차트 보기
                     </Button>
                   </CardContent>
                 )}
@@ -242,24 +192,10 @@ export default function BTRResultsPage() {
           })}
         </div>
 
-        {/* Info */}
-        <div className="max-w-3xl mx-auto mt-12 text-center">
-          <div className="p-6 bg-blue-50 border border-blue-200 rounded-lg">
-            <h3 className="font-medium text-blue-900 mb-2">💡 결과 해석 방법</h3>
-            <p className="text-sm text-blue-800">
-              신뢰도는 입력하신 이벤트들이 해당 시간대의 다샤(Dasha)와 얼마나 잘 맞는지를 나타냅니다.
-              80% 이상이면 매우 높은 확률, 60-79%는 높은 확률, 40-59%는 중간 확률로 해석할 수 있습니다.
-            </p>
-          </div>
-        </div>
-
-        {/* Navigation */}
-        <div className="max-w-3xl mx-auto mt-8 text-center">
-          <Button
-            variant="outline"
-            onClick={() => router.push('/')}
-          >
-            처음으로 돌아가기
+        <div className="mt-8 text-center">
+          <Button variant="outline" onClick={() => router.push('/')} className="border-[#cdb9c2]">
+            <Home className="w-4 h-4 mr-2" />
+            처음으로
           </Button>
         </div>
       </div>

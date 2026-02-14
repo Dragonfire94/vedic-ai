@@ -119,7 +119,24 @@ class TestInteractionAmplifier(unittest.TestCase):
         }
         out = build_structural_summary(chart_data)
         self.assertIn("varga_alignment", out)
+        self.assertIn("shadbala_summary", out)
         self.assertIn("varga_alignment", out["engine"])
+        self.assertIn("shadbala_summary", out["engine"])
+        self.assertIn("yogas_all", out["engine"])
+
+    def test_build_structural_summary_analysis_mode_switch(self):
+        chart_data = {
+            "planets": {
+                "Sun": {"house": 1, "rasi": {"name": "Aries"}, "features": {}},
+                "Moon": {"house": 4, "rasi": {"name": "Cancer"}, "features": {}},
+                "Jupiter": {"house": 4, "rasi": {"name": "Cancer"}, "features": {}},
+            },
+            "houses": {"ascendant": {"rasi": {"name": "Aries"}}},
+        }
+        out_std = build_structural_summary(chart_data, analysis_mode="standard")
+        out_pro = build_structural_summary(chart_data, analysis_mode="pro")
+        self.assertEqual(out_std["engine"]["analysis_mode"], "standard")
+        self.assertEqual(out_pro["engine"]["analysis_mode"], "pro")
 
 
 if __name__ == "__main__":

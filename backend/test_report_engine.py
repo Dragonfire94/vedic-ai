@@ -71,6 +71,43 @@ class TestReportEngine(unittest.TestCase):
         self.assertIn("Purushartha Profile", user_content)
         self.assertIn("Chapters to include in exact order", SYSTEM_PROMPT)
 
+    def test_injects_shadbala_avastha_blocks_into_core_chapters(self):
+        payload = build_report_payload(
+            {
+                "structural_summary": {
+                    "shadbala_summary": {
+                        "top3_planets": ["Jupiter", "Venus", "Sun"],
+                        "by_planet": {
+                            "Jupiter": {
+                                "band": "strong",
+                                "total": 0.82,
+                                "evidence_tags": ["Directional Strength", "Own Sign"],
+                                "avastha_state": "yuva",
+                            },
+                            "Venus": {
+                                "band": "strong",
+                                "total": 0.78,
+                                "evidence_tags": ["Exalted"],
+                                "avastha_state": "deepta",
+                            },
+                            "Sun": {
+                                "band": "medium",
+                                "total": 0.61,
+                                "evidence_tags": ["Temporal Strength"],
+                                "avastha_state": "madhya",
+                            },
+                        },
+                    }
+                }
+            }
+        )
+        stability_blocks = payload["chapter_blocks"]["Stability Metrics"]
+        final_blocks = payload["chapter_blocks"]["Final Summary"]
+        remedy_blocks = payload["chapter_blocks"]["Remedies & Program"]
+        self.assertTrue(any(b.get("title") == "Shadbala & Avastha Snapshot" for b in stability_blocks if isinstance(b, dict)))
+        self.assertTrue(any(b.get("title") == "Final Synthesis: Strength Axis" for b in final_blocks if isinstance(b, dict)))
+        self.assertTrue(any(b.get("title") == "Remedy Priority by Shadbala" for b in remedy_blocks if isinstance(b, dict)))
+
 
 if __name__ == "__main__":
     unittest.main()

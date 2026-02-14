@@ -249,6 +249,12 @@ CHART_MAX_CONCURRENCY = max(
     1, int(os.getenv("CHART_MAX_CONCURRENCY", str(DEFAULT_CHART_MAX_CONCURRENCY)))
 )
 CHART_CALC_SEMAPHORE = asyncio.Semaphore(CHART_MAX_CONCURRENCY)
+DEFAULT_PRO_ANALYSIS_MAX_CONCURRENCY = max(1, min(4, (os.cpu_count() or 4) // 2))
+PRO_ANALYSIS_MAX_CONCURRENCY = max(
+    1, int(os.getenv("PRO_ANALYSIS_MAX_CONCURRENCY", str(DEFAULT_PRO_ANALYSIS_MAX_CONCURRENCY)))
+)
+PRO_ANALYSIS_TIMEOUT_SEC = max(2.0, float(os.getenv("PRO_ANALYSIS_TIMEOUT_SEC", "12")))
+PRO_ANALYSIS_SEMAPHORE = asyncio.Semaphore(PRO_ANALYSIS_MAX_CONCURRENCY)
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # ????????????????????????????????
@@ -1003,11 +1009,17 @@ async def get_chart_endpoint(
     include_interpretation: int = Query(0),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
+    analysis_mode: str = Query("standard"),
+    include_structural_summary: int = Query(0),
 ):
     del include_interpretation
+    analysis_mode_norm = str(analysis_mode).strip().lower()
+    if analysis_mode_norm not in {"standard", "pro"}:
+        raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+
     # Bound heavy Swiss Ephemeris work under explicit concurrency control.
     async with CHART_CALC_SEMAPHORE:
-        return await asyncio.to_thread(
+        chart = await asyncio.to_thread(
             get_chart,
             year=year,
             month=month,
@@ -1022,6 +1034,20 @@ async def get_chart_endpoint(
             gender=gender,
             timezone=timezone,
         )
+
+    if include_structural_summary:
+        structured_summary, resolved_mode, fallback_used = await _build_structural_summary_with_mode(
+            chart,
+            analysis_mode_norm,
+        )
+        chart["structural_summary"] = structured_summary
+        chart["analysis"] = {
+            "analysis_mode_requested": analysis_mode_norm,
+            "analysis_mode_resolved": resolved_mode,
+            "analysis_mode_fallback": fallback_used,
+        }
+
+    return chart
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # Rectified bridge helpers
@@ -1060,6 +1086,7 @@ def build_rectified_structural_summary(
     longitude: float,
     timezone: Optional[float],
     include_vargas: str = "d7,d10,d12",
+    analysis_mode: str = "standard",
 ) -> dict:
     """Bridge top BTR candidate to deterministic structural summary."""
     if not btr_candidates:
@@ -1074,14 +1101,40 @@ def build_rectified_structural_summary(
         timezone=timezone,
         include_vargas=include_vargas,
     )
-    structural_summary = build_structural_summary(chart_data)
+    structural_summary = build_structural_summary(chart_data, analysis_mode=analysis_mode)
 
     return {
         "rectified_time_range": top_candidate.get("time_range", ""),
         "rectified_probability": float(top_candidate.get("probability", 0.0)),
         "rectified_confidence": float(top_candidate.get("confidence", 0.0)),
+        "analysis_mode": analysis_mode,
         "structural_summary": structural_summary,
     }
+
+
+async def _build_structural_summary_with_mode(chart: dict, analysis_mode: str) -> tuple[dict, str, bool]:
+    mode = str(analysis_mode or "standard").strip().lower()
+    if mode not in {"standard", "pro"}:
+        mode = "standard"
+
+    if mode != "pro":
+        summary = await asyncio.to_thread(build_structural_summary, chart, mode)
+        return summary, mode, False
+
+    try:
+        async with PRO_ANALYSIS_SEMAPHORE:
+            summary = await asyncio.wait_for(
+                asyncio.to_thread(build_structural_summary, chart, "pro"),
+                timeout=PRO_ANALYSIS_TIMEOUT_SEC,
+            )
+            return summary, "pro", False
+    except asyncio.TimeoutError:
+        logger.warning(
+            "Pro analysis timed out after %.1fs; falling back to standard mode.",
+            PRO_ANALYSIS_TIMEOUT_SEC,
+        )
+        summary = await asyncio.to_thread(build_structural_summary, chart, "standard")
+        return summary, "standard", True
 
 
 def build_ai_psychological_input(
@@ -1115,6 +1168,7 @@ def build_ai_psychological_input(
         "probability_forecast",
         "karmic_pattern_profile",
         "varga_alignment",
+        "shadbala_summary",
         "interaction_risks",
         "enhanced_behavioral_risks",
     ]
@@ -1149,11 +1203,16 @@ async def get_ai_reading(
     production_mode: int = Query(0),
     events_json: str = Query("[]"),
     timezone: Optional[float] = Query(None),
+    analysis_mode: str = Query("standard"),
 ):
     """Generate AI reading."""
+    analysis_mode_norm = str(analysis_mode).strip().lower()
+    if analysis_mode_norm not in {"standard", "pro"}:
+        raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+
     cache_key = (
         f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{include_d9}_{include_vargas}_"
-        f"{language}_{gender}_{production_mode}_{events_json}_{timezone}"
+        f"{language}_{gender}_{production_mode}_{events_json}_{timezone}_{analysis_mode_norm}"
     )
 
     if use_cache:
@@ -1199,6 +1258,7 @@ async def get_ai_reading(
                 longitude=lon,
                 timezone=timezone,
                 include_vargas=include_vargas,
+                analysis_mode=analysis_mode_norm,
             )
             report_payload = build_report_payload(rectified_summary)
             user_content = build_gpt_user_content(report_payload)
@@ -1220,6 +1280,7 @@ async def get_ai_reading(
             production_result = {
                 "report_text": final_text,
                 "chapter_count": len(REPORT_CHAPTERS),
+                "analysis_mode": analysis_mode_norm,
             }
             if use_cache:
                 cache.set(cache_key, production_result)
@@ -1246,11 +1307,15 @@ async def get_ai_reading(
         gender=gender,
         timezone=timezone,
     )
-    structured_summary = await asyncio.to_thread(build_structural_summary, chart)
+    structured_summary, resolved_analysis_mode, analysis_fallback = await _build_structural_summary_with_mode(
+        chart,
+        analysis_mode_norm,
+    )
     ai_payload = {"structural_summary": structured_summary}
 
     summary = {
         "language": language,
+        "analysis_mode": resolved_analysis_mode,
         "structured_summary": structured_summary,
     }
 
@@ -1270,6 +1335,9 @@ async def get_ai_reading(
                 "model_used": OPENAI_MODEL,
                 "client_initialized": False,
                 "reason": "OpenAI client not initialized",
+                "analysis_mode_requested": analysis_mode_norm,
+                "analysis_mode_resolved": resolved_analysis_mode,
+                "analysis_mode_fallback": analysis_fallback,
             },
         }
         if use_cache:
@@ -1328,6 +1396,9 @@ async def get_ai_reading(
                 "mapped_section_counts": mapped_section_counts,
                 "interpretations_loaded": bool(INTERPRETATIONS_KO),
                 "interpretations_load_error": INTERPRETATIONS_LOAD_ERROR,
+                "analysis_mode_requested": analysis_mode_norm,
+                "analysis_mode_resolved": resolved_analysis_mode,
+                "analysis_mode_fallback": analysis_fallback,
             },
         }
 
@@ -1356,6 +1427,9 @@ async def get_ai_reading(
                 "client_initialized": async_client is not None,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
+                "analysis_mode_requested": analysis_mode_norm,
+                "analysis_mode_resolved": resolved_analysis_mode,
+                "analysis_mode_fallback": analysis_fallback,
             },
         }
         return result
@@ -1451,10 +1525,21 @@ def create_pdf_styles():
         parent=styles['Title'],
         fontName=PDF_FONT_BOLD,
         fontSize=font_cfg["title"],
-        leading=font_cfg["title"] + 6,
+        leading=font_cfg["title"] + 8,
         alignment=TA_CENTER,
-        spaceAfter=12,
+        spaceAfter=14,
         textColor=colors.HexColor(color_cfg["title"]),
+    ))
+
+    styles.add(ParagraphStyle(
+        name='ReportSubtitle',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_REG,
+        fontSize=font_cfg["small"],
+        leading=font_cfg["small"] + 4,
+        alignment=TA_CENTER,
+        spaceAfter=14,
+        textColor=colors.HexColor(color_cfg.get("body", "#444444")),
     ))
 
     styles.add(ParagraphStyle(
@@ -1462,8 +1547,8 @@ def create_pdf_styles():
         parent=styles['Heading1'],
         fontName=PDF_FONT_BOLD,
         fontSize=font_cfg["chapter"],
-        leading=font_cfg["chapter"] + 4,
-        spaceAfter=12,
+        leading=font_cfg["chapter"] + 5,
+        spaceAfter=10,
         textColor=colors.HexColor(color_cfg["chapter"]),
     ))
 
@@ -1472,8 +1557,8 @@ def create_pdf_styles():
         parent=styles['Heading2'],
         fontName=PDF_FONT_BOLD,
         fontSize=font_cfg["subtitle"],
-        leading=font_cfg["subtitle"] + 4,
-        spaceAfter=6,
+        leading=font_cfg["subtitle"] + 5,
+        spaceAfter=8,
         textColor=colors.HexColor(color_cfg["chapter"]),
     ))
 
@@ -1482,10 +1567,21 @@ def create_pdf_styles():
         parent=styles['Normal'],
         fontName=PDF_FONT_REG,
         fontSize=font_cfg["body"],
-        leading=16,
+        leading=18,
         alignment=TA_JUSTIFY,
-        spaceAfter=8,
+        spaceAfter=9,
         textColor=colors.HexColor(color_cfg["body"]),
+    ))
+
+    styles.add(ParagraphStyle(
+        name='SummaryLead',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_BOLD,
+        fontSize=font_cfg["body"] + 0.5,
+        leading=19,
+        alignment=TA_JUSTIFY,
+        spaceAfter=10,
+        textColor=colors.HexColor(color_cfg.get("summary_accent", color_cfg.get("chapter", "#111111"))),
     ))
 
     styles.add(ParagraphStyle(
@@ -1509,6 +1605,46 @@ def create_pdf_styles():
         spaceAfter=12,
     ))
 
+    styles.add(ParagraphStyle(
+        name='MetaLabel',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_BOLD,
+        fontSize=max(8, font_cfg["small"]),
+        leading=max(10, font_cfg["small"] + 2),
+        textColor=colors.HexColor(color_cfg.get("chapter", "#111111")),
+        alignment=TA_LEFT,
+    ))
+
+    styles.add(ParagraphStyle(
+        name='MetaValue',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_REG,
+        fontSize=max(8, font_cfg["small"]),
+        leading=max(10, font_cfg["small"] + 2),
+        textColor=colors.HexColor(color_cfg.get("body", "#444444")),
+        alignment=TA_LEFT,
+    ))
+
+    styles.add(ParagraphStyle(
+        name='TableHeaderCell',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_BOLD,
+        fontSize=max(8, font_cfg["small"]),
+        leading=max(10, font_cfg["small"] + 2),
+        textColor=colors.whitesmoke,
+        alignment=TA_LEFT,
+    ))
+
+    styles.add(ParagraphStyle(
+        name='TableBodyCell',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_REG,
+        fontSize=max(8, font_cfg["small"]),
+        leading=max(10, font_cfg["small"] + 2),
+        textColor=colors.HexColor(color_cfg["body"]),
+        alignment=TA_LEFT,
+    ))
+
     return styles
 
 
@@ -1525,13 +1661,15 @@ def load_pdf_layout_config() -> dict[str, Any]:
         },
         "fonts": {"title": 22, "chapter": 18, "subtitle": 14, "body": 12, "small": 10},
         "colors": {
-            "title": "#222222",
-            "chapter": "#111111",
-            "body": "#444444",
-            "insight_spike": "#A00000",
-            "choice_fork": "#0033AA",
-            "predictive": "#006633",
-            "separator": "#CCCCCC",
+            "title": "#1F2A44",
+            "chapter": "#1E3A5F",
+            "body": "#2D3748",
+            "insight_spike": "#B91C1C",
+            "choice_fork": "#1D4ED8",
+            "predictive": "#0F766E",
+            "separator": "#D1D9E6",
+            "panel_bg": "#F8FAFC",
+            "table_alt": "#F1F5F9",
         },
         "chapters": {},
     }
@@ -1555,6 +1693,20 @@ def _sanitize_pdf_text(value: Any) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
+def _clip_pdf_cell_text(value: Any, max_chars: int = 700) -> str:
+    text = str(value) if value is not None else ""
+    if len(text) <= max_chars:
+        return text
+    clipped = text[:max_chars].rsplit(" ", 1)[0].strip()
+    if not clipped:
+        clipped = text[:max_chars]
+    return f"{clipped} ...[truncated]"
+
+
+def _to_pdf_paragraph(value: Any, style) -> Paragraph:
+    return Paragraph(_sanitize_pdf_text(value), style)
+
+
 def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any]) -> list:
     """Deterministic report payload??chapter-aware layout?????????????????????"""
     chapter_blocks = report_payload.get("chapter_blocks", {}) if isinstance(report_payload, dict) else {}
@@ -1564,9 +1716,18 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
     elements: list[Any] = []
     chapter_config = config.get("chapters", {}) if isinstance(config.get("chapters"), dict) else {}
     color_cfg = config.get("colors", {}) if isinstance(config.get("colors"), dict) else {}
+    page_cfg = config.get("page", {}) if isinstance(config.get("page"), dict) else {}
     separator_color = colors.HexColor(color_cfg.get("separator", "#CCCCCC"))
     choice_color = colors.HexColor(color_cfg.get("choice_fork", "#0033AA"))
     predictive_color = colors.HexColor(color_cfg.get("predictive", "#006633"))
+    panel_bg = colors.HexColor(color_cfg.get("panel_bg", "#F8FAFC"))
+    table_alt = colors.HexColor(color_cfg.get("table_alt", "#F1F5F9"))
+    page_width = float(A4[0])
+    margin_left = float(page_cfg.get("margin_left", 48))
+    margin_right = float(page_cfg.get("margin_right", 48))
+    content_width = max(320.0, page_width - margin_left - margin_right)
+    table_label_col = max(120.0, min(170.0, content_width * 0.30))
+    table_value_col = max(180.0, content_width - table_label_col)
 
     for chapter in REPORT_CHAPTERS:
         fragments = chapter_blocks.get(chapter, [])
@@ -1577,6 +1738,11 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
             elements.append(PageBreak())
 
         elements.append(Paragraph(_sanitize_pdf_text(chapter), styles["ChapterTitle"]))
+        chapter_rule = Table([[""]], colWidths=[content_width], rowHeights=[0.5])
+        chapter_rule.setStyle(TableStyle([
+            ('LINEABOVE', (0, 0), (-1, -1), 0.6, separator_color),
+        ]))
+        elements.append(chapter_rule)
         elements.append(Spacer(1, 8))
 
         for fragment in fragments:
@@ -1588,36 +1754,69 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
                 elements.append(Spacer(1, 8))
                 continue
 
-            for field in ("title", "summary", "analysis", "implication"):
+            for field in ("title", "summary", "analysis", "implication", "examples", "micro_scenario", "long_term_projection"):
                 value = fragment.get(field)
                 if not value:
                     continue
-                style_name = "Subtitle" if field == "title" else "Body"
-                elements.append(Paragraph(_sanitize_pdf_text(value), styles[style_name]))
+                if field == "title":
+                    style_name = "Subtitle"
+                elif field == "summary":
+                    style_name = "SummaryLead"
+                else:
+                    style_name = "Body"
+
+                if field in {"micro_scenario", "long_term_projection"}:
+                    value = f"{field.replace('_', ' ').title()}: {value}"
+                elif field == "examples":
+                    value = f"Practice Note: {value}"
+                elements.append(_to_pdf_paragraph(value, styles[style_name]))
+
+            # Soft divider between narrative cards for magazine-like rhythm.
+            fragment_rule = Table([[""]], colWidths=[content_width], rowHeights=[0.4])
+            fragment_rule.setStyle(TableStyle([
+                ('LINEABOVE', (0, 0), (-1, -1), 0.35, separator_color),
+            ]))
+            elements.append(fragment_rule)
+            elements.append(Spacer(1, 7))
 
             choice_fork = fragment.get("choice_fork")
             if isinstance(choice_fork, str) and choice_fork.strip():
-                elements.append(Paragraph(_sanitize_pdf_text(choice_fork), styles["Body"]))
+                elements.append(_to_pdf_paragraph(choice_fork, styles["Body"]))
             elif isinstance(choice_fork, dict):
                 path_a = choice_fork.get("path_a", {}) if isinstance(choice_fork.get("path_a"), dict) else {}
                 path_b = choice_fork.get("path_b", {}) if isinstance(choice_fork.get("path_b"), dict) else {}
                 table_rows = [
-                    ["Path", "Trajectory"],
-                    [f"A: {_sanitize_pdf_text(path_a.get('label', '-'))}", _sanitize_pdf_text(path_a.get("trajectory", "-"))],
-                    ["Emotional Cost", _sanitize_pdf_text(path_a.get("emotional_cost", "-"))],
-                    [f"B: {_sanitize_pdf_text(path_b.get('label', '-'))}", _sanitize_pdf_text(path_b.get("trajectory", "-"))],
-                    ["Emotional Cost", _sanitize_pdf_text(path_b.get("emotional_cost", "-"))],
+                    [_to_pdf_paragraph("Path", styles["TableHeaderCell"]), _to_pdf_paragraph("Trajectory", styles["TableHeaderCell"])],
+                    [
+                        _to_pdf_paragraph(f"A: {path_a.get('label', '-')}", styles["TableBodyCell"]),
+                        _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("trajectory", "-")), styles["TableBodyCell"]),
+                    ],
+                    [
+                        _to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]),
+                        _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("emotional_cost", "-")), styles["TableBodyCell"]),
+                    ],
+                    [
+                        _to_pdf_paragraph(f"B: {path_b.get('label', '-')}", styles["TableBodyCell"]),
+                        _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("trajectory", "-")), styles["TableBodyCell"]),
+                    ],
+                    [
+                        _to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]),
+                        _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("emotional_cost", "-")), styles["TableBodyCell"]),
+                    ],
                 ]
-                choice_table = Table(table_rows, colWidths=[120, 350])
+                choice_table = Table(table_rows, colWidths=[table_label_col, table_value_col])
                 choice_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), choice_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('BACKGROUND', (0, 1), (-1, -1), panel_bg),
                     ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
                     ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
                     ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
                     ('LEFTPADDING', (0, 0), (-1, -1), 6),
                     ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                 ]))
                 elements.append(choice_table)
             elements.append(Spacer(1, 10))
@@ -1625,20 +1824,25 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
             predictive = fragment.get("predictive_compression")
             if isinstance(predictive, dict):
                 predictive_rows = [
-                    ["Window", _sanitize_pdf_text(predictive.get("window", "-"))],
-                    ["Dominant Theme", _sanitize_pdf_text(predictive.get("dominant_theme", "-"))],
-                    ["Probability", _sanitize_pdf_text(predictive.get("probability_strength", "-"))],
-                    ["Warning", _sanitize_pdf_text(predictive.get("structural_warning", "-"))],
-                    ["Alignment", _sanitize_pdf_text(predictive.get("recommended_alignment", "-"))],
+                    [_to_pdf_paragraph("Window", styles["TableHeaderCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("window", "-"), max_chars=120), styles["TableBodyCell"])],
+                    [_to_pdf_paragraph("Dominant Theme", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("dominant_theme", "-")), styles["TableBodyCell"])],
+                    [_to_pdf_paragraph("Probability", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("probability_strength", "-"), max_chars=120), styles["TableBodyCell"])],
+                    [_to_pdf_paragraph("Warning", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("structural_warning", "-")), styles["TableBodyCell"])],
+                    [_to_pdf_paragraph("Alignment", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("recommended_alignment", "-")), styles["TableBodyCell"])],
                 ]
-                predictive_table = Table(predictive_rows, colWidths=[150, 320])
+                predictive_table = Table(predictive_rows, colWidths=[table_label_col, table_value_col])
                 predictive_table.setStyle(TableStyle([
                     ('BACKGROUND', (0, 0), (-1, 0), predictive_color),
-                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('BACKGROUND', (0, 1), (-1, -1), table_alt),
                     ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
                     ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
                     ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
                     ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 4),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
                 ]))
                 elements.append(predictive_table)
                 elements.append(Spacer(1, 12))
@@ -1780,19 +1984,36 @@ async def generate_pdf(
 
         story = []
         styles = create_pdf_styles()
-        # Report title
-        title_text = "Vedic Astrology Report"
-        story.append(Paragraph(title_text, styles['ReportTitle']))
-        story.append(Spacer(1, 0.5*cm))
+        color_cfg = layout_config.get("colors", {}) if isinstance(layout_config.get("colors"), dict) else {}
+        panel_bg = colors.HexColor(color_cfg.get("panel_bg", "#F8FAFC"))
+        separator_color = colors.HexColor(color_cfg.get("separator", "#D1D9E6"))
+        table_alt = colors.HexColor(color_cfg.get("table_alt", "#F1F5F9"))
 
-        # Birth information
-        birth_info = (
-            f"<b>Birth Information</b><br/>"
-            f"Date: {year}-{month:02d}-{day:02d}<br/>"
-            f"Time: {int(hour)}:{int((hour % 1) * 60):02d}<br/>"
-            f"Location: {lat:.4f}N, {lon:.4f}E"
-        )
-        story.append(Paragraph(birth_info, styles['Body']))
+        # Report title
+        title_text = "Vedic Signature Report"
+        story.append(Paragraph(title_text, styles['ReportTitle']))
+        story.append(Paragraph("A refined narrative of pattern, timing, and personal alignment", styles['ReportSubtitle']))
+        story.append(Spacer(1, 0.2*cm))
+
+        # Birth information card
+        birth_rows = [
+            [Paragraph("Birth Date", styles["MetaLabel"]), Paragraph(f"{year}-{month:02d}-{day:02d}", styles["MetaValue"])],
+            [Paragraph("Birth Time", styles["MetaLabel"]), Paragraph(f"{int(hour)}:{int((hour % 1) * 60):02d}", styles["MetaValue"])],
+            [Paragraph("Coordinates", styles["MetaLabel"]), Paragraph(f"{lat:.4f}, {lon:.4f}", styles["MetaValue"])],
+            [Paragraph("House System", styles["MetaLabel"]), Paragraph("Whole Sign" if house_system == "W" else "Placidus", styles["MetaValue"])],
+        ]
+        birth_table = Table(birth_rows, colWidths=[4.0 * cm, 10.5 * cm])
+        birth_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), panel_bg),
+            ('BOX', (0, 0), (-1, -1), 0.7, separator_color),
+            ('INNERGRID', (0, 0), (-1, -1), 0.3, separator_color),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(birth_table)
         story.append(Spacer(1, 0.5*cm))
 
         # D1 chart
@@ -1817,12 +2038,14 @@ async def generate_pdf(
             ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
             ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
             ('FONTSIZE', (0, 0), (-1, -1), 9),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
             ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
-            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.lightgrey]),
+            ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, table_alt]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
         ]))
         story.append(planet_table)
         story.append(Spacer(1, 0.5*cm))
@@ -1860,10 +2083,13 @@ async def generate_pdf(
                 ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
                 ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
                 ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))),
                 ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
                 ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+                ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, table_alt]),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
             ]))
             story.append(varga_table)
             story.append(Spacer(1, 0.5*cm))
@@ -1878,8 +2104,24 @@ async def generate_pdf(
             flowables = parse_markdown_to_flowables(reading_text, styles)
             story.extend(flowables)
 
+        def _draw_page_chrome(canvas, _doc):
+            canvas.saveState()
+            header_color = colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))
+            text_color = colors.HexColor(color_cfg.get("body", "#2D3748"))
+            canvas.setStrokeColor(separator_color)
+            canvas.setLineWidth(0.6)
+            canvas.line(_doc.leftMargin, A4[1] - _doc.topMargin + 10, A4[0] - _doc.rightMargin, A4[1] - _doc.topMargin + 10)
+            canvas.line(_doc.leftMargin, _doc.bottomMargin - 10, A4[0] - _doc.rightMargin, _doc.bottomMargin - 10)
+            canvas.setFont(PDF_FONT_BOLD, 8)
+            canvas.setFillColor(header_color)
+            canvas.drawString(_doc.leftMargin, A4[1] - _doc.topMargin + 14, "Vedic AI Report")
+            canvas.setFont(PDF_FONT_REG, 8)
+            canvas.setFillColor(text_color)
+            canvas.drawRightString(A4[0] - _doc.rightMargin, _doc.bottomMargin - 22, f"Page {canvas.getPageNumber()}")
+            canvas.restoreState()
+
         # PDF ??????
-        doc.build(story)
+        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
         pdf_bytes = buffer.getvalue()
     
     return Response(

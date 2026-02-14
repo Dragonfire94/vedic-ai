@@ -7,20 +7,23 @@
     "margin_right": 48
   },
   "fonts": {
-    "title": 22,
-    "chapter": 18,
-    "subtitle": 14,
-    "body": 12,
+    "title": 24,
+    "chapter": 17,
+    "subtitle": 13,
+    "body": 11,
     "small": 10
   },
   "colors": {
-    "title": "#222222",
-    "chapter": "#111111",
-    "body": "#444444",
-    "insight_spike": "#A00000",
-    "choice_fork": "#0033AA",
-    "predictive": "#006633",
-    "separator": "#CCCCCC"
+    "title": "#1F2A44",
+    "chapter": "#273B63",
+    "body": "#3E4452",
+    "insight_spike": "#B04A63",
+    "choice_fork": "#315D9D",
+    "predictive": "#2E7B73",
+    "separator": "#DCD6D0",
+    "panel_bg": "#FAF7F5",
+    "table_alt": "#F4EFEB",
+    "summary_accent": "#8D3D56"
   },
   "chapters": {
     "Executive Summary": { "break_before": true },

@@ -505,6 +505,136 @@ def _inject_scenario_compression(
             meta[lowest_idx] = scenario_block
 
 
+def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: str) -> dict[str, Any] | None:
+    shadbala_summary = structural_summary.get("shadbala_summary")
+    if not isinstance(shadbala_summary, dict):
+        return None
+
+    by_planet = shadbala_summary.get("by_planet")
+    if not isinstance(by_planet, dict) or not by_planet:
+        return None
+
+    top3 = shadbala_summary.get("top3_planets")
+    if not isinstance(top3, list):
+        top3 = []
+
+    lines: list[str] = []
+    for planet in top3[:3]:
+        entry = by_planet.get(planet, {})
+        if not isinstance(entry, dict):
+            continue
+        band = str(entry.get("band", "medium"))
+        total = entry.get("total", 0.5)
+        avastha = str(entry.get("avastha_state", "madhya"))
+        tags = entry.get("evidence_tags", [])
+        tags_text = ", ".join([str(t) for t in tags if isinstance(t, str) and t.strip()][:3]) or "No dominant tag"
+        try:
+            total_text = f"{float(total):.2f}"
+        except (TypeError, ValueError):
+            total_text = "0.50"
+        lines.append(f"{planet}: {band.upper()} ({total_text}) | Avastha: {avastha} | Evidence: {tags_text}")
+
+    if not lines:
+        return None
+
+    top_planets_text = ", ".join([str(p) for p in top3[:3] if isinstance(p, str) and p]) or "No clear top cluster"
+    analysis = (
+        "Shadbala 근사 지표와 Avastha 상태를 함께 본 핵심 판독입니다:\n"
+        + "\n".join(lines)
+    )
+
+    if chapter == "Stability Metrics":
+        return {
+            "id": "shadbala_avastha_snapshot_stability",
+            "chapter": chapter,
+            "priority": 95,
+            "_intensity": 0.82,
+            "content": {
+                "title": "Shadbala & Avastha Snapshot",
+                "summary": f"Top stabilizing planets: {top_planets_text}.",
+                "analysis": analysis,
+                "implication": (
+                    "강한 행성은 다샤/고차라 타이밍의 실행축으로 쓰고, 약한 행성이 지배하는 영역은 "
+                    "루틴과 회복력을 먼저 세운 뒤 확장하는 것이 안전합니다."
+                ),
+                "examples": (
+                    "근거 태그는 Directional Strength, Exalted, Own Sign, Combust, Retrograde를 사용하며, "
+                    "해석은 정량 점수보다 행성 간 상대 우선순위에 중점을 둡니다."
+                ),
+            },
+        }
+    if chapter == "Final Summary":
+        return {
+            "id": "shadbala_avastha_snapshot_final",
+            "chapter": chapter,
+            "priority": 94,
+            "_intensity": 0.8,
+            "content": {
+                "title": "Final Synthesis: Strength Axis",
+                "summary": f"핵심 행성 축은 {top_planets_text}로 수렴합니다.",
+                "analysis": (
+                    "상위 행성은 현실 실행력과 회복 탄력의 중심이며, 약한 행성 영역은 과속 시 변동성이 확대됩니다. "
+                    "이번 리포트의 권고는 이 강약 구조를 기준으로 배열되어야 정확도가 높습니다."
+                ),
+                "implication": "의사결정은 강한 축에 맞추고, 약한 축은 단계적 보정으로 접근하는 것이 손실을 줄입니다.",
+            },
+        }
+    if chapter == "Remedies & Program":
+        return {
+            "id": "shadbala_avastha_snapshot_remedy",
+            "chapter": chapter,
+            "priority": 94,
+            "_intensity": 0.8,
+            "content": {
+                "title": "Remedy Priority by Shadbala",
+                "summary": "처방 우선순위는 약한 행성의 안정화, 강한 행성의 과부하 방지 순으로 잡습니다.",
+                "analysis": (
+                    "약한 행성은 수면/루틴/행동 반복의 기본기부터 보강하고, 강한 행성은 과도한 책임 집중을 분산해야 "
+                    "전체 차트의 균형이 유지됩니다."
+                ),
+                "examples": "실행 계획은 2주 단위 점검으로 시작하고, 강약 밴드 변화에 따라 강도를 조정합니다.",
+            },
+        }
+    return None
+
+
+def _inject_shadbala_insight(
+    structural_summary: dict[str, Any],
+    chapter_blocks: dict[str, list[dict[str, Any]]],
+    chapter_meta: dict[str, list[dict[str, Any]]],
+    chapter_limits: dict[str, int],
+) -> None:
+    for chapter in ["Stability Metrics", "Final Summary", "Remedies & Program"]:
+        block = _build_shadbala_insight_block(structural_summary, chapter)
+        if not block:
+            continue
+        if chapter not in chapter_blocks or chapter not in chapter_meta:
+            continue
+        if any(existing.get("id") == block.get("id") for existing in chapter_meta[chapter]):
+            continue
+
+        chapter_limit = max(0, int(chapter_limits.get(chapter, 5)))
+        if chapter_limit == 0:
+            continue
+
+        intensity = block.get("_intensity", 0.0)
+        rendered = _render_payload_fragment(block, chapter, float(intensity))
+        if not rendered:
+            continue
+
+        existing = chapter_blocks[chapter]
+        meta = chapter_meta[chapter]
+        if len(existing) < chapter_limit:
+            existing.insert(0, rendered)
+            meta.insert(0, block)
+            continue
+
+        lowest_idx = min(range(len(meta)), key=lambda idx: float(meta[idx].get("_intensity", 0.0)))
+        if float(intensity) > float(meta[lowest_idx].get("_intensity", 0.0)):
+            existing[lowest_idx] = rendered
+            meta[lowest_idx] = block
+
+
 def _append_unique_block(
     selected: dict[str, list[dict[str, Any]]],
     chapter: str,
@@ -714,6 +844,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         chapter_blocks[chapter] = chapter_payload
         chapter_meta[chapter] = chapter_payload_meta
 
+    _inject_shadbala_insight(structural, chapter_blocks, chapter_meta, chapter_limits)
     _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
     _inject_scenario_compression(structural, chapter_blocks, chapter_meta, chapter_limits)
 
