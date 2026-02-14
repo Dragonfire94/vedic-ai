@@ -119,6 +119,38 @@ export default function BTRQuestionsPage() {
     setAnswers((prev) => ({ ...prev, [questionId]: value }))
   }
 
+  const buildMergedEvents = (existing: Record<string, BTREvent>, questionId: string, currentAnswer: EventAnswer) => {
+    const updated = { ...existing }
+
+    if (!currentAnswer.hasEvent) {
+      delete updated[questionId]
+      return Object.values(updated)
+    }
+
+    if (!currentAnswer.precision_level) {
+      return Object.values(updated)
+    }
+
+    const questionEventType = questionId.startsWith('followup-')
+      ? 'other'
+      : mapQuestionEventType(questions.find((question) => question.id === questionId)?.event_type)
+
+    const payload = buildEventPayload({
+      eventType: questionEventType,
+      precisionLevel: currentAnswer.precision_level,
+      year: currentAnswer.year,
+      ageRangeKey: currentAnswer.age_range_label,
+      otherLabel: currentAnswer.other_label,
+    })
+
+    if (!validateOtherLabel(payload)) {
+      return Object.values(updated)
+    }
+
+    updated[questionId] = payload
+    return Object.values(updated)
+  }
+
   const canProceedEventQuestion = () => {
     const answer = answers[currentQuestion?.id] as EventAnswer | undefined
     if (!answer || answer.hasEvent === undefined) return false
@@ -136,6 +168,12 @@ export default function BTRQuestionsPage() {
     if (isEventQuestion && currentQuestion) {
       const answer = answers[currentQuestion.id] as EventAnswer | undefined
       if (answer) {
+        if (currentStep === questions.length - 1) {
+          const mergedEvents = buildMergedEvents(eventsByQuestion, currentQuestion.id, answer)
+          handleAnalyze(mergedEvents)
+          return
+        }
+
         upsertQuestionEvent(currentQuestion.id, currentQuestion.event_type, answer)
       }
     }
@@ -154,7 +192,7 @@ export default function BTRQuestionsPage() {
     }
   }
 
-  const submitFollowUpEvent = () => {
+  const submitFollowUpEvent = async () => {
     const payload = buildEventPayload({
       eventType: 'other',
       precisionLevel: followUpAnswer.precision_level || 'unknown',
@@ -179,14 +217,21 @@ export default function BTRQuestionsPage() {
     }
 
     const key = `followup-${followUpAttempts + 1}`
+    const mergedEvents = buildMergedEvents(eventsByQuestion, key, {
+      ...followUpAnswer,
+      hasEvent: true,
+    })
+
     setEventsByQuestion((prev) => ({ ...prev, [key]: payload }))
     setFollowUpAttempts((prev) => prev + 1)
     setInlineError('')
     setFollowUpAnswer({ hasEvent: true, precision_level: 'unknown' })
+
+    await handleAnalyze(mergedEvents)
   }
 
-  const handleAnalyze = async () => {
-    const payloadEvents = Object.values(eventsByQuestion)
+  const handleAnalyze = async (overrideEvents?: BTREvent[]) => {
+    const payloadEvents = overrideEvents ?? Object.values(eventsByQuestion)
 
     if (payloadEvents.length === 0) {
       setInlineError('최소 1개 이상의 이벤트를 입력해주세요.')
