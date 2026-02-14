@@ -471,3 +471,15 @@ Phase 10 adds deterministic scenario-compression blocks that are conditionally i
 - No GPT cost increase.
 - Fully deterministic behavior.
 - Backward compatible with existing payload contract and chapters.
+
+## PDF Layout & Narrative Structure Engine
+
+The PDF presentation layer is now deterministic and config-driven for premium narrative report rendering.
+
+- Config-driven layout via `backend/pdf_layout_config.json`
+- Chapter-aware rendering using deterministic `chapter_blocks`
+- Insight Spike visual emphasis via dedicated semantic style
+- Choice Fork rendered as structured comparison tables
+- Predictive Compression rendered as structured forecast tables
+- Page-break enforcement for configured major chapters
+- Deterministic-only narrative rendering path (markdown fallback kept only for non-deterministic legacy content)
