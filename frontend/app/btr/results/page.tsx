@@ -9,6 +9,13 @@ import { Progress } from '@/components/ui/progress'
 import { Sparkles, ChevronDown, ChevronUp, Target, TrendingUp } from 'lucide-react'
 import { ASCENDANT_TRAITS } from '@/lib/utils'
 
+function formatConfidencePercent(value: unknown): number {
+  const numeric = typeof value === 'number' ? value : Number(value)
+  if (!Number.isFinite(numeric)) return 0
+  const normalized = numeric <= 1 ? numeric * 100 : numeric
+  return Math.max(0, Math.min(100, Math.round(normalized)))
+}
+
 export default function BTRResultsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -57,6 +64,7 @@ export default function BTRResultsPage() {
 
   const candidates = result.candidates || []
   const topCandidate = candidates[0]
+  const topConfidence = formatConfidencePercent(topCandidate?.confidence)
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
@@ -91,7 +99,7 @@ export default function BTRResultsPage() {
               </div>
               <div className="text-right">
                 <div className="text-3xl font-bold text-purple-600">
-                  {topCandidate?.confidence || 0}%
+                  {topConfidence}%
                 </div>
                 <div className="text-sm text-gray-600">신뢰도</div>
               </div>
@@ -160,7 +168,7 @@ export default function BTRResultsPage() {
                           )}
                         </CardTitle>
                         <CardDescription className="mt-1">
-                          {ascendantInfo.name_kr} 상승궁 • 신뢰도 {candidate.confidence}%
+                          {ascendantInfo.name_kr} 상승궁 • 신뢰도 {formatConfidencePercent(candidate.confidence)}%
                         </CardDescription>
                       </div>
                     </div>
@@ -175,7 +183,7 @@ export default function BTRResultsPage() {
                   
                   {/* Progress bar */}
                   <div className="mt-4">
-                    <Progress value={candidate.confidence || 0} className="h-2" />
+                    <Progress value={formatConfidencePercent(candidate.confidence)} className="h-2" />
                   </div>
                 </CardHeader>
 
