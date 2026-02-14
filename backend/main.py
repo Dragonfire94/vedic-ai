@@ -10,6 +10,7 @@ import os
 import json
 import math
 import base64
+import logging
 from pathlib import Path
 from enum import Enum
 from datetime import datetime
@@ -18,7 +19,9 @@ from typing import Optional, Any, Literal, Tuple, Dict, List
 # Structural engine import via the backend package to keep resolution stable
 # when running `uvicorn backend.main:app` from any working directory.
 from backend.astro_engine import build_structural_summary
-from backend.report_engine import build_report_payload, REPORT_CHAPTERS, SYSTEM_PROMPT, build_gpt_user_content
+from backend.report_engine import build_report_payload, REPORT_CHAPTERS, build_gpt_user_content
+from backend.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from backend.cache_manager import cache
 
 import swisseph as swe
 import pytz
@@ -41,6 +44,14 @@ from reportlab.platypus import (
 )
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s — %(message)s",
+)
+
+logger = logging.getLogger("vedic_ai")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 환경 변수
@@ -81,9 +92,9 @@ def init_fonts() -> None:
         PDF_FONT_REG = 'Pretendard'
         PDF_FONT_BOLD = 'Pretendard-Bold'
         PDF_FONT_MONO = 'Pretendard'
-        print("[INFO] Pretendard fonts loaded successfully")
+        logger.info("Pretendard fonts loaded successfully")
     except Exception as e:
-        print(f"[WARN] Font initialization failed. Fallback to Helvetica: {e}")
+        logger.warning(f"Font load fallback triggered: {e}")
 
 
 init_fonts()
@@ -106,12 +117,11 @@ if OPENAI_API_KEY:
     try:
         client = OpenAI(api_key=OPENAI_API_KEY)
     except Exception as e:
-        print(f"[WARN] OpenAI client initialization failed: {e}")
+        logger.warning(f"OpenAI client initialization failed: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
-# AI 캐시 (메모리)
+# AI 캐시
 # ─────────────────────────────────────────────────────────────────────────────
-AI_CACHE = {}
 AI_CACHE_TTL = 1800  # 30분
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -136,7 +146,7 @@ try:
         INTERPRETATIONS_ATOMIC_KO = {}
 except Exception as e:
     INTERPRETATIONS_LOAD_ERROR = str(e)
-    print(f"[WARN] interpretations file load failed: {e}")
+    logger.warning(f"interpretations file load failed: {e}")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Swiss Ephemeris 초기화
@@ -343,13 +353,13 @@ def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: f
     utc_dt = local_dt.astimezone(pytz.utc)
 
     # 🔍 디버그: 시간 변환 확인
-    print(f"🔍 Timezone: {tz_name}")
-    print(f"🔍 Local time: {local_dt}")
-    print(f"🔍 UTC time: {utc_dt}")
+    logger.debug(f"Timezone: {tz_name}")
+    logger.debug(f"Local time: {local_dt}")
+    logger.debug(f"UTC time: {utc_dt}")
 
     jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day,
                     utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0)
-    print(f"🔍 Julian day: {jd}")
+    logger.debug(f"Julian day: {jd}")
     return jd
 
 def extract_atomic_interpretation_text(entry: Any) -> str | None:
@@ -472,7 +482,7 @@ def health():
         "status": "ok",
         "openai_configured": bool(client),
         "model": OPENAI_MODEL,
-        "ai_cache_items": len(AI_CACHE),
+        "ai_cache_items": len(cache),
         "ai_cache_ttl_sec": AI_CACHE_TTL,
         "korean_font": KOREAN_FONT_AVAILABLE,
         "pdf_font_reg": PDF_FONT_REG,
@@ -519,10 +529,10 @@ def get_chart(
 ):
     """베딕 차트 계산"""
     # 🔍 디버그: 실제로 받은 파라미터 출력
-    print(f"🔍 DEBUG - Received parameters:")
-    print(f"   year={year}, month={month}, day={day}, hour={hour}")
-    print(f"   lat={lat}, lon={lon}")
-    print(f"   house_system={house_system}, gender={gender}")
+    logger.debug("Received parameters:")
+    logger.debug(f"year={year}, month={month}, day={day}, hour={hour}")
+    logger.debug(f"lat={lat}, lon={lon}")
+    logger.debug(f"house_system={house_system}, gender={gender}")
 
     try:
         jd = compute_julian_day(year, month, day, hour, lat, lon)
@@ -599,14 +609,14 @@ def get_chart(
         houses = {}
         if house_system == "P":
             # swe.houses() expects DEGREES, not radians!
-            print(f"🔍 INPUT Lat/Lon (degrees): {lat}, {lon}")
+            logger.debug(f"INPUT Lat/Lon (degrees): {lat}, {lon}")
             cusps, ascmc = swe.houses(jd, lat, lon, b'P')
             asc_tropical = ascmc[0]
 
             # 🔍 디버그: Houses 계산 확인
-            print(f"🔍 Ayanamsa: {ayanamsa}")
-            print(f"🔍 Tropical Ascendant: {asc_tropical}")
-            print(f"🔍 Sidereal Ascendant: {normalize_360(asc_tropical - ayanamsa)}")
+            logger.debug(f"Ayanamsa: {ayanamsa}")
+            logger.debug(f"Tropical Ascendant: {asc_tropical}")
+            logger.debug(f"Sidereal Ascendant: {normalize_360(asc_tropical - ayanamsa)}")
 
             # Tropical 상승궁에서 Ayanamsa를 빼서 Sidereal 상승궁 계산
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
@@ -812,6 +822,13 @@ def build_ai_psychological_input(
     return {k: _json_safe(source.get(k, {})) for k in allowed_keys}
 
 
+
+def _build_ai_input(context_data: str):
+    system_message = SYSTEM_PROMPT
+    user_message = USER_PROMPT_TEMPLATE.format(context_data=context_data)
+    return system_message, user_message
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: AI Reading
 # ─────────────────────────────────────────────────────────────────────────────
@@ -836,15 +853,17 @@ def get_ai_reading(
     """AI 리딩 생성"""
     cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}_{production_mode}_{events_json}_{timezone}"
 
-    if use_cache and cache_key in AI_CACHE:
-        cached = AI_CACHE[cache_key]
-        if production_mode:
-            return cached
-        return {
-            "cached": True,
-            "ai_cache_key": cache_key,
-            **cached,
-        }
+    if use_cache:
+        cached = cache.get(cache_key)
+        if cached:
+            logger.info(f"Cache hit: {cache_key}")
+            if production_mode:
+                return cached
+            return {
+                "cached": True,
+                "ai_cache_key": cache_key,
+                **cached,
+            }
 
     if production_mode:
         if not BTR_ENGINE_AVAILABLE:
@@ -895,7 +914,7 @@ def get_ai_reading(
                 "chapter_count": len(REPORT_CHAPTERS),
             }
             if use_cache:
-                AI_CACHE[cache_key] = production_result
+                cache.set(cache_key, production_result)
             return production_result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -932,7 +951,7 @@ def get_ai_reading(
             },
         }
         if use_cache:
-            AI_CACHE[cache_key] = result
+            cache.set(cache_key, result)
         return result
 
     try:
@@ -942,58 +961,25 @@ def get_ai_reading(
         static_context_used = False
         context_data = ""
 
-        if language == "ko":
-            system_message = """너는 점성학 구조 데이터를 심리적으로 이해하기 쉬운 상담 언어로 풀어주는 전문 컨설턴트다.
+        context_data = json.dumps(ai_payload, ensure_ascii=False, indent=2)
+        system_message, user_message = _build_ai_input(context_data)
 
-중요 원칙:
-- 제공된 structural_summary 데이터만 사용한다.
-- 데이터에 없는 사실을 단정하거나 추가하지 않는다.
-- 과장된 예언 대신 실행 가능한 행동 조언으로 재구성한다.
-- 정중하고 따뜻한 ~합니다/~하세요 체를 유지한다."""
-
-            user_message = f"""다음은 내담자의 구조 요약 JSON입니다.
-
-{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
-
-너의 역할: "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis."
-
-아래 JSON만 근거로 다음 형식으로 한국어 리포트를 작성하세요.
-[핵심 테마] 삶의 주제 한 줄 요약
-[심리 축] 내적 갈등/강점 해설
-[관계·커리어] 관계 벡터와 커리어 벡터의 실제 적용 조언
-[현재 시기 전략] current_dasha_vector 기반 리스크/기회 관리
-
-요구사항:
-- 추측 금지, JSON 근거 명시적 반영
-- 실천 가능한 조언 중심
-- 과도한 운세 문구 금지"""
-        else:
-            system_message = (
-                "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis. "
-                "Use only the provided structural_summary JSON, avoid adding external claims, "
-                "and provide practical guidance."
-            )
-            user_message = f"""Role instruction: "You are not calculating astrology. You are translating structured psychological signals into deep narrative analysis."
-
-Use only this structural_summary JSON:
-{json.dumps(ai_payload, ensure_ascii=False, indent=2)}
-
-Write a concise, practical English report with sections:
-1) Core life theme
-2) Psychological axis
-3) Relationship and career vectors
-4) Current dasha strategy (risk vs opportunity)"""
-
-        response = client.chat.completions.create(
-            model=OPENAI_MODEL,
-            messages=[
+        openai_payload = {
+            "model": OPENAI_MODEL,
+            "messages": [
                 {"role": "system", "content": system_message},
                 {"role": "user", "content": user_message},
             ],
-            temperature=0.6,
-            max_tokens=3000,
-        )
+            "temperature": 0.6,
+            "max_tokens": 8000,
+        }
+        try:
+            response = client.chat.completions.create(**openai_payload)
+        except Exception as e:
+            logger.error(f"OpenAI call failed: {e}")
+            raise HTTPException(status_code=500, detail="AI generation error") from e
 
+        logger.info("OpenAI response generated")
         reading_text = response.choices[0].message.content
 
         result = {
@@ -1024,10 +1010,12 @@ Write a concise, practical English report with sections:
         }
 
         if use_cache:
-            AI_CACHE[cache_key] = result
+            cache.set(cache_key, result)
 
         return result
 
+    except HTTPException:
+        raise
     except Exception as e:
         reading_text = f"[AI Error: {str(e)}]"
         result = {
@@ -1232,7 +1220,7 @@ def load_pdf_layout_config() -> dict[str, Any]:
             if isinstance(loaded, dict):
                 default_config.update({k: v for k, v in loaded.items() if k in default_config})
     except Exception as e:
-        print(f"[WARN] PDF layout config load failed. Using defaults: {e}")
+        logger.warning(f"PDF layout config load failed. Using defaults: {e}")
 
     return default_config
 
@@ -1409,8 +1397,8 @@ def generate_pdf(
     # AI 리딩
     ai_reading = None
     if include_ai:
-        if cache_only and ai_cache_key and ai_cache_key in AI_CACHE:
-            ai_reading = AI_CACHE[ai_cache_key]
+        if cache_only and ai_cache_key and cache.get(ai_cache_key):
+            ai_reading = cache.get(ai_cache_key)
         else:
             ai_reading = get_ai_reading(
                 year, month, day, hour, lat, lon,
@@ -1533,11 +1521,11 @@ try:
     if os.path.exists(BTR_QUESTIONS_PATH):
         with open(BTR_QUESTIONS_PATH, "r", encoding="utf-8") as f:
             BTR_QUESTIONS = json.load(f)
-        print(f"[INFO] BTR questions loaded: {BTR_QUESTIONS_PATH}")
+        logger.info(f"BTR questions loaded: {BTR_QUESTIONS_PATH}")
     else:
-        print(f"[WARN] BTR questions file not found: {BTR_QUESTIONS_PATH}")
+        logger.warning(f"BTR questions file not found: {BTR_QUESTIONS_PATH}")
 except Exception as e:
-    print(f"[WARN] BTR questions load failed: {e}")
+    logger.warning(f"BTR questions load failed: {e}")
 
 # BTR 엔진 import
 try:
@@ -1557,10 +1545,10 @@ try:
         apply_weight_adjustments,
     )
     BTR_ENGINE_AVAILABLE = True
-    print("[INFO] BTR engine loaded successfully")
+    logger.info("BTR engine loaded successfully")
 except ImportError as e:
     BTR_ENGINE_AVAILABLE = False
-    print(f"[WARN] BTR engine not available: {e}")
+    logger.warning(f"BTR engine not available: {e}")
 
 
 def _get_age_group(age: int) -> str:
