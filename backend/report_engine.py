@@ -93,6 +93,13 @@ REINFORCE_RULES = [
     },
 ]
 
+EMOTIONAL_ESCALATION_RULE = {
+    "tension_threshold": 75,
+    "stability_threshold": 45,
+    "inject_block_id": "high_pressure_identity_fragmentation",
+    "target_chapter": "Psychological Architecture",
+}
+
 
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
@@ -187,11 +194,31 @@ def compute_block_intensity(block: dict[str, Any], features: dict[str, Any]) -> 
     return min(max(base / 3.0, 0.0), 1.0)
 
 
-def _lookup_template_by_id(block_id: str) -> dict[str, Any] | None:
+def _lookup_template_by_id(block_id: str, chapter: str | None = None) -> dict[str, Any] | None:
     for block in TEMPLATES:
-        if block.get("id") == block_id:
+        if block.get("id") == block_id and (chapter is None or block.get("chapter") == chapter):
             return block
     return None
+
+
+def _append_unique_block(
+    selected: dict[str, list[dict[str, Any]]],
+    chapter: str,
+    block: dict[str, Any] | None,
+    structural_summary: dict[str, Any],
+) -> bool:
+    if not block or chapter not in selected:
+        return False
+
+    block_id = block.get("id")
+    if any(existing.get("id") == block_id for existing in selected[chapter]):
+        return False
+
+    expanded = dict(block)
+    expanded["_intensity"] = compute_block_intensity(expanded, structural_summary)
+    expanded["_match_index"] = len(selected[chapter])
+    selected[chapter].append(expanded)
+    return True
 
 
 def _sort_selected_blocks(selected: dict[str, list[dict[str, Any]]]) -> None:
@@ -218,10 +245,52 @@ def _apply_cross_chapter_reinforcement(selected: dict[str, list[dict[str, Any]]]
             if already_present:
                 continue
 
-            reinforced = dict(add_block)
-            reinforced["_intensity"] = compute_block_intensity(reinforced, structural_summary)
-            reinforced["_match_index"] = len(selected[target_chapter])
-            selected[target_chapter].append(reinforced)
+            _append_unique_block(selected, target_chapter, add_block, structural_summary)
+
+
+def _apply_emotional_escalation(selected: dict[str, list[dict[str, Any]]], structural_summary: dict[str, Any]) -> None:
+    tension = _get_structural_value(structural_summary, "psychological_tension_axis.score")
+    stability = _get_structural_value(structural_summary, "stability_metrics.stability_index")
+
+    if not isinstance(tension, (int, float)) or not isinstance(stability, (int, float)):
+        return
+
+    if tension < EMOTIONAL_ESCALATION_RULE["tension_threshold"]:
+        return
+    if stability > EMOTIONAL_ESCALATION_RULE["stability_threshold"]:
+        return
+
+    add_block = _lookup_template_by_id(
+        str(EMOTIONAL_ESCALATION_RULE["inject_block_id"]),
+        chapter=str(EMOTIONAL_ESCALATION_RULE["target_chapter"]),
+    )
+    _append_unique_block(
+        selected,
+        str(EMOTIONAL_ESCALATION_RULE["target_chapter"]),
+        add_block,
+        structural_summary,
+    )
+
+
+def _apply_recursive_correction(selected: dict[str, list[dict[str, Any]]], structural_summary: dict[str, Any]) -> None:
+    karma_pattern = _get_structural_value(structural_summary, "karmic_pattern_profile.primary_pattern")
+    primary_risk = _get_structural_value(structural_summary, "behavioral_risk_profile.primary_risk")
+
+    if karma_pattern != "correction" or primary_risk != "impulsivity":
+        return
+
+    block_id = "recursive_correction_loop"
+    target_chapter = "Life Timeline Interpretation"
+    add_block = _lookup_template_by_id(block_id, chapter=target_chapter)
+    _append_unique_block(selected, target_chapter, add_block, structural_summary)
+
+
+def _apply_psychological_echo(selected: dict[str, list[dict[str, Any]]], structural_summary: dict[str, Any]) -> None:
+    psych_ids = {block.get("id") for block in selected.get("Psychological Architecture", []) if block.get("id")}
+
+    for psych_id in psych_ids:
+        summary_match = _lookup_template_by_id(str(psych_id), chapter="Final Summary")
+        _append_unique_block(selected, "Final Summary", summary_match, structural_summary)
 
 
 def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
@@ -276,6 +345,9 @@ def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list
             idx += 1
 
     _apply_cross_chapter_reinforcement(selected, structural_summary)
+    _apply_emotional_escalation(selected, structural_summary)
+    _apply_recursive_correction(selected, structural_summary)
+    _apply_psychological_echo(selected, structural_summary)
     _sort_selected_blocks(selected)
 
     return selected
@@ -300,17 +372,44 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
             content = block.get("content", {})
             intensity = block.get("_intensity", 0)
 
-            if intensity > 0.8:
-                include_fields = ["title", "summary", "analysis", "implication", "examples"]
-            elif intensity > 0.5:
+            if intensity >= 0.85:
+                include_fields = [
+                    "title",
+                    "summary",
+                    "analysis",
+                    "implication",
+                    "examples",
+                    "shadow_pattern",
+                    "defense_mechanism",
+                    "emotional_trigger",
+                    "repetition_cycle",
+                    "integration_path",
+                    "choice_fork",
+                ]
+            elif intensity >= 0.75:
+                include_fields = [
+                    "title",
+                    "summary",
+                    "analysis",
+                    "implication",
+                    "examples",
+                    "shadow_pattern",
+                    "defense_mechanism",
+                    "emotional_trigger",
+                    "repetition_cycle",
+                    "integration_path",
+                ]
+            elif intensity >= 0.5:
                 include_fields = ["title", "summary", "analysis", "implication"]
             else:
                 include_fields = ["title", "summary", "analysis"]
 
             payload_block: dict[str, str] = {}
             for field in include_fields:
-                default_val = chapter if field == "title" else ""
-                payload_block[field] = str(content.get(field, default_val))
+                if field == "title":
+                    payload_block[field] = str(content.get(field, chapter))
+                elif field in content:
+                    payload_block[field] = str(content.get(field, ""))
             chapter_payload.append(payload_block)
 
         chapter_blocks[chapter] = chapter_payload

@@ -129,5 +129,166 @@
       "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",
       "examples": "You may notice conflict spillover from one domain into unrelated decisions unless decompression boundaries are enforced."
     }
+  },
+  {
+    "id": "high_pressure_identity_fragmentation",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 75
+      },
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 45
+      }
+    ],
+    "logic": "AND",
+    "priority": 98,
+    "content": {
+      "title": "High-Pressure Identity Fragmentation",
+      "summary": "Under sustained pressure, identity coherence can split across competing roles and self-expectations.",
+      "analysis": "Stress amplifies internal role-conflict, causing relational spillover and narrowing executive bandwidth toward short-term threat control.",
+      "implication": "Without containment, this pattern can distort judgment quality and destabilize interpersonal trust loops.",
+      "examples": "You may shift rapidly between hyper-control and disengagement when expectations collide.",
+      "shadow_pattern": "Unconscious fear of inadequacy drives over-identification with performance personas.",
+      "defense_mechanism": "Compartmentalization mixed with reactive rationalization under scrutiny.",
+      "emotional_trigger": "Perceived loss of control, criticism, or role-based invalidation.",
+      "repetition_cycle": "Pressure spike → identity split response → relational friction → cognitive narrowing → temporary recovery → repeat.",
+      "integration_path": "Re-anchor decisions to a single values hierarchy, then rebuild boundaries across roles before re-escalating commitments.",
+      "choice_fork": "If unaddressed, fragmentation hardens into chronic volatility; if integrated, pressure becomes a catalyst for coherent leadership."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "high_pressure_identity_fragmentation",
+    "chapter": "Final Summary",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 200
+      }
+    ],
+    "logic": "AND",
+    "priority": 89,
+    "content": {
+      "title": "Summary Echo: Identity Under Pressure",
+      "summary": "The core psychological theme is identity coherence under stress.",
+      "analysis": "Sustained pressure can fragment attention, relational tone, and strategic consistency unless consciously integrated.",
+      "implication": "Your long-cycle outcomes depend on converting stress responses into coherent self-leadership.",
+      "examples": "",
+      "shadow_pattern": "A hidden self-worth equation tied to uninterrupted competence.",
+      "defense_mechanism": "Over-functioning and selective emotional suppression.",
+      "emotional_trigger": "Situations that imply failure, rejection, or loss of authority.",
+      "repetition_cycle": "Escalation, fragmentation, recovery, and renewed escalation unless interrupted at trigger level.",
+      "integration_path": "Stabilize identity first, then decision velocity.",
+      "choice_fork": "Integrated pressure response creates compounding trust; fragmented response compounds friction."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "authority_projection_pattern",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 65
+      },
+      {
+        "field": "behavioral_risk_profile.overcontrol_risk",
+        "operator": ">=",
+        "value": 60
+      }
+    ],
+    "logic": "AND",
+    "priority": 78,
+    "content": {
+      "title": "Authority Projection Pattern",
+      "summary": "Relational dynamics may be filtered through authority narratives rather than direct emotional signals.",
+      "analysis": "Unprocessed control anxiety can be projected onto partners as perceived rigidity, judgment, or hierarchy conflict.",
+      "implication": "Repair improves when power language is translated back into need language.",
+      "examples": "Minor disagreements can escalate when interpreted as challenges to competence or respect.",
+      "shadow_pattern": "Need for relational safety is masked as insistence on structure.",
+      "defense_mechanism": "Projection with intellectualization during conflict.",
+      "emotional_trigger": "Ambiguity, unmet expectations, or tone interpreted as dismissal.",
+      "repetition_cycle": "Perceived disrespect → control response → partner resistance → intensified control → disconnection.",
+      "integration_path": "Name vulnerability before enforcing structure; co-create boundaries instead of imposing them."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "relational_mirroring_conflict",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 79,
+    "content": {
+      "title": "Relational Mirroring Conflict",
+      "summary": "Partnership stress may mirror unresolved internal contradictions back at high intensity.",
+      "analysis": "Reactive exchanges can function as mirrors, exposing unintegrated emotional themes through repetitive conflict scripts.",
+      "implication": "Conscious pattern naming is required to prevent cyclical escalation.",
+      "examples": "Arguments may repeat with different topics but identical emotional choreography.",
+      "shadow_pattern": "Disowned emotional needs are externalized and fought in the relational field.",
+      "defense_mechanism": "Displacement and reactive counter-attack.",
+      "emotional_trigger": "Feeling unseen, cornered, or mischaracterized.",
+      "repetition_cycle": "Trigger → mirrored reaction → escalation → rupture threat → temporary repair → same trigger.",
+      "integration_path": "Track the first 90 seconds of activation and interrupt with reflective language before problem-solving."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   }
 ]

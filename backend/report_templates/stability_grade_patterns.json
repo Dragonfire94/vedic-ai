@@ -122,5 +122,47 @@
       "implication": "Conservative load management and early intervention protocols are recommended.",
       "examples": "Fatigue may convert minor interruptions into disproportionate disruptions in planning and execution."
     }
+  },
+  {
+    "id": "burnout_compounding_pattern",
+    "chapter": "Health & Body Patterns",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 50
+      },
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      }
+    ],
+    "logic": "AND",
+    "priority": 86,
+    "content": {
+      "title": "Burnout Compounding Pattern",
+      "summary": "Psychological strain and low recovery stability can compound into progressive depletion.",
+      "analysis": "Without early load correction, stress debt accumulates faster than restoration, narrowing physical and cognitive resilience.",
+      "implication": "Sustained performance requires active recovery architecture, not just motivation.",
+      "examples": "Energy crashes may appear after periods of forced consistency despite warning signals.",
+      "shadow_pattern": "Self-worth is tied to output continuity despite declining reserves.",
+      "defense_mechanism": "Denial of fatigue with compensatory overdrive.",
+      "emotional_trigger": "Fear of falling behind or disappointing expectations.",
+      "repetition_cycle": "Overextend → micro-recovery → renewed overextension → sharper crash.",
+      "integration_path": "Set non-negotiable recovery thresholds and tie high-stakes execution to biological readiness markers.",
+      "choice_fork": "Ignoring recovery compounds burnout risk; respecting limits restores sustainable momentum."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   }
 ]
