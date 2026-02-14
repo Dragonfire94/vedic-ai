@@ -1383,7 +1383,7 @@ def convert_markdown_bold(text: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 # 엔드포인트: PDF 생성
 # ─────────────────────────────────────────────────────────────────────────────
-@app.get("/report.pdf")
+@app.get("/pdf")
 def generate_pdf(
     year: int = Query(...),
     month: int = Query(...),

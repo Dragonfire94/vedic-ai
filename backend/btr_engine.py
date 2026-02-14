@@ -11,6 +11,7 @@ import json
 import os
 from typing import List, Dict, Optional, Tuple, Any, Literal
 from datetime import datetime
+from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
 import swisseph as swe
@@ -1012,14 +1013,10 @@ def _check_antardasha_extended(
     base_month = event_month if event_month and event_month > 0 else 6
 
     for offset in range(-buffer_months, buffer_months + 1):
-        check_month = base_month + offset
-        check_year = event_year
-        while check_month < 1:
-            check_month += 12
-            check_year -= 1
-        while check_month > 12:
-            check_month -= 12
-            check_year += 1
+        base_date = datetime(event_year, base_month, 1)
+        adjusted_date = base_date + relativedelta(months=offset)
+        check_year = adjusted_date.year
+        check_month = adjusted_date.month
 
         dasha_state = get_dasha_at_date(birth_jd, birth_moon_lon, check_year, check_month)
         antar = dasha_state.get("antardasha")
