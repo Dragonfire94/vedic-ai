@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import operator as op
 from pathlib import Path
 from typing import Any
@@ -79,6 +80,7 @@ OP_MAP = {
 
 TEMPLATES: list[dict[str, Any]] = []
 DEFAULT_BLOCKS: dict[str, list[dict[str, Any]]] = {}
+logger = logging.getLogger("report_engine")
 
 REINFORCE_RULES = [
     {
@@ -148,10 +150,12 @@ SCENARIO_COMPRESSION_RULES = [
         "conditions": {
             "probability_forecast.financial_instability_3yr": {">=": 0.65},
         },
-        "chapter": "Wealth & Material Flow",
+        "chapter": "Final Summary",
         "priority": 96,
     },
 ]
+
+
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
         payload = json.load(handle)
@@ -162,13 +166,19 @@ def _load_templates() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
     base = Path(__file__).resolve().parent / "report_templates"
     templates: list[dict[str, Any]] = []
     for filename in _TEMPLATE_FILES:
-        templates.extend(_load_template_file(base / filename))
+        for block in _load_template_file(base / filename):
+            chapter = block.get("chapter")
+            if chapter not in REPORT_CHAPTERS:
+                logger.warning("Template block has unknown chapter '%s': id=%s", chapter, block.get("id"))
+            templates.append(block)
 
     defaults: dict[str, list[dict[str, Any]]] = {chapter: [] for chapter in REPORT_CHAPTERS}
     for block in _load_template_file(base / _DEFAULT_TEMPLATE_FILE):
         chapter = block.get("chapter")
         if chapter in defaults:
             defaults[chapter].append(block)
+        else:
+            logger.warning("Default block has unknown chapter '%s': id=%s", chapter, block.get("id"))
 
     for chapter in defaults:
         defaults[chapter].sort(key=lambda b: b.get("priority", 0), reverse=True)
@@ -176,10 +186,22 @@ def _load_templates() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, An
     return templates, defaults
 
 
+def _validate_rule_chapters() -> None:
+    for rule in SCENARIO_COMPRESSION_RULES:
+        chapter = rule.get("chapter")
+        if chapter not in REPORT_CHAPTERS:
+            logger.warning(
+                "Scenario compression rule references unknown chapter '%s': id=%s",
+                chapter,
+                rule.get("id"),
+            )
+
+
 def _ensure_loaded() -> None:
     global TEMPLATES, DEFAULT_BLOCKS
     if not TEMPLATES and not DEFAULT_BLOCKS:
         TEMPLATES, DEFAULT_BLOCKS = _load_templates()
+        _validate_rule_chapters()
 
 
 def get_template_libraries() -> dict[str, Any]:
@@ -323,11 +345,6 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
             "analysis",
             "implication",
             "examples",
-            "shadow_pattern",
-            "defense_mechanism",
-            "emotional_trigger",
-            "repetition_cycle",
-            "integration_path",
             "choice_fork",
             "predictive_compression",
         ]
@@ -441,6 +458,7 @@ def _inject_scenario_compression(
     structural_summary: dict[str, Any],
     chapter_blocks: dict[str, list[dict[str, Any]]],
     chapter_meta: dict[str, list[dict[str, Any]]],
+    chapter_limits: dict[str, int],
 ) -> None:
     for rule in SCENARIO_COMPRESSION_RULES:
         if not _evaluate_conditions(structural_summary, rule.get("conditions", {})):
@@ -473,8 +491,12 @@ def _inject_scenario_compression(
 
         existing = chapter_blocks[chapter]
         meta = chapter_meta[chapter]
+        chapter_limit = max(0, int(chapter_limits.get(str(chapter), 5)))
 
-        if len(existing) < 5:
+        if chapter_limit == 0:
+            continue
+
+        if len(existing) < chapter_limit:
             existing.insert(0, rendered)
             meta.insert(0, scenario_block)
         else:
@@ -693,7 +715,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         chapter_meta[chapter] = chapter_payload_meta
 
     _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
-    _inject_scenario_compression(structural, chapter_blocks, chapter_meta)
+    _inject_scenario_compression(structural, chapter_blocks, chapter_meta, chapter_limits)
 
     final_chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     for chapter in REPORT_CHAPTERS:

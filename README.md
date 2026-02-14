@@ -1,5 +1,19 @@
 # Vedic AI
 
+## Quick Start Stability Notes
+
+- `run_all.bat` now performs backend dependency preflight before launching services.
+- If dependencies are missing, it will run:
+  - `python -m pip install -r backend/requirements.txt`
+- If Google Maps API key is missing, frontend city search automatically falls back to OpenStreetMap (Nominatim).
+
+Manual recovery commands:
+
+```bash
+python -m pip install -r backend/requirements.txt
+cd frontend && npm install
+```
+
 ## BTR Engine Stabilization (Signal Normalization)
 
 ### `backend/config/event_signal_mapping.json`
@@ -34,7 +48,7 @@ The engine now keeps a **raw confidence** value from scoring and applies a stati
 Calibration features (computed from candidate score/probability distribution):
 
 - `gap`: top-1 vs top-2 score separation
-- `entropy`: `-Σ p_i log(p_i + 1e-9)` (higher means flatter, more uncertain)
+- `entropy`: `-誇 p_i log(p_i + 1e-9)` (higher means flatter, more uncertain)
 - `score_variance`: normalized to `[0, 1]`
 - `top_probability`: largest normalized candidate probability
 
@@ -93,7 +107,7 @@ To trigger recalculation:
 
 Safety constraints:
 - No automatic recalculation on normal runs (admin endpoint only)
-- Multipliers are capped to `±10%` (`0.9` to `1.1`)
+- Multipliers are capped to `짹10%` (`0.9` to `1.1`)
 - `base_weight` is never reduced below `0.1`
 
 > Warning: Empirical tuning requires sufficient sample size (>100 events recommended).
@@ -219,8 +233,8 @@ Intensity is used only to modulate narrative depth (field inclusion), not to exp
 `REINFORCE_RULES` adds deterministic linking blocks when specific block combinations are selected.
 
 Current rules:
-- `high_tension_risk_aggro` + `high_stability_fall` ⇒ add `tension_stability_interaction` to **Psychological Architecture**
-- `career_conflict_karma` + `career_purushartha` ⇒ add `career_karma_pattern_reinforcement` to **Executive Summary**
+- `high_tension_risk_aggro` + `high_stability_fall` ??add `tension_stability_interaction` to **Psychological Architecture**
+- `career_conflict_karma` + `career_purushartha` ??add `career_karma_pattern_reinforcement` to **Executive Summary**
 
 ### Chain followup behavior
 After initial matching, each selected block can append same-chapter `chain_followups` by block id.
@@ -251,7 +265,7 @@ This increases report density only where structural pressure is stronger.
 ### Example expanded output block JSON
 ```json
 {
-  "title": "Tension–Stability Interaction Pattern",
+  "title": "Tension?밪tability Interaction Pattern",
   "summary": "Psychological pressure and stability dynamics interact in ways that amplify reactivity cycles.",
   "analysis": "When internal friction rises while stability weakens, attention narrows and recovery latency increases.",
   "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",

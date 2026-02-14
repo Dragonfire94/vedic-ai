@@ -1,52 +1,85 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { MapPin, Loader2 } from 'lucide-react'
+import { Loader2, MapPin } from 'lucide-react'
+
+type Provider = 'google' | 'nominatim'
+
+type CitySelection = {
+  city: string
+  lat: number
+  lon: number
+}
 
 interface CitySearchProps {
-  onCitySelect: (data: { city: string; lat: number; lon: number }) => void
+  onCitySelect: (data: CitySelection) => void
   defaultValue?: string
 }
 
 export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps) {
+  const hasGoogleApiKey = Boolean(process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.trim())
+
+  const [provider, setProvider] = useState<Provider>(hasGoogleApiKey ? 'google' : 'nominatim')
   const [inputValue, setInputValue] = useState(defaultValue)
   const [predictions, setPredictions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+
   const inputRef = useRef<HTMLInputElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Google Places Autocomplete Service
   const autocompleteService = useRef<any>(null)
   const geocoder = useRef<any>(null)
 
+  const initializeGoogleServices = () => {
+    if (!window.google?.maps?.places?.AutocompleteService || !window.google?.maps?.Geocoder) {
+      return false
+    }
+
+    autocompleteService.current = new window.google.maps.places.AutocompleteService()
+    geocoder.current = new window.google.maps.Geocoder()
+    return true
+  }
+
   useEffect(() => {
-    // Load Google Maps API
-    if (typeof window !== 'undefined' && !window.google) {
-      const script = document.createElement('script')
+    if (!hasGoogleApiKey) {
+      setProvider('nominatim')
+      return
+    }
+
+    if (window.google) {
+      if (!initializeGoogleServices()) {
+        setProvider('nominatim')
+      }
+      return
+    }
+
+    const scriptId = 'google-maps-places-script'
+    let script = document.getElementById(scriptId) as HTMLScriptElement | null
+
+    if (!script) {
+      script = document.createElement('script')
+      script.id = scriptId
       script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&libraries=places&language=ko`
       script.async = true
       script.defer = true
       document.head.appendChild(script)
+    }
 
-      script.onload = () => {
-        initializeServices()
+    script.onload = () => {
+      if (!initializeGoogleServices()) {
+        setProvider('nominatim')
       }
-    } else if (window.google) {
-      initializeServices()
     }
-  }, [])
 
-  const initializeServices = () => {
-    if (window.google) {
-      autocompleteService.current = new window.google.maps.places.AutocompleteService()
-      geocoder.current = new window.google.maps.Geocoder()
+    script.onerror = () => {
+      setProvider('nominatim')
     }
-  }
+  }, [hasGoogleApiKey])
 
-  // Click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -63,6 +96,77 @@ export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
+  const searchGoogleCities = (query: string) => {
+    if (!autocompleteService.current) {
+      setProvider('nominatim')
+      searchNominatimCities(query)
+      return
+    }
+
+    setIsLoading(true)
+
+    autocompleteService.current.getPlacePredictions(
+      {
+        input: query,
+        types: ['(cities)'],
+        language: 'ko',
+      },
+      (googlePredictions: any, status: any) => {
+        setIsLoading(false)
+
+        if (status === window.google.maps.places.PlacesServiceStatus.OK && googlePredictions) {
+          setPredictions(googlePredictions)
+          setShowDropdown(true)
+          return
+        }
+
+        setPredictions([])
+        setShowDropdown(false)
+      }
+    )
+  }
+
+  const searchNominatimCities = async (query: string) => {
+    setIsLoading(true)
+
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?${
+          new URLSearchParams({
+            q: query,
+            format: 'json',
+            addressdetails: '1',
+            limit: '5',
+            'accept-language': 'ko',
+          }).toString()
+        }`
+      )
+
+      const data = await response.json()
+      const cities = Array.isArray(data)
+        ? data.filter((item: any) => {
+            const type = item.type || item.addresstype
+            return (
+              type === 'city' ||
+              type === 'town' ||
+              type === 'village' ||
+              type === 'administrative' ||
+              item.class === 'place'
+            )
+          })
+        : []
+
+      setPredictions(cities)
+      setShowDropdown(cities.length > 0)
+    } catch (error) {
+      console.error('City search error:', error)
+      setPredictions([])
+      setShowDropdown(false)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
   const handleInputChange = (value: string) => {
     setInputValue(value)
 
@@ -72,60 +176,55 @@ export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps)
       return
     }
 
-    if (!autocompleteService.current) {
-      return
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
     }
 
-    setIsLoading(true)
-
-    // Google Places Autocomplete
-    autocompleteService.current.getPlacePredictions(
-      {
-        input: value,
-        types: ['(cities)'], // 도시만
-        language: 'ko',
-      },
-      (predictions: any, status: any) => {
-        setIsLoading(false)
-
-        if (status === window.google.maps.places.PlacesServiceStatus.OK && predictions) {
-          setPredictions(predictions)
-          setShowDropdown(true)
-        } else {
-          setPredictions([])
-          setShowDropdown(false)
-        }
+    debounceTimer.current = setTimeout(() => {
+      if (provider === 'google') {
+        searchGoogleCities(value)
+      } else {
+        searchNominatimCities(value)
       }
-    )
+    }, 250)
   }
 
-  const handleSelectCity = async (prediction: any) => {
+  const handleGoogleSelectCity = (prediction: any) => {
     setInputValue(prediction.description)
     setShowDropdown(false)
     setIsLoading(true)
 
-    // Geocode to get lat/lon
     if (!geocoder.current) {
       setIsLoading(false)
+      setProvider('nominatim')
       return
     }
 
-    geocoder.current.geocode(
-      { placeId: prediction.place_id },
-      (results: any, status: any) => {
-        setIsLoading(false)
+    geocoder.current.geocode({ placeId: prediction.place_id }, (results: any, status: any) => {
+      setIsLoading(false)
 
-        if (status === 'OK' && results[0]) {
-          const location = results[0].geometry.location
-          
-          onCitySelect({
-            city: prediction.description,
-            lat: location.lat(),
-            lon: location.lng(),
-          })
-        }
+      if (status === 'OK' && results[0]) {
+        const location = results[0].geometry.location
+        onCitySelect({
+          city: prediction.description,
+          lat: location.lat(),
+          lon: location.lng(),
+        })
       }
-    )
+    })
+  }
+
+  const handleNominatimSelectCity = (city: any) => {
+    const displayName = String(city.display_name || '').split(',').slice(0, 2).join(',').trim()
+
+    setInputValue(displayName)
+    setShowDropdown(false)
+
+    onCitySelect({
+      city: displayName,
+      lat: parseFloat(city.lat),
+      lon: parseFloat(city.lon),
+    })
   }
 
   return (
@@ -134,7 +233,7 @@ export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps)
         <MapPin className="w-4 h-4" />
         출생 도시
       </Label>
-      
+
       <div className="relative">
         <Input
           ref={inputRef}
@@ -150,7 +249,7 @@ export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps)
           }}
           className="pr-10"
         />
-        
+
         {isLoading && (
           <div className="absolute right-3 top-1/2 -translate-y-1/2">
             <Loader2 className="w-4 h-4 animate-spin text-gray-400" />
@@ -158,46 +257,53 @@ export function CitySearch({ onCitySelect, defaultValue = '' }: CitySearchProps)
         )}
       </div>
 
-      {/* Dropdown */}
       {showDropdown && predictions.length > 0 && (
         <div
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-y-auto"
         >
-          {predictions.map((prediction) => (
-            <button
-              key={prediction.place_id}
-              onClick={() => handleSelectCity(prediction)}
-              className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3 border-b border-gray-100 last:border-b-0"
-            >
-              <MapPin className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1 min-w-0">
-                <div className="font-medium text-gray-900 truncate">
-                  {prediction.structured_formatting.main_text}
+          {predictions.map((item: any, index: number) => {
+            const key = provider === 'google' ? item.place_id : `${item.place_id}-${index}`
+            const mainText =
+              provider === 'google'
+                ? item.structured_formatting?.main_text || item.description
+                : String(item.display_name || '').split(',')[0]
+            const secondaryText =
+              provider === 'google'
+                ? item.structured_formatting?.secondary_text || ''
+                : String(item.display_name || '').split(',').slice(1, 3).join(',').trim()
+
+            return (
+              <button
+                key={key}
+                onClick={() =>
+                  provider === 'google' ? handleGoogleSelectCity(item) : handleNominatimSelectCity(item)
+                }
+                className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3 border-b border-gray-100 last:border-b-0"
+              >
+                <MapPin className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-gray-900 truncate">{mainText}</div>
+                  <div className="text-sm text-gray-500 truncate">{secondaryText}</div>
                 </div>
-                <div className="text-sm text-gray-500 truncate">
-                  {prediction.structured_formatting.secondary_text}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            )
+          })}
         </div>
       )}
 
-      {/* No results */}
       {showDropdown && predictions.length === 0 && !isLoading && inputValue.length >= 2 && (
         <div
           ref={dropdownRef}
           className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-4 text-center text-sm text-gray-500"
         >
-          검색 결과가 없습니다
+          검색 결과가 없습니다.
         </div>
       )}
     </div>
   )
 }
 
-// TypeScript types for window.google
 declare global {
   interface Window {
     google: any

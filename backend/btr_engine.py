@@ -15,10 +15,14 @@ from dateutil.relativedelta import relativedelta
 from pathlib import Path
 
 import swisseph as swe
+from backend.swe_config import initialize_swe_context
 
 logger = logging.getLogger("btr_engine")
 calibration_logger = logging.getLogger("btr.calibration")
 calibration_logger.setLevel(logging.INFO)
+
+# Keep sidereal mode fixed (Lahiri) even when this module is used standalone.
+initialize_swe_context(logger)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 상수

@@ -22,13 +22,17 @@ from backend.astro_engine import build_structural_summary
 from backend.report_engine import build_report_payload, REPORT_CHAPTERS, build_gpt_user_content
 from backend.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from backend.cache_manager import cache
+from backend.swe_config import initialize_swe_context
 
 try:
     import swisseph as swe
 except Exception as e:
     raise RuntimeError("Swiss Ephemeris not properly installed in container") from e
 import pytz
-from timezonefinder import TimezoneFinder
+try:
+    from timezonefinder import TimezoneFinder
+except Exception:
+    TimezoneFinder = None  # type: ignore[assignment]
 from openai import OpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
@@ -175,8 +179,7 @@ except Exception as e:
 # ─────────────────────────────────────────────────────────────────────────────
 # Swiss Ephemeris 초기화
 # ─────────────────────────────────────────────────────────────────────────────
-swe.set_ephe_path(None)
-swe.set_sid_mode(swe.SIDM_LAHIRI)
+initialize_swe_context(logger)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 상수: 행성, 라시, 나크샤트라
@@ -365,14 +368,31 @@ def is_combust(planet_name: str, planet_lon: float, sun_lon: float) -> bool:
 
 def resolve_timezone_offset(year: int, month: int, day: int, lat: float, lon: float) -> float:
     """위도/경도로 타임존을 결정해 UTC 오프셋(시간)을 반환한다."""
+    if TimezoneFinder is None:
+        logger.warning(
+            "timezonefinder is not installed; using UTC offset 0.0. "
+            "Install dependencies with: python -m pip install -r backend/requirements.txt"
+        )
+        return 0.0
+
     tf = TimezoneFinder()
     tz_name = tf.timezone_at(lat=lat, lng=lon)
     if not tz_name:
-        raise HTTPException(status_code=400, detail="Unable to determine timezone.")
+        logger.warning(
+            "Unable to determine timezone for lat=%s lon=%s. Falling back to UTC offset 0.0.",
+            lat,
+            lon,
+        )
+        return 0.0
 
-    tz = pytz.timezone(tz_name)
-    sample_dt = datetime(year, month, day)
-    tz_offset = tz.utcoffset(sample_dt).total_seconds() / 3600.0
+    try:
+        tz = pytz.timezone(tz_name)
+        sample_dt = datetime(year, month, day)
+        tz_offset = tz.utcoffset(sample_dt).total_seconds() / 3600.0
+    except Exception:
+        logger.warning("Failed to resolve timezone offset for tz=%s. Falling back to 0.0.", tz_name)
+        return 0.0
+
     logger.debug(f"Timezone: {tz_name}, tz_offset={tz_offset}")
     return tz_offset
 
