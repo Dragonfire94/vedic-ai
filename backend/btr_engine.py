@@ -1599,10 +1599,27 @@ def analyze_birth_time(
     if not events:
         raise ValueError("이벤트가 하나 이상 필요합니다.")
 
-    current_year = datetime.now().year
+    current_year = datetime.utcnow().year
+    valid_events: List[Dict] = []
     for ev in events:
+        precision_level = ev.get("precision_level", "exact")
+        if precision_level == "range":
+            age_range = ev.get("age_range")
+            if age_range is None:
+                continue
+            start_year, _ = convert_age_range_to_year_range(birth_date["year"], age_range)
+            if start_year > current_year:
+                continue
+            valid_events.append(ev)
+            continue
+
         if ev.get("year") and ev["year"] > current_year:
             raise ValueError(f"미래 이벤트는 사용할 수 없습니다: {ev['year']}")
+
+        valid_events.append(ev)
+
+    if not valid_events:
+        raise ValueError("유효한 이벤트가 하나 이상 필요합니다.")
 
     # 1. 브래킷 생성
     brackets = generate_time_brackets(birth_date, num_brackets=num_brackets)
@@ -1619,7 +1636,7 @@ def analyze_birth_time(
 
         event_signal_contributions: List[Dict[str, Any]] = []
         score, matched, total, confidence, fb_levels = _score_candidate(
-            birth_date, mid_hour, chart, events, lat, lon, use_dignity=use_dignity, use_aspects=use_aspects
+            birth_date, mid_hour, chart, valid_events, lat, lon, use_dignity=use_dignity, use_aspects=use_aspects
             , event_signal_collector=event_signal_contributions
         )
 

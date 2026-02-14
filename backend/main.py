@@ -1680,7 +1680,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
     validate_btr_events(request.events)
 
     # 미래 이벤트 검증 (precision_level 별)
-    current_year = datetime.now().year
+    current_year = datetime.utcnow().year
     for ev in request.events:
         if ev.precision_level == "exact":
             if ev.year is not None and ev.year > current_year:
@@ -1694,11 +1694,11 @@ def analyze_btr(request: BTRAnalyzeRequest):
                     status_code=400,
                     detail="range 이벤트는 age_range가 필요합니다."
                 )
-            _, upper_year = convert_age_range_to_year_range(request.year, ev.age_range)
-            if upper_year > current_year:
+            start_year, _ = convert_age_range_to_year_range(request.year, ev.age_range)
+            if start_year > current_year:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"미래 범위 이벤트는 사용할 수 없습니다: {upper_year}"
+                    detail="Age range results in a future event. Please adjust the range."
                 )
         elif ev.precision_level == "unknown":
             # unknown은 연도 검증을 생략
@@ -1749,6 +1749,30 @@ def refine_btr(request: BTRRefineRequest):
         raise HTTPException(status_code=500, detail="BTR 엔진이 로드되지 않았습니다.")
 
     validate_btr_events(request.events)
+
+    # 미래 이벤트 검증 (precision_level 별)
+    current_year = datetime.utcnow().year
+    for ev in request.events:
+        if ev.precision_level == "exact":
+            if ev.year is not None and ev.year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"미래 이벤트는 사용할 수 없습니다: {ev.year}"
+                )
+        elif ev.precision_level == "range":
+            if ev.age_range is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="range 이벤트는 age_range가 필요합니다."
+                )
+            start_year, _ = convert_age_range_to_year_range(request.year, ev.age_range)
+            if start_year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Age range results in a future event. Please adjust the range."
+                )
+        elif ev.precision_level == "unknown":
+            continue
 
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
