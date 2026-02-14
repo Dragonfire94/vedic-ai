@@ -1,10 +1,26 @@
 function resolveApiBaseUrl(): string {
   // Server-side (SSR / Route handlers): prefer internal service DNS.
   if (typeof window === 'undefined') {
-    return (
+    const internalApiUrl = (
+      process.env.INTERNAL_API_URL ||
       process.env.API_URL ||
-      process.env.NEXT_PUBLIC_API_URL ||
-      'http://127.0.0.1:8000'
+      ''
+    ).trim()
+    if (internalApiUrl) {
+      return internalApiUrl
+    }
+
+    const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim()
+    if (publicApiUrl) {
+      return publicApiUrl
+    }
+
+    if (process.env.NODE_ENV === 'development') {
+      return 'http://127.0.0.1:8000'
+    }
+
+    throw new Error(
+      'INTERNAL_API_URL (or API_URL) is required for SSR in production.'
     )
   }
 
