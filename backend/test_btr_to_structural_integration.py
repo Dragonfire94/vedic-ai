@@ -1,4 +1,5 @@
 import json
+import asyncio
 import unittest
 from unittest.mock import patch
 
@@ -88,8 +89,8 @@ class TestBTRStructuralIntegration(unittest.TestCase):
             "backend.main.analyze_birth_time", return_value=fake_candidates
         ) as analyze_mock, patch("backend.main.get_chart", return_value=fake_chart) as get_chart_mock, patch(
             "backend.main.build_structural_summary", return_value=fake_structural
-        ), patch("backend.main.client", None):
-            result_1 = main.get_ai_reading(
+        ), patch("backend.main.async_client", None):
+            result_1 = asyncio.run(main.get_ai_reading(
                 year=1990,
                 month=1,
                 day=1,
@@ -99,8 +100,8 @@ class TestBTRStructuralIntegration(unittest.TestCase):
                 production_mode=1,
                 events_json=json.dumps([{"event_type": "career", "precision_level": "exact", "year": 2015}]),
                 use_cache=0,
-            )
-            result_2 = main.get_ai_reading(
+            ))
+            result_2 = asyncio.run(main.get_ai_reading(
                 year=1990,
                 month=1,
                 day=1,
@@ -110,7 +111,7 @@ class TestBTRStructuralIntegration(unittest.TestCase):
                 production_mode=1,
                 events_json=json.dumps([{"event_type": "career", "precision_level": "exact", "year": 2015}]),
                 use_cache=0,
-            )
+            ))
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(get_chart_mock.call_count, 2)

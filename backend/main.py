@@ -33,7 +33,7 @@ try:
     from timezonefinder import TimezoneFinder
 except Exception:
     TimezoneFinder = None  # type: ignore[assignment]
-from openai import OpenAI
+from openai import AsyncOpenAI
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -140,10 +140,10 @@ app.add_middleware(
 # ─────────────────────────────────────────────────────────────────────────────
 # OpenAI 클라이언트
 # ─────────────────────────────────────────────────────────────────────────────
-client = None
+async_client = None
 if OPENAI_API_KEY:
     try:
-        client = OpenAI(api_key=OPENAI_API_KEY)
+        async_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
     except Exception as e:
         logger.warning(f"OpenAI client initialization failed: {e}")
 
@@ -179,7 +179,7 @@ except Exception as e:
 # ─────────────────────────────────────────────────────────────────────────────
 # Swiss Ephemeris 초기화
 # ─────────────────────────────────────────────────────────────────────────────
-initialize_swe_context(logger)
+SWE_CONTEXT_STATUS = initialize_swe_context(logger)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 상수: 행성, 라시, 나크샤트라
@@ -536,7 +536,7 @@ def collect_interpretation_context(chart: dict) -> tuple[list[str], list[str], d
 def health():
     return {
         "status": "ok",
-        "openai_configured": bool(client),
+        "openai_configured": bool(async_client),
         "model": OPENAI_MODEL,
         "ai_cache_items": len(cache),
         "ai_cache_ttl_sec": AI_CACHE_TTL,
@@ -544,6 +544,10 @@ def health():
         "pdf_font_reg": PDF_FONT_REG,
         "pdf_font_bold": PDF_FONT_BOLD,
         "pdf_font_mono": PDF_FONT_MONO,
+        "ephemeris_path": SWE_CONTEXT_STATUS.get("ephemeris_path"),
+        "ephemeris_backend": SWE_CONTEXT_STATUS.get("ephemeris_backend"),
+        "ephemeris_verified": SWE_CONTEXT_STATUS.get("ephemeris_verified", False),
+        "sidereal_mode": SWE_CONTEXT_STATUS.get("sidereal_mode"),
     }
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -889,7 +893,7 @@ def _build_ai_input(context_data: str):
 # 엔드포인트: AI Reading
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/ai_reading")
-def get_ai_reading(
+async def get_ai_reading(
     year: int = Query(...),
     month: int = Query(...),
     day: int = Query(...),
@@ -953,10 +957,10 @@ def get_ai_reading(
             report_payload = build_report_payload(rectified_summary)
             user_content = build_gpt_user_content(report_payload)
 
-            if not client:
+            if not async_client:
                 final_text = json.dumps(report_payload["chapter_blocks"], ensure_ascii=False, sort_keys=True)
             else:
-                response = client.chat.completions.create(
+                response = await async_client.chat.completions.create(
                     model="gpt-4o",
                     temperature=0.3,
                     max_tokens=6000,
@@ -990,7 +994,7 @@ def get_ai_reading(
         "structured_summary": structured_summary,
     }
 
-    if not client:
+    if not async_client:
         reading_text = "[OpenAI not configured]"
         result = {
             "cached": False,
@@ -1032,7 +1036,7 @@ def get_ai_reading(
             "max_tokens": 8000,
         }
         try:
-            response = client.chat.completions.create(**openai_payload)
+            response = await async_client.chat.completions.create(**openai_payload)
         except Exception as e:
             logger.error(f"OpenAI call failed: {e}")
             raise HTTPException(status_code=500, detail="AI generation error") from e
@@ -1056,7 +1060,7 @@ def get_ai_reading(
                 "user_prompt_length": len(user_message),
                 "context_length": len(context_data),
                 "response_tokens": response.usage.total_tokens if hasattr(response, "usage") else 0,
-                "client_initialized": client is not None,
+                "client_initialized": async_client is not None,
                 "static_context_used": static_context_used,
                 "mapped_key_count": len(mapped_keys),
                 "mapped_text_count": len(mapped_texts),
@@ -1089,7 +1093,7 @@ def get_ai_reading(
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
                 "model_used": OPENAI_MODEL,
-                "client_initialized": client is not None,
+                "client_initialized": async_client is not None,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
             },
@@ -1430,7 +1434,7 @@ def convert_markdown_bold(text: str) -> str:
 # 엔드포인트: PDF 생성
 # ─────────────────────────────────────────────────────────────────────────────
 @app.get("/pdf")
-def generate_pdf(
+async def generate_pdf(
     year: int = Query(...),
     month: int = Query(...),
     day: int = Query(...),
@@ -1458,7 +1462,7 @@ def generate_pdf(
         if cache_only and ai_cache_key and cache.get(ai_cache_key):
             ai_reading = cache.get(ai_cache_key)
         else:
-            ai_reading = get_ai_reading(
+            ai_reading = await get_ai_reading(
                 year, month, day, hour, lat, lon,
                 house_system, include_nodes, include_d9,
                 language, gender, use_cache=1
