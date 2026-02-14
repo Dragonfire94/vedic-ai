@@ -373,5 +373,56 @@
       }
     ],
     "chain_followups": []
+  },
+  {
+    "id": "structural_transition_window",
+    "chapter": "Final Summary",
+    "priority": 98,
+    "content": {
+      "title": "Structural Transition Window (3–5 Years)",
+      "summary": "Multiple structural probability signals indicate a reconfiguration phase.",
+      "analysis": "Career and relational axes are simultaneously activated.",
+      "predictive_compression": {
+        "window": "Next 3–5 Years",
+        "dominant_theme": "Role Reallocation",
+        "probability_strength": "High",
+        "structural_warning": "Simultaneous shifts may destabilize routines.",
+        "recommended_alignment": "Reduce overcommitment and clarify priorities."
+      }
+    }
+  },
+  {
+    "id": "burnout_risk_window",
+    "chapter": "Stability Metrics",
+    "priority": 97,
+    "content": {
+      "title": "Energy Collapse Risk Window",
+      "summary": "Burnout probability exceeds safe structural thresholds.",
+      "analysis": "Low stability index combined with elevated exhaustion probability.",
+      "predictive_compression": {
+        "window": "Next 2 Years",
+        "dominant_theme": "Energy Conservation Required",
+        "probability_strength": "Elevated",
+        "structural_warning": "Ignoring rest may amplify structural breakdown.",
+        "recommended_alignment": "Rebalance workload and enforce recovery cycles."
+      }
+    }
+  },
+  {
+    "id": "financial_instability_window",
+    "chapter": "Wealth & Material Flow",
+    "priority": 96,
+    "content": {
+      "title": "Material Volatility Window",
+      "summary": "Financial instability probability exceeds baseline.",
+      "analysis": "Material flow fluctuations likely within near-term cycle.",
+      "predictive_compression": {
+        "window": "Next 3 Years",
+        "dominant_theme": "Resource Reallocation",
+        "probability_strength": "Moderate to High",
+        "structural_warning": "Reactive decisions may magnify instability.",
+        "recommended_alignment": "Favor conservative allocation and liquidity."
+      }
+    }
   }
 ]

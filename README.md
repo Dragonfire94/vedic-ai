@@ -442,3 +442,32 @@ Fork rules inject only into chapters present in `REPORT_CHAPTERS`:
 - No GPT cost increase
 - Fully deterministic behavior
 - Backward-compatible payload contract (`{"chapter_blocks": ...}`)
+
+## Predictive Scenario Compression (Phase 10)
+
+Phase 10 adds deterministic scenario-compression blocks that are conditionally injected from `SCENARIO_COMPRESSION_RULES` in `backend/report_engine.py`.
+
+### Deterministic injection
+- Rules are static and deterministic.
+- No randomness is introduced.
+- No new GPT calls are added.
+
+### Probability threshold logic
+- Injection only runs when `probability_forecast` values satisfy each rule's numeric thresholds.
+- If `probability_forecast` is missing, no scenario-compression rules match.
+
+### Intensity gate
+- Injected blocks must pass computed intensity **>= 0.6**.
+- Low-intensity contexts skip scenario-compression blocks even when probability thresholds match.
+
+### Cap-safe replacement
+- Chapter payload cap remains **5** items.
+- If the destination chapter is full, the injected scenario-compression block replaces the lowest-priority block.
+
+### Nested `predictive_compression` JSON preservation
+- The `predictive_compression` field is preserved as nested JSON and is not string-flattened.
+
+### Cost and compatibility
+- No GPT cost increase.
+- Fully deterministic behavior.
+- Backward compatible with existing payload contract and chapters.
