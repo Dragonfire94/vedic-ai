@@ -655,7 +655,7 @@ def get_chart(
             asc_lon = normalize_360(ascmc[0] - ayanamsa)
             for i in range(12):
                 # 각 하우스 커스프도 Sidereal로 변환
-                cusp_lon = normalize_360(cusps[i] - ayanamsa)
+                cusp_lon = normalize_360(cusps[i + 1] - ayanamsa)
                 rasi_idx = get_rasi_index(cusp_lon)
                 houses[f"house_{i+1}"] = {
                     "cusp_longitude": round(cusp_lon, 6),
