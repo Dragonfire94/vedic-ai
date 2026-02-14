@@ -28,7 +28,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                     "emotional_trigger": "trigger",
                     "repetition_cycle": "cycle",
                     "integration_path": "integration",
-                    "choice_fork": "choice",
+                    "choice_fork": {"path_a": {"label": "A", "trajectory": "t1", "emotional_cost": "c1"}, "path_b": {"label": "B", "trajectory": "t2", "emotional_cost": "c2"}},
                 },
             },
             {
@@ -84,7 +84,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                     "emotional_trigger": "trigger",
                     "repetition_cycle": "cycle",
                     "integration_path": "integration",
-                    "choice_fork": "choice",
+                    "choice_fork": {"path_a": {"label": "A", "trajectory": "t1", "emotional_cost": "c1"}, "path_b": {"label": "B", "trajectory": "t2", "emotional_cost": "c2"}},
                 },
             },
             {

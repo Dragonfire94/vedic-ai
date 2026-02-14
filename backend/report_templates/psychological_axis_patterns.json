@@ -408,5 +408,68 @@
       "repetition_cycle": "Inner activation → relational conflict → temporary resolution → unresolved trigger reactivates.",
       "integration_path": "Name the internal fear before debating external facts."
     }
+  },
+  {
+    "id": "tension_choice_fork",
+    "chapter": "Psychological Architecture",
+    "priority": 95,
+    "content": {
+      "title": "Identity Pressure Fork",
+      "summary": "You are entering a structural decision threshold.",
+      "choice_fork": {
+        "path_a": {
+          "label": "Tighten Control",
+          "trajectory": "Immediate authority reinforcement, long-term tension accumulation.",
+          "emotional_cost": "Suppressed vulnerability converts into rigidity."
+        },
+        "path_b": {
+          "label": "Relinquish Control",
+          "trajectory": "Short-term instability, long-term coherence growth.",
+          "emotional_cost": "Temporary emotional exposure."
+        }
+      }
+    }
+  },
+  {
+    "id": "impulsivity_choice_fork",
+    "chapter": "Behavioral Risks",
+    "priority": 95,
+    "content": {
+      "title": "Impulse Decision Fork",
+      "summary": "Your behavioral pattern is approaching a split trajectory.",
+      "choice_fork": {
+        "path_a": {
+          "label": "Act Immediately",
+          "trajectory": "Rapid relief, higher downstream error exposure.",
+          "emotional_cost": "Regret and defensiveness after consequence realization."
+        },
+        "path_b": {
+          "label": "Delay and Verify",
+          "trajectory": "Slower momentum, higher long-term decision quality.",
+          "emotional_cost": "Temporary frustration from deferred action."
+        }
+      }
+    }
+  },
+  {
+    "id": "stability_choice_fork",
+    "chapter": "Stability Metrics",
+    "priority": 95,
+    "content": {
+      "title": "Stability Recovery Fork",
+      "summary": "Current resilience signals indicate a decisive structural branch.",
+      "choice_fork": {
+        "path_a": {
+          "label": "Push Through Load",
+          "trajectory": "Short-term continuity, increased fragility and compounding strain.",
+          "emotional_cost": "Anxiety masked by overextension."
+        },
+        "path_b": {
+          "label": "Rebuild Recovery Rhythm",
+          "trajectory": "Short-term slowdown, improved long-term stability reserve.",
+          "emotional_cost": "Discomfort from reduced output intensity."
+        }
+      }
+    }
   }
 ]

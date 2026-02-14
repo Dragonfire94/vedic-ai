@@ -100,6 +100,30 @@ EMOTIONAL_ESCALATION_RULE = {
     "target_chapter": "Psychological Architecture",
 }
 
+CHOICE_FORK_RULES = [
+    {
+        "conditions": {
+            "psychological_tension_axis.score": {">=": 70},
+        },
+        "inject_into_chapter": "Psychological Architecture",
+        "fork_id": "tension_choice_fork",
+    },
+    {
+        "conditions": {
+            "behavioral_risk_profile.primary_risk": "impulsivity",
+        },
+        "inject_into_chapter": "Behavioral Risks",
+        "fork_id": "impulsivity_choice_fork",
+    },
+    {
+        "conditions": {
+            "stability_metrics.stability_index": {"<=": 45},
+        },
+        "inject_into_chapter": "Stability Metrics",
+        "fork_id": "stability_choice_fork",
+    },
+]
+
 
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
@@ -163,6 +187,32 @@ def _evaluate_condition(structural_summary: dict[str, Any], condition: dict[str,
         return False
 
 
+def _evaluate_conditions(structural_summary: dict[str, Any], conditions: dict[str, Any]) -> bool:
+    if not isinstance(conditions, dict):
+        return False
+
+    for field_path, expected in conditions.items():
+        field_val = _get_structural_value(structural_summary, str(field_path))
+        if field_val is None:
+            return False
+
+        if isinstance(expected, dict):
+            for operator_text, operand in expected.items():
+                operator_fn = OP_MAP.get(str(operator_text))
+                if operator_fn is None:
+                    return False
+                try:
+                    if not bool(operator_fn(field_val, operand)):
+                        return False
+                except Exception:
+                    return False
+        else:
+            if field_val != expected:
+                return False
+
+    return True
+
+
 def compute_block_intensity(block: dict[str, Any], features: dict[str, Any]) -> float:
     """Compute a normalized [0.0, 1.0] narrative intensity score for a block."""
 
@@ -199,6 +249,155 @@ def _lookup_template_by_id(block_id: str, chapter: str | None = None) -> dict[st
         if block.get("id") == block_id and (chapter is None or block.get("chapter") == chapter):
             return block
     return None
+
+
+def _find_block_by_id(block_id: str, chapter: str | None = None) -> dict[str, Any] | None:
+    return _lookup_template_by_id(block_id, chapter=chapter)
+
+
+def _dedup_append(blocks: list[dict[str, Any]], block: dict[str, Any]) -> bool:
+    block_id = block.get("id")
+    if any(existing.get("id") == block_id for existing in blocks):
+        return False
+    blocks.append(block)
+    return True
+
+
+def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: float) -> dict[str, Any]:
+    content = block.get("content", {})
+    if not isinstance(content, dict):
+        return {}
+
+    if intensity >= 0.85:
+        include_fields = [
+            "title",
+            "summary",
+            "analysis",
+            "implication",
+            "examples",
+            "shadow_pattern",
+            "defense_mechanism",
+            "emotional_trigger",
+            "repetition_cycle",
+            "integration_path",
+            "choice_fork",
+        ]
+    elif intensity >= 0.75:
+        include_fields = [
+            "title",
+            "summary",
+            "analysis",
+            "implication",
+            "examples",
+            "shadow_pattern",
+            "defense_mechanism",
+            "emotional_trigger",
+            "repetition_cycle",
+            "integration_path",
+            "choice_fork",
+        ]
+    elif intensity >= 0.5:
+        include_fields = ["title", "summary", "analysis", "implication"]
+    else:
+        include_fields = ["title", "summary", "analysis"]
+
+    payload_block: dict[str, Any] = {}
+    for field in include_fields:
+        if field == "title":
+            payload_block[field] = str(content.get(field, chapter))
+            continue
+        if field not in content:
+            continue
+
+        if field == "choice_fork":
+            choice_fork = content.get("choice_fork")
+            if intensity >= 0.75 and isinstance(choice_fork, dict):
+                payload_block[field] = choice_fork
+            continue
+
+        payload_block[field] = str(content.get(field, ""))
+
+    variant = None
+    if intensity >= 0.85:
+        variant = "high"
+    elif intensity >= 0.65:
+        variant = "moderate"
+
+    scaling = block.get("scaling_variants", {})
+    if variant and isinstance(scaling, dict) and variant in scaling:
+        extensions = scaling[variant]
+        if isinstance(extensions, dict):
+            for field, ext_text in extensions.items():
+                if not isinstance(ext_text, str) or not ext_text.strip():
+                    continue
+                base_field = field.replace("_extension", "")
+                if base_field == "example":
+                    base_field = "examples"
+                if base_field in payload_block and isinstance(payload_block[base_field], str):
+                    payload_block[base_field] += "\n\n" + ext_text
+
+            if variant == "high":
+                micro_scenario = extensions.get("micro_scenario")
+                if isinstance(micro_scenario, str) and micro_scenario.strip():
+                    payload_block["micro_scenario"] = micro_scenario
+
+                long_term_projection = extensions.get("long_term_projection")
+                if isinstance(long_term_projection, str) and long_term_projection.strip():
+                    payload_block["long_term_projection"] = long_term_projection
+
+    return payload_block
+
+
+def _inject_choice_forks(
+    structural_summary: dict[str, Any],
+    chapter_blocks: dict[str, list[dict[str, Any]]],
+    chapter_meta: dict[str, list[dict[str, Any]]],
+    chapter_limits: dict[str, int],
+) -> None:
+    for rule in CHOICE_FORK_RULES:
+        if not _evaluate_conditions(structural_summary, rule.get("conditions", {})):
+            continue
+
+        fork_id = rule.get("fork_id")
+        if not isinstance(fork_id, str):
+            continue
+
+        fork_template = _find_block_by_id(fork_id)
+        if not fork_template:
+            continue
+
+        chapter_name = rule.get("inject_into_chapter")
+        if chapter_name not in chapter_blocks or chapter_name not in chapter_meta:
+            continue
+
+        fork_block = dict(fork_template)
+        intensity = compute_block_intensity(fork_block, structural_summary)
+        if intensity < 0.75:
+            continue
+
+        fork_block["_intensity"] = intensity
+        meta = chapter_meta[chapter_name]
+        existing = chapter_blocks[chapter_name]
+
+        if any(b.get("id") == fork_block.get("id") for b in meta):
+            continue
+
+        rendered = _render_payload_fragment(fork_block, str(chapter_name), intensity)
+        if not rendered:
+            continue
+
+        chapter_limit = max(0, int(chapter_limits.get(str(chapter_name), 5)))
+        if chapter_limit == 0:
+            continue
+
+        if len(meta) < chapter_limit:
+            meta.insert(0, fork_block)
+            existing.insert(0, rendered)
+            continue
+
+        lowest_idx = min(range(len(meta)), key=lambda i: meta[i].get("priority", 0))
+        meta[lowest_idx] = fork_block
+        existing[lowest_idx] = rendered
 
 
 def _append_unique_block(
@@ -362,6 +561,10 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
     raw_blocks = select_template_blocks(structural)
 
     chapter_blocks: dict[str, list[dict[str, Any]]] = {}
+    chapter_meta: dict[str, list[dict[str, Any]]] = {}
+    chapter_limits: dict[str, int] = {}
+    chapter_spikes: dict[str, list[str]] = {}
+
     for chapter in REPORT_CHAPTERS:
         blocks = raw_blocks.get(chapter, [])
         if not blocks:
@@ -387,88 +590,34 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
                 spike_texts.append(text)
 
         spike_texts = list(dict.fromkeys(spike_texts))
+        chapter_spikes[chapter] = spike_texts
+        chapter_limit = max(0, 5 - len(spike_texts))
+        chapter_limits[chapter] = chapter_limit
 
-        chapter_payload: list[dict[str, Any]] = [{"spike_text": spike_text} for spike_text in spike_texts]
+        chapter_payload: list[dict[str, Any]] = []
+        chapter_payload_meta: list[dict[str, Any]] = []
         for block in blocks:
-            if len(chapter_payload) >= 5:
+            if len(chapter_payload) >= chapter_limit:
                 break
-
-            content = block.get("content", {})
             intensity = block.get("_intensity", 0)
-
-            if intensity >= 0.85:
-                include_fields = [
-                    "title",
-                    "summary",
-                    "analysis",
-                    "implication",
-                    "examples",
-                    "shadow_pattern",
-                    "defense_mechanism",
-                    "emotional_trigger",
-                    "repetition_cycle",
-                    "integration_path",
-                    "choice_fork",
-                ]
-            elif intensity >= 0.75:
-                include_fields = [
-                    "title",
-                    "summary",
-                    "analysis",
-                    "implication",
-                    "examples",
-                    "shadow_pattern",
-                    "defense_mechanism",
-                    "emotional_trigger",
-                    "repetition_cycle",
-                    "integration_path",
-                ]
-            elif intensity >= 0.5:
-                include_fields = ["title", "summary", "analysis", "implication"]
-            else:
-                include_fields = ["title", "summary", "analysis"]
-
-            payload_block: dict[str, str] = {}
-            for field in include_fields:
-                if field == "title":
-                    payload_block[field] = str(content.get(field, chapter))
-                elif field in content:
-                    payload_block[field] = str(content.get(field, ""))
-
-            variant = None
-            if intensity >= 0.85:
-                variant = "high"
-            elif intensity >= 0.65:
-                variant = "moderate"
-
-            scaling = block.get("scaling_variants", {})
-            if variant and isinstance(scaling, dict) and variant in scaling:
-                extensions = scaling[variant]
-                if isinstance(extensions, dict):
-                    for field, ext_text in extensions.items():
-                        if not isinstance(ext_text, str) or not ext_text.strip():
-                            continue
-                        base_field = field.replace("_extension", "")
-                        if base_field == "example":
-                            base_field = "examples"
-                        if base_field in payload_block and isinstance(payload_block[base_field], str):
-                            payload_block[base_field] += "\n\n" + ext_text
-
-                    if variant == "high":
-                        micro_scenario = extensions.get("micro_scenario")
-                        if isinstance(micro_scenario, str) and micro_scenario.strip():
-                            payload_block["micro_scenario"] = micro_scenario
-
-                        long_term_projection = extensions.get("long_term_projection")
-                        if isinstance(long_term_projection, str) and long_term_projection.strip():
-                            payload_block["long_term_projection"] = long_term_projection
+            payload_block = _render_payload_fragment(block, chapter, intensity)
 
             if payload_block:
                 chapter_payload.append(payload_block)
+                chapter_payload_meta.append(block)
 
-        chapter_blocks[chapter] = chapter_payload[:5]
+        chapter_blocks[chapter] = chapter_payload
+        chapter_meta[chapter] = chapter_payload_meta
 
-    return {"chapter_blocks": chapter_blocks}
+    _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
+
+    final_chapter_blocks: dict[str, list[dict[str, Any]]] = {}
+    for chapter in REPORT_CHAPTERS:
+        spike_fragments = [{"spike_text": spike_text} for spike_text in chapter_spikes.get(chapter, [])]
+        content_fragments = chapter_blocks.get(chapter, [])[: max(0, 5 - len(spike_fragments))]
+        final_chapter_blocks[chapter] = (spike_fragments + content_fragments)[:5]
+
+    return {"chapter_blocks": final_chapter_blocks}
 
 
 def build_gpt_user_content(payload: dict[str, Any]) -> str:
