@@ -3,7 +3,11 @@
     "id": "high_internal_tension",
     "chapter": "Psychological Architecture",
     "conditions": [
-      {"field": "psychological_tension_axis.tension_level", "operator": "==", "value": "high"}
+      {
+        "field": "psychological_tension_axis.tension_level",
+        "operator": "==",
+        "value": "high"
+      }
     ],
     "logic": "AND",
     "priority": 85,
@@ -11,14 +15,32 @@
       "title": "Psychological Axis: High Inner Tension",
       "summary": "Your internal architecture shows meaningful friction between competing priorities.",
       "analysis": "Conflicting drives increase cognitive load but can fuel constructive output.",
-      "implication": "Structured reflection and pre-commitment reduce avoidable volatility."
-    }
+      "implication": "Structured reflection and pre-commitment reduce avoidable volatility.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [
+      "tension_stability_interaction"
+    ]
   },
   {
     "id": "balanced_axis",
     "chapter": "Psychological Architecture",
     "conditions": [
-      {"field": "psychological_tension_axis.tension_level", "operator": "==", "value": "balanced"}
+      {
+        "field": "psychological_tension_axis.tension_level",
+        "operator": "==",
+        "value": "balanced"
+      }
     ],
     "logic": "AND",
     "priority": 60,
@@ -26,23 +48,86 @@
       "title": "Psychological Axis: Functional Balance",
       "summary": "Your profile indicates relatively balanced emotional and strategic processing.",
       "analysis": "Regulation capacity appears sufficient for sustained planning and adaptation.",
-      "implication": "Protecting recovery cycles helps preserve this baseline stability."
-    }
+      "implication": "Protecting recovery cycles helps preserve this baseline stability.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
-    "id": "high_tension_axis_behavior",
+    "id": "high_tension_risk_aggro",
     "chapter": "Psychological Architecture",
     "conditions": [
-      {"field": "psychological_tension_axis.score", "operator": ">=", "value": 70},
-      {"field": "behavioral_risk_profile.impulsivity_risk", "operator": ">=", "value": 60}
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.impulsivity_risk",
+        "operator": ">=",
+        "value": 60
+      }
     ],
     "logic": "AND",
     "priority": 95,
     "content": {
-      "title": "High Tension with Impulsive Tendencies",
+      "title": "High Tension with Reactive Risk Profile",
       "summary": "High internal tension combines with elevated impulse risk under pressure.",
       "analysis": "Fast-reactive patterns are more likely in high-friction phases.",
-      "implication": "Decision gates and cooldown windows are essential safeguards."
+      "implication": "Decision gates and cooldown windows are essential safeguards.",
+      "examples": "In high-pressure exchanges, responses may become abrupt, defensive, or prematurely final."
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "tension_stability_interaction",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 60
+      }
+    ],
+    "logic": "AND",
+    "priority": 88,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "Tension–Stability Interaction Pattern",
+      "summary": "Psychological pressure and stability dynamics interact in ways that amplify reactivity cycles.",
+      "analysis": "When internal friction rises while stability weakens, attention narrows and recovery latency increases.",
+      "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",
+      "examples": "You may notice conflict spillover from one domain into unrelated decisions unless decompression boundaries are enforced."
     }
   }
 ]

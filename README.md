@@ -176,3 +176,92 @@ Rules:
 - Maximum 5 blocks per chapter.
 - All 15 chapters always present.
 - No raw astrological values (e.g., longitude/aspects) in report payload.
+
+## Report Engine Depth Extension (Intensity, Chaining, Reinforcement)
+
+The deterministic report engine now adds narrative depth without changing core BTR mechanics and without additional GPT calls.
+
+### Extended template schema
+Template blocks can now include optional density/linking keys:
+
+```json
+{
+  "id": "high_tension_risk_aggro",
+  "chapter": "Psychological Architecture",
+  "conditions": [{"field": "psychological_tension_axis.score", "operator": ">=", "value": 70}],
+  "logic": "AND",
+  "priority": 95,
+  "intensity_tiers": [
+    {"threshold": 0.7, "modifier": "strong"},
+    {"threshold": 0.4, "modifier": "moderate"}
+  ],
+  "chain_followups": ["tension_stability_interaction"],
+  "content": {
+    "title": "...",
+    "summary": "...",
+    "analysis": "...",
+    "implication": "...",
+    "examples": "..."
+  }
+}
+```
+
+### Intensity & depth definition
+`compute_block_intensity(...)` normalizes intensity into `[0.0, 1.0]` from structural summary only:
+
+- psychological tension signal
+- averaged behavioral risk profile signal
+- inverse stability index signal (`100 - stability_index`)
+
+Intensity is used only to modulate narrative depth (field inclusion), not to expose raw engine signals.
+
+### Cross-chapter reinforcement guide
+`REINFORCE_RULES` adds deterministic linking blocks when specific block combinations are selected.
+
+Current rules:
+- `high_tension_risk_aggro` + `high_stability_fall` ⇒ add `tension_stability_interaction` to **Psychological Architecture**
+- `career_conflict_karma` + `career_purushartha` ⇒ add `career_karma_pattern_reinforcement` to **Executive Summary**
+
+### Chain followup behavior
+After initial matching, each selected block can append same-chapter `chain_followups` by block id.
+
+Safety:
+- duplicate IDs are ignored
+- cyclic references are prevented by seen-id tracking
+- chapter payload still caps at 5 blocks
+
+### Priority + intensity sort order
+Selected blocks are sorted descending by:
+
+| Order | Key |
+|---|---|
+| 1 | `priority` |
+| 2 | `_intensity` |
+| 3 | internal match order tie-break |
+
+### Dynamic field rules
+Per selected block:
+
+- intensity `> 0.8`: include `title`, `summary`, `analysis`, `implication`, `examples`
+- intensity `> 0.5`: include `title`, `summary`, `analysis`, `implication`
+- otherwise: include `title`, `summary`, `analysis`
+
+This increases report density only where structural pressure is stronger.
+
+### Example expanded output block JSON
+```json
+{
+  "title": "Tension–Stability Interaction Pattern",
+  "summary": "Psychological pressure and stability dynamics interact in ways that amplify reactivity cycles.",
+  "analysis": "When internal friction rises while stability weakens, attention narrows and recovery latency increases.",
+  "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",
+  "examples": "You may notice conflict spillover from one domain into unrelated decisions unless decompression boundaries are enforced."
+}
+```
+
+### Safety constraints
+- No additional GPT calls
+- No raw astrological positions in GPT payload
+- No direct numeric signal leakage to final prose
+- Deterministic selection/chaining only
+- Max blocks per chapter = 5

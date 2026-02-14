@@ -3,7 +3,11 @@
     "id": "risk_impulsivity",
     "chapter": "Behavioral Risks",
     "conditions": [
-      {"field": "behavioral_risk_profile.primary_risk", "operator": "==", "value": "impulsivity"}
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
     ],
     "logic": "AND",
     "priority": 80,
@@ -11,14 +15,30 @@
       "title": "Behavioral Risk: Impulsivity",
       "summary": "Pressure periods may trigger speed-over-clarity decisions.",
       "analysis": "The cost profile rises when urgency bypasses verification.",
-      "implication": "A mandatory pause protocol lowers cascading errors."
-    }
+      "implication": "A mandatory pause protocol lowers cascading errors.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "risk_overcontrol",
     "chapter": "Behavioral Risks",
     "conditions": [
-      {"field": "behavioral_risk_profile.primary_risk", "operator": "==", "value": "overcontrol"}
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "overcontrol"
+      }
     ],
     "logic": "AND",
     "priority": 75,
@@ -26,15 +46,35 @@
       "title": "Behavioral Risk: Overcontrol",
       "summary": "Under uncertainty, there is a tendency to over-manage variables.",
       "analysis": "Excess control can convert ambiguity into avoidable delay.",
-      "implication": "Predefined action thresholds improve pace and confidence."
-    }
+      "implication": "Predefined action thresholds improve pace and confidence.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "risk_elevated_intensity",
     "chapter": "Behavioral Risks",
     "conditions": [
-      {"field": "behavioral_risk_profile.impulsivity_risk", "operator": ">=", "value": 70},
-      {"field": "behavioral_risk_profile.overcontrol_risk", "operator": ">=", "value": 70}
+      {
+        "field": "behavioral_risk_profile.impulsivity_risk",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.overcontrol_risk",
+        "operator": ">=",
+        "value": 70
+      }
     ],
     "logic": "OR",
     "priority": 90,
@@ -42,7 +82,19 @@
       "title": "Behavioral Risk: Elevated Signal Intensity",
       "summary": "One or more risk channels show elevated intensity.",
       "analysis": "When signal strength rises, behavior becomes less forgiving of noise.",
-      "implication": "Short-cycle monitoring and escalation rules are recommended."
-    }
+      "implication": "Short-cycle monitoring and escalation rules are recommended.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   }
 ]

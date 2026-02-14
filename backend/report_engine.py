@@ -80,6 +80,19 @@ OP_MAP = {
 TEMPLATES: list[dict[str, Any]] = []
 DEFAULT_BLOCKS: dict[str, list[dict[str, Any]]] = {}
 
+REINFORCE_RULES = [
+    {
+        "if_block_ids": ["high_tension_risk_aggro", "high_stability_fall"],
+        "add_block_id": "tension_stability_interaction",
+        "target_chapter": "Psychological Architecture",
+    },
+    {
+        "if_block_ids": ["career_conflict_karma", "career_purushartha"],
+        "add_block_id": "career_karma_pattern_reinforcement",
+        "target_chapter": "Executive Summary",
+    },
+]
+
 
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:
@@ -143,10 +156,79 @@ def _evaluate_condition(structural_summary: dict[str, Any], condition: dict[str,
         return False
 
 
+def compute_block_intensity(block: dict[str, Any], features: dict[str, Any]) -> float:
+    """Compute a normalized [0.0, 1.0] narrative intensity score for a block."""
+
+    del block  # intensity depends only on structural_summary features in this phase.
+
+    base = 0.0
+
+    tension = features.get("psychological_tension_axis", 0)
+    if isinstance(tension, dict):
+        tension = tension.get("score", 0)
+    if isinstance(tension, (int, float)):
+        base += tension / 100
+
+    risk_profile = features.get("behavioral_risk_profile", {})
+    if isinstance(risk_profile, dict) and risk_profile:
+        numeric_risks = [
+            value / 100 for value in risk_profile.values() if isinstance(value, (int, float))
+        ]
+        if numeric_risks:
+            base += sum(numeric_risks) / len(numeric_risks)
+
+    stability = features.get("stability_metrics", {})
+    stability_index: Any = 0
+    if isinstance(stability, dict):
+        stability_index = stability.get("stability_index", 0)
+    if isinstance(stability_index, (int, float)):
+        base += (100 - stability_index) / 100
+
+    return min(max(base / 3.0, 0.0), 1.0)
+
+
+def _lookup_template_by_id(block_id: str) -> dict[str, Any] | None:
+    for block in TEMPLATES:
+        if block.get("id") == block_id:
+            return block
+    return None
+
+
+def _sort_selected_blocks(selected: dict[str, list[dict[str, Any]]]) -> None:
+    for chapter in selected:
+        selected[chapter].sort(
+            key=lambda b: (b.get("priority", 0), b.get("_intensity", 0), b.get("_match_index", -1)),
+            reverse=True,
+        )
+
+
+def _apply_cross_chapter_reinforcement(selected: dict[str, list[dict[str, Any]]], structural_summary: dict[str, Any]) -> None:
+    selected_ids = {block.get("id") for blocks in selected.values() for block in blocks}
+    for rule in REINFORCE_RULES:
+        if all(block_id in selected_ids for block_id in rule.get("if_block_ids", [])):
+            add_id = rule.get("add_block_id")
+            target_chapter = rule.get("target_chapter")
+            if not isinstance(add_id, str) or target_chapter not in selected:
+                continue
+            add_block = _lookup_template_by_id(add_id)
+            if not add_block:
+                continue
+
+            already_present = any(b.get("id") == add_id for b in selected[target_chapter])
+            if already_present:
+                continue
+
+            reinforced = dict(add_block)
+            reinforced["_intensity"] = compute_block_intensity(reinforced, structural_summary)
+            reinforced["_match_index"] = len(selected[target_chapter])
+            selected[target_chapter].append(reinforced)
+
+
 def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     _ensure_loaded()
     selected: dict[str, list[dict[str, Any]]] = {chapter: [] for chapter in REPORT_CHAPTERS}
 
+    matched_index = 0
     for block in TEMPLATES:
         conditions = block.get("conditions", [])
         logic = str(block.get("logic", "AND")).upper()
@@ -168,10 +250,33 @@ def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list
         if passed:
             chapter = block.get("chapter")
             if chapter in selected:
-                selected[chapter].append(block)
+                matched = dict(block)
+                matched["_intensity"] = compute_block_intensity(matched, structural_summary)
+                matched["_match_index"] = matched_index
+                matched_index += 1
+                selected[chapter].append(matched)
 
     for chapter in selected:
-        selected[chapter].sort(key=lambda b: b.get("priority", 0), reverse=True)
+        seen_ids = {b.get("id") for b in selected[chapter]}
+        idx = 0
+        while idx < len(selected[chapter]):
+            followups = selected[chapter][idx].get("chain_followups", [])
+            for followup_id in followups if isinstance(followups, list) else []:
+                followup = _lookup_template_by_id(str(followup_id))
+                if not followup or followup.get("chapter") != chapter:
+                    continue
+                if followup.get("id") in seen_ids:
+                    continue
+                chained = dict(followup)
+                chained["_intensity"] = compute_block_intensity(chained, structural_summary)
+                chained["_match_index"] = matched_index
+                matched_index += 1
+                selected[chapter].append(chained)
+                seen_ids.add(chained.get("id"))
+            idx += 1
+
+    _apply_cross_chapter_reinforcement(selected, structural_summary)
+    _sort_selected_blocks(selected)
 
     return selected
 
@@ -190,15 +295,25 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         if not blocks:
             blocks = DEFAULT_BLOCKS.get(chapter, [])
 
-        chapter_blocks[chapter] = [
-            {
-                "title": str(content.get("title", chapter)),
-                "summary": str(content.get("summary", "")),
-                "analysis": str(content.get("analysis", "")),
-                "implication": str(content.get("implication", "")),
-            }
-            for content in [block.get("content", {}) for block in blocks[:5]]
-        ]
+        chapter_payload: list[dict[str, str]] = []
+        for block in blocks[:5]:
+            content = block.get("content", {})
+            intensity = block.get("_intensity", 0)
+
+            if intensity > 0.8:
+                include_fields = ["title", "summary", "analysis", "implication", "examples"]
+            elif intensity > 0.5:
+                include_fields = ["title", "summary", "analysis", "implication"]
+            else:
+                include_fields = ["title", "summary", "analysis"]
+
+            payload_block: dict[str, str] = {}
+            for field in include_fields:
+                default_val = chapter if field == "title" else ""
+                payload_block[field] = str(content.get(field, default_val))
+            chapter_payload.append(payload_block)
+
+        chapter_blocks[chapter] = chapter_payload
 
     return {"chapter_blocks": chapter_blocks}
 

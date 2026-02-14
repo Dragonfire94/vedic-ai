@@ -3,7 +3,11 @@
     "id": "karmic_integration",
     "chapter": "Karmic Patterns",
     "conditions": [
-      {"field": "karmic_pattern_profile.primary_pattern", "operator": "==", "value": "integration"}
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "integration"
+      }
     ],
     "logic": "AND",
     "priority": 80,
@@ -11,14 +15,30 @@
       "title": "Karmic Theme: Integration",
       "summary": "The narrative suggests integrating contrasting drives into a coherent identity.",
       "analysis": "Growth appears through reconciling inner contradictions and reducing fragmentation.",
-      "implication": "Consistency rises when repetitive lessons are turned into clear practices."
-    }
+      "implication": "Consistency rises when repetitive lessons are turned into clear practices.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
   },
   {
     "id": "karmic_correction",
     "chapter": "Karmic Patterns",
     "conditions": [
-      {"field": "karmic_pattern_profile.primary_pattern", "operator": "==", "value": "correction"}
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "correction"
+      }
     ],
     "logic": "AND",
     "priority": 70,
@@ -26,7 +46,52 @@
       "title": "Karmic Theme: Correction",
       "summary": "Recurring lessons point to iterative correction rather than linear progress.",
       "analysis": "Improvement is cumulative when feedback loops are explicit and accepted early.",
-      "implication": "Stable results come from adjustment discipline, not one-time breakthroughs."
+      "implication": "Stable results come from adjustment discipline, not one-time breakthroughs.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "career_conflict_karma",
+    "chapter": "Career & Success",
+    "conditions": [
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "correction"
+      }
+    ],
+    "logic": "AND",
+    "priority": 82,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "chain_followups": [
+      "career_karma_pattern_reinforcement"
+    ],
+    "content": {
+      "title": "Career Friction Through Repeating Lessons",
+      "summary": "Professional momentum may periodically stall until recurring behavioral lessons are integrated.",
+      "analysis": "Cycles of correction can show up as repeated role-friction, authority tension, or timing mismatches.",
+      "implication": "Career growth accelerates when feedback is converted into process-level adjustments.",
+      "examples": "Similar collaboration breakdowns may recur across teams unless boundary and expectation contracts are explicit."
     }
   }
 ]
