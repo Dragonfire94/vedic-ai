@@ -8,13 +8,15 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Sparkles, Calendar, MapPin, Clock } from 'lucide-react'
+import { Sparkles, Calendar, Clock, MapPin } from 'lucide-react'
 import { CitySearch } from '@/components/CitySearch'
 
 type TimeKnown = 'exact' | 'approximate' | 'unknown'
 
 export default function HomePage() {
   const router = useRouter()
+  const defaultTimezone = -new Date().getTimezoneOffset() / 60
+
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
     year: 1994,
@@ -23,326 +25,248 @@ export default function HomePage() {
     city: '',
     lat: 0,
     lon: 0,
+    gender: 'female',
     timeKnown: 'unknown' as TimeKnown,
-    hour: 23,
-    minute: 45,
+    hour: 12,
+    minute: 0,
     timeBracket: '',
-    gender: 'male',
+    timezone: defaultTimezone,
   })
 
   const handleNext = () => {
     if (step === 1) {
-      if (!formData.city || formData.lat === 0) {
-        alert('출생 도시를 선택해 주세요.')
+      if (!formData.city || !Number.isFinite(formData.lat) || !Number.isFinite(formData.lon)) {
+        alert('출생 도시를 먼저 선택해 주세요.')
+        return
+      }
+      if (!Number.isFinite(formData.timezone)) {
+        alert('타임존을 확인해 주세요.')
         return
       }
       setStep(2)
       return
     }
 
+    const safeTimezone = Number.isFinite(formData.timezone) ? formData.timezone : defaultTimezone
     const params = new URLSearchParams({
-      year: formData.year.toString(),
-      month: formData.month.toString(),
-      day: formData.day.toString(),
-      lat: formData.lat.toString(),
-      lon: formData.lon.toString(),
+      year: String(formData.year),
+      month: String(formData.month),
+      day: String(formData.day),
+      lat: String(formData.lat),
+      lon: String(formData.lon),
       gender: formData.gender,
+      timezone: String(safeTimezone),
     })
 
     if (formData.timeKnown === 'exact') {
-      params.append('hour', (formData.hour + formData.minute / 60).toString())
-      params.append('house_system', 'W')
-      router.push(`/chart?${params}`)
+      const decimalHour = formData.hour + formData.minute / 60
+      params.set('hour', String(decimalHour))
+      params.set('house_system', 'W')
+      router.push(`/chart?${params.toString()}`)
       return
     }
 
     if (formData.timeKnown === 'approximate') {
       if (!formData.timeBracket) {
-        alert('시간대를 선택해 주세요.')
+        alert('기억나는 시간대를 선택해 주세요.')
         return
       }
-      params.append('timeBracket', formData.timeBracket)
-      router.push(`/btr/questions?${params}`)
+      params.set('timeBracket', formData.timeBracket)
+      router.push(`/btr/questions?${params.toString()}`)
       return
     }
 
-    params.append('timeBracket', 'all')
-    router.push(`/btr/questions?${params}`)
+    params.set('timeBracket', 'all')
+    router.push(`/btr/questions?${params.toString()}`)
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-purple-50 to-white">
-      <div className="container mx-auto px-4 py-16">
-        <div className="text-center mb-12">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <Sparkles className="w-8 h-8 text-purple-600" />
-            <h1 className="text-5xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-              Vedic AI
-            </h1>
+    <div className="min-h-screen bg-[linear-gradient(180deg,#f7f6f3_0%,#fff_36%)]">
+      <div className="container mx-auto px-4 py-12 max-w-3xl">
+        <div className="text-center mb-10">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <Sparkles className="w-6 h-6 text-[#8d3d56]" />
+            <h1 className="text-4xl font-semibold text-[#2b2731]">Vedic AI</h1>
           </div>
-          <p className="text-2xl text-gray-700 mb-4">당신의 진짜 별자리를 찾아보세요</p>
-          <p className="text-gray-600">출생 정보와 시간 정보로 차트 또는 BTR 분석을 시작할 수 있습니다.</p>
+          <p className="text-[#5f5a64]">출생 정보와 시간 기억 수준으로 리포트를 시작합니다.</p>
         </div>
 
-        <div className="max-w-2xl mx-auto mb-8">
-          <div className="flex items-center justify-center gap-4">
-            <div className={`flex items-center gap-2 ${step >= 1 ? 'text-purple-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 1 ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}>
-                1
-              </div>
-              <span className="font-medium">출생일</span>
-            </div>
-            <div className="h-px w-12 bg-gray-300" />
-            <div className={`flex items-center gap-2 ${step >= 2 ? 'text-purple-600' : 'text-gray-400'}`}>
-              <div className={`w-8 h-8 rounded-full flex items-center justify-center ${step >= 2 ? 'bg-purple-600 text-white' : 'bg-gray-200'}`}>
-                2
-              </div>
-              <span className="font-medium">출생 시간</span>
-            </div>
-            <div className="h-px w-12 bg-gray-300" />
-            <div className="flex items-center gap-2 text-gray-400">
-              <div className="w-8 h-8 rounded-full flex items-center justify-center bg-gray-200">3</div>
-              <span className="font-medium">결과</span>
-            </div>
-          </div>
+        <div className="flex items-center justify-center gap-3 text-sm mb-8">
+          <span className={`px-3 py-1 rounded-full ${step >= 1 ? 'bg-[#8d3d56] text-white' : 'bg-gray-200 text-gray-600'}`}>1. 기본 정보</span>
+          <span className="text-gray-400">→</span>
+          <span className={`px-3 py-1 rounded-full ${step >= 2 ? 'bg-[#8d3d56] text-white' : 'bg-gray-200 text-gray-600'}`}>2. 출생 시간</span>
         </div>
 
-        <div className="max-w-2xl mx-auto">
-          {step === 1 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Calendar className="w-5 h-5" />
-                  출생 정보 입력
-                </CardTitle>
-                <CardDescription>출생 연월일, 도시, 성별을 입력해 주세요.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <Label htmlFor="year">연도</Label>
-                    <Input
-                      id="year"
-                      type="number"
-                      value={formData.year}
-                      onChange={(e) => setFormData({ ...formData, year: parseInt(e.target.value, 10) })}
-                      min={1900}
-                      max={2025}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="month">월</Label>
-                    <Select
-                      value={formData.month.toString()}
-                      onValueChange={(v) => setFormData({ ...formData, month: parseInt(v, 10) })}
-                    >
-                      <SelectTrigger id="month">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
-                          <SelectItem key={m} value={m.toString()}>
-                            {m}월
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Label htmlFor="day">일</Label>
-                    <Select
-                      value={formData.day.toString()}
-                      onValueChange={(v) => setFormData({ ...formData, day: parseInt(v, 10) })}
-                    >
-                      <SelectTrigger id="day">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-                          <SelectItem key={d} value={d.toString()}>
-                            {d}일
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
+        {step === 1 && (
+          <Card className="border-[#e5d9de]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-[#8d3d56]" />
+                출생 기본 정보
+              </CardTitle>
+              <CardDescription>정확한 도시와 타임존이 중요합니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <CitySearch
-                    defaultValue={formData.city}
-                    onCitySelect={(data) => {
-                      setFormData({
-                        ...formData,
-                        city: data.city,
-                        lat: data.lat,
-                        lon: data.lon,
-                      })
-                    }}
-                  />
-
-                  {formData.city && (
-                    <p className="text-sm text-gray-500 mt-2 flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />
-                      {formData.city} ({formData.lat.toFixed(4)}, {formData.lon.toFixed(4)})
-                    </p>
-                  )}
+                  <Label>연도</Label>
+                  <Input type="number" value={formData.year} onChange={(e) => setFormData({ ...formData, year: Number(e.target.value) })} />
                 </div>
-
                 <div>
-                  <Label>성별</Label>
-                  <RadioGroup
-                    value={formData.gender}
-                    onValueChange={(v) => setFormData({ ...formData, gender: v })}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="male" id="male" />
-                      <Label htmlFor="male">남성</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="female" id="female" />
-                      <Label htmlFor="female">여성</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="other" id="other" />
-                      <Label htmlFor="other">기타</Label>
-                    </div>
-                  </RadioGroup>
+                  <Label>월</Label>
+                  <Select value={String(formData.month)} onValueChange={(v) => setFormData({ ...formData, month: Number(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 12 }, (_, i) => i + 1).map((m) => (
+                        <SelectItem key={m} value={String(m)}>{m}월</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
+                <div>
+                  <Label>일</Label>
+                  <Select value={String(formData.day)} onValueChange={(v) => setFormData({ ...formData, day: Number(v) })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                        <SelectItem key={d} value={String(d)}>{d}일</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
 
-                <Button onClick={handleNext} className="w-full" size="lg">
-                  다음 단계
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              <div>
+                <CitySearch
+                  defaultValue={formData.city}
+                  onCitySelect={(data) =>
+                    setFormData({
+                      ...formData,
+                      city: data.city,
+                      lat: data.lat,
+                      lon: data.lon,
+                    })
+                  }
+                />
+                {formData.city && (
+                  <p className="text-sm text-[#726a75] mt-2 flex items-center gap-1">
+                    <MapPin className="w-3 h-3" />
+                    {formData.city} ({formData.lat.toFixed(4)}, {formData.lon.toFixed(4)})
+                  </p>
+                )}
+              </div>
 
-          {step === 2 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Clock className="w-5 h-5" />
-                  출생 시간 정보
-                </CardTitle>
-                <CardDescription>출생 시간을 어느 정도 정확하게 알고 있는지 선택해 주세요.</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <RadioGroup
-                  value={formData.timeKnown}
-                  onValueChange={(v) => setFormData({ ...formData, timeKnown: v as TimeKnown })}
-                >
-                  <Card className="cursor-pointer hover:border-purple-600 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="exact" id="exact" />
-                        <Label htmlFor="exact" className="cursor-pointer flex-1">
-                          <div className="font-medium">정확히 알고 있어요</div>
-                          <div className="text-sm text-gray-500">시간과 분까지 입력할 수 있어요.</div>
-                        </Label>
-                      </div>
-                      {formData.timeKnown === 'exact' && (
-                        <div className="mt-4 grid grid-cols-2 gap-4">
-                          <div>
-                            <Label>시</Label>
-                            <Select
-                              value={formData.hour.toString()}
-                              onValueChange={(v) => setFormData({ ...formData, hour: parseInt(v, 10) })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 24 }, (_, i) => i).map((h) => (
-                                  <SelectItem key={h} value={h.toString()}>
-                                    {h}시
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          <div>
-                            <Label>분</Label>
-                            <Select
-                              value={formData.minute.toString()}
-                              onValueChange={(v) => setFormData({ ...formData, minute: parseInt(v, 10) })}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {Array.from({ length: 60 }, (_, i) => i).map((m) => (
-                                  <SelectItem key={m} value={m.toString()}>
-                                    {m}분
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:border-purple-600 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="approximate" id="approximate" />
-                        <Label htmlFor="approximate" className="cursor-pointer flex-1">
-                          <div className="font-medium">대략 알고 있어요</div>
-                          <div className="text-sm text-gray-500">예: 오전, 저녁 같은 시간대 정보만 있어요.</div>
-                        </Label>
-                      </div>
-                      {formData.timeKnown === 'approximate' && (
-                        <div className="mt-4">
-                          <Label>시간대 선택</Label>
-                          <Select
-                            value={formData.timeBracket}
-                            onValueChange={(v) => setFormData({ ...formData, timeBracket: v })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="시간대를 선택해 주세요." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="00:00-03:00">00:00 - 03:00 (심야)</SelectItem>
-                              <SelectItem value="03:00-06:00">03:00 - 06:00 (이른 새벽)</SelectItem>
-                              <SelectItem value="06:00-09:00">06:00 - 09:00 (아침)</SelectItem>
-                              <SelectItem value="09:00-12:00">09:00 - 12:00 (오전)</SelectItem>
-                              <SelectItem value="12:00-15:00">12:00 - 15:00 (오후)</SelectItem>
-                              <SelectItem value="15:00-18:00">15:00 - 18:00 (늦은 오후)</SelectItem>
-                              <SelectItem value="18:00-21:00">18:00 - 21:00 (저녁)</SelectItem>
-                              <SelectItem value="21:00-00:00">21:00 - 00:00 (밤)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-
-                  <Card className="cursor-pointer hover:border-purple-600 transition-colors">
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="unknown" id="unknown" />
-                        <Label htmlFor="unknown" className="cursor-pointer flex-1">
-                          <div className="font-medium">전혀 모르겠어요</div>
-                          <div className="text-sm text-gray-500">BTR 질문으로 시간대를 추정합니다.</div>
-                        </Label>
-                      </div>
-                    </CardContent>
-                  </Card>
+              <div>
+                <Label>성별</Label>
+                <RadioGroup value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v })}>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="female" id="female" /><Label htmlFor="female">여성</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="male" id="male" /><Label htmlFor="male">남성</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="other" id="other" /><Label htmlFor="other">기타</Label></div>
                 </RadioGroup>
+              </div>
 
-                <div className="flex gap-4">
-                  <Button onClick={() => setStep(1)} variant="outline" className="flex-1">
-                    이전
-                  </Button>
-                  <Button onClick={handleNext} className="flex-1" size="lg">
-                    {formData.timeKnown === 'exact' ? '차트 보기' : 'BTR 시작하기'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+              <div>
+                <Label htmlFor="timezone">타임존 (UTC 기준, 예: 한국 +9)</Label>
+                <Input
+                  id="timezone"
+                  type="number"
+                  step="0.5"
+                  value={formData.timezone}
+                  onChange={(e) => setFormData({ ...formData, timezone: Number(e.target.value) })}
+                />
+              </div>
+
+              <Button onClick={handleNext} className="w-full bg-[#8d3d56] hover:bg-[#7a344a]">다음</Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {step === 2 && (
+          <Card className="border-[#e5d9de]">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="w-5 h-5 text-[#8d3d56]" />
+                출생 시간 정보
+              </CardTitle>
+              <CardDescription>정확하면 바로 차트, 아니면 BTR 질문으로 진행합니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              <RadioGroup value={formData.timeKnown} onValueChange={(v) => setFormData({ ...formData, timeKnown: v as TimeKnown })}>
+                <Card className="border"><CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="exact" id="exact" />
+                    <Label htmlFor="exact">정확히 기억함</Label>
+                  </div>
+                  {formData.timeKnown === 'exact' && (
+                    <div className="grid grid-cols-2 gap-3 mt-3">
+                      <div>
+                        <Label>시</Label>
+                        <Select value={String(formData.hour)} onValueChange={(v) => setFormData({ ...formData, hour: Number(v) })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                              <SelectItem key={h} value={String(h)}>{h}시</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>분</Label>
+                        <Select value={String(formData.minute)} onValueChange={(v) => setFormData({ ...formData, minute: Number(v) })}>
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                              <SelectItem key={m} value={String(m)}>{m}분</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+                </CardContent></Card>
+
+                <Card className="border"><CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="approximate" id="approximate" />
+                    <Label htmlFor="approximate">대략 기억함</Label>
+                  </div>
+                  {formData.timeKnown === 'approximate' && (
+                    <div className="mt-3">
+                      <Label>시간대</Label>
+                      <Select value={formData.timeBracket} onValueChange={(v) => setFormData({ ...formData, timeBracket: v })}>
+                        <SelectTrigger><SelectValue placeholder="시간대 선택" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="00:00-03:00">00:00 - 03:00</SelectItem>
+                          <SelectItem value="03:00-06:00">03:00 - 06:00</SelectItem>
+                          <SelectItem value="06:00-09:00">06:00 - 09:00</SelectItem>
+                          <SelectItem value="09:00-12:00">09:00 - 12:00</SelectItem>
+                          <SelectItem value="12:00-15:00">12:00 - 15:00</SelectItem>
+                          <SelectItem value="15:00-18:00">15:00 - 18:00</SelectItem>
+                          <SelectItem value="18:00-21:00">18:00 - 21:00</SelectItem>
+                          <SelectItem value="21:00-00:00">21:00 - 00:00</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                </CardContent></Card>
+
+                <Card className="border"><CardContent className="p-4">
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="unknown" id="unknown" />
+                    <Label htmlFor="unknown">모름 (BTR 질문으로 진행)</Label>
+                  </div>
+                </CardContent></Card>
+              </RadioGroup>
+
+              <div className="flex gap-3">
+                <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>이전</Button>
+                <Button className="flex-1 bg-[#8d3d56] hover:bg-[#7a344a]" onClick={handleNext}>
+                  {formData.timeKnown === 'exact' ? '차트 보기' : 'BTR 시작하기'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   )

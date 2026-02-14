@@ -41,13 +41,18 @@ const HELPER_TEXT: Record<string, string> = {
 export default function BTRQuestionsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const toNum = (value: string | null, fallback: number): number => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+  }
 
   const birthData = {
-    year: parseInt(searchParams.get('year') || '1994', 10),
-    month: parseInt(searchParams.get('month') || '12', 10),
-    day: parseInt(searchParams.get('day') || '18', 10),
-    lat: parseFloat(searchParams.get('lat') || '37.5665'),
-    lon: parseFloat(searchParams.get('lon') || '126.978'),
+    year: toNum(searchParams.get('year'), 1994),
+    month: toNum(searchParams.get('month'), 12),
+    day: toNum(searchParams.get('day'), 18),
+    lat: toNum(searchParams.get('lat'), 37.5665),
+    lon: toNum(searchParams.get('lon'), 126.978),
+    timezone: toNum(searchParams.get('timezone'), 9),
   }
 
   const [questions, setQuestions] = useState<any[]>([])
@@ -174,6 +179,7 @@ export default function BTRQuestionsPage() {
         day: birthData.day,
         lat: birthData.lat,
         lon: birthData.lon,
+        timezone: birthData.timezone,
         events: payloadEvents,
       })
       const params = new URLSearchParams(searchParams.toString())
@@ -181,7 +187,8 @@ export default function BTRQuestionsPage() {
       router.push(`/btr/results?${params}`)
     } catch (error) {
       console.error('BTR analysis failed:', error)
-      setInlineError('분석 중 오류가 발생했습니다. 다시 시도해 주세요.')
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      setInlineError(`분석 중 오류가 발생했습니다: ${msg}`)
     } finally {
       setAnalyzing(false)
     }

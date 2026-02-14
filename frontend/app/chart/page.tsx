@@ -67,6 +67,11 @@ export default function ChartPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
+  const toNum = (value: string | null, fallback: number): number => {
+    const n = Number(value)
+    return Number.isFinite(n) ? n : fallback
+  }
+
   const [chart, setChart] = useState<any>(null)
   const [aiReading, setAIReading] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -77,12 +82,13 @@ export default function ChartPage() {
   const [showAdvanced, setShowAdvanced] = useState(false)
 
   const birthData = {
-    year: parseInt(searchParams.get('year') || '1994', 10),
-    month: parseInt(searchParams.get('month') || '12', 10),
-    day: parseInt(searchParams.get('day') || '18', 10),
-    hour: parseFloat(searchParams.get('hour') || '23.75'),
-    lat: parseFloat(searchParams.get('lat') || '37.5665'),
-    lon: parseFloat(searchParams.get('lon') || '126.978'),
+    year: toNum(searchParams.get('year'), 1994),
+    month: toNum(searchParams.get('month'), 12),
+    day: toNum(searchParams.get('day'), 18),
+    hour: toNum(searchParams.get('hour'), 23.75),
+    lat: toNum(searchParams.get('lat'), 37.5665),
+    lon: toNum(searchParams.get('lon'), 126.978),
+    timezone: toNum(searchParams.get('timezone'), 9),
     gender: searchParams.get('gender') || 'female',
     house_system: searchParams.get('house_system') || 'W',
   }
@@ -99,7 +105,8 @@ export default function ChartPage() {
         setChart(data)
       } catch (error) {
         console.error('Failed to load chart:', error)
-        alert('차트 불러오기에 실패했습니다.')
+        const msg = error instanceof Error ? error.message : 'Unknown error'
+        alert(`차트 불러오기에 실패했습니다.\n원인: ${msg}`)
       } finally {
         setLoading(false)
       }
@@ -125,7 +132,8 @@ export default function ChartPage() {
       setActiveTab('reading')
     } catch (error) {
       console.error('Failed to load AI reading:', error)
-      alert('AI 해석 불러오기에 실패했습니다.')
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      alert(`AI 해석 불러오기에 실패했습니다.\n원인: ${msg}`)
     } finally {
       setLoadingAI(false)
     }
@@ -151,7 +159,8 @@ export default function ChartPage() {
       window.URL.revokeObjectURL(url)
     } catch (error) {
       console.error('Failed to download PDF:', error)
-      alert('PDF 다운로드에 실패했습니다.')
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      alert(`PDF 다운로드에 실패했습니다.\n원인: ${msg}`)
     } finally {
       setLoadingPDF(false)
     }

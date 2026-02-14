@@ -24,7 +24,17 @@ function resolveApiBaseUrl(): string {
     )
   }
 
-  // Browser-side: require explicit public API URL in non-dev deployments.
+  // Browser-side:
+  // If frontend runs on localhost, prefer local backend by default to avoid
+  // accidental dependency on stale remote NEXT_PUBLIC_API_URL values.
+  const isLocalFrontendHost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+  if (isLocalFrontendHost && process.env.NEXT_PUBLIC_ALLOW_REMOTE_API !== '1') {
+    return 'http://127.0.0.1:8000'
+  }
+
+  // Otherwise require explicit public API URL in non-dev deployments.
   const publicApiUrl = (process.env.NEXT_PUBLIC_API_URL || '').trim()
   if (publicApiUrl) {
     return publicApiUrl
@@ -38,6 +48,18 @@ function resolveApiBaseUrl(): string {
 }
 
 const API_BASE_URL = resolveApiBaseUrl()
+
+async function safeFetch(path: string, init?: RequestInit): Promise<Response> {
+  const url = `${API_BASE_URL}${path}`
+  try {
+    return await fetch(url, init)
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `Network request failed. API server unreachable.\nURL: ${url}\nReason: ${reason}`
+    )
+  }
+}
 
 export type EventType =
   | 'career_change'
@@ -65,6 +87,7 @@ export interface BTRAnalyzeRequest {
   day: number
   lat: number
   lon: number
+  timezone?: number
   events: BTREvent[]
   tune_mode?: boolean
 }
@@ -81,6 +104,7 @@ export interface ChartRequest {
   include_d9?: boolean
   include_vargas?: string[]
   gender?: string
+  timezone?: number
 }
 
 function applyVargaParams(params: URLSearchParams, data: ChartRequest): void {
@@ -125,7 +149,7 @@ async function buildApiError(response: Response, fallbackMessage: string): Promi
 }
 
 export async function getBTRQuestions(age: number, language: string = 'ko') {
-  const response = await fetch(`${API_BASE_URL}/btr/questions?age=${age}&language=${language}`)
+  const response = await safeFetch(`/btr/questions?age=${age}&language=${language}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch BTR questions')
   }
@@ -133,7 +157,7 @@ export async function getBTRQuestions(age: number, language: string = 'ko') {
 }
 
 export async function analyzeBTR(data: BTRAnalyzeRequest) {
-  const response = await fetch(`${API_BASE_URL}/btr/analyze`, {
+  const response = await safeFetch('/btr/analyze', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -160,8 +184,11 @@ export async function getChart(data: ChartRequest) {
     gender: data.gender || 'male',
   })
   applyVargaParams(params, data)
+  if (Number.isFinite(data.timezone)) {
+    params.set('timezone', String(data.timezone))
+  }
 
-  const response = await fetch(`${API_BASE_URL}/chart?${params}`)
+  const response = await safeFetch(`/chart?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch chart')
   }
@@ -183,8 +210,11 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
     gender: data.gender || 'male',
   })
   applyVargaParams(params, data)
+  if (Number.isFinite(data.timezone)) {
+    params.set('timezone', String(data.timezone))
+  }
 
-  const response = await fetch(`${API_BASE_URL}/ai_reading?${params}`)
+  const response = await safeFetch(`/ai_reading?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch AI reading')
   }
@@ -206,8 +236,11 @@ export async function getPDF(data: ChartRequest & { language?: string }) {
     gender: data.gender || 'male',
   })
   applyVargaParams(params, data)
+  if (Number.isFinite(data.timezone)) {
+    params.set('timezone', String(data.timezone))
+  }
 
-  const response = await fetch(`${API_BASE_URL}/pdf?${params}`)
+  const response = await safeFetch(`/pdf?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch PDF')
   }
