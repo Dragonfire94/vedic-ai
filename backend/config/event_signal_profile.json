@@ -1,0 +1,44 @@
+{
+  "career": {
+    "houses": [10, 6],
+    "planets": ["Sun", "Saturn", "Mars"],
+    "dasha_lords": ["Sun", "Saturn"],
+    "conflict_factors": ["Moon", "Ketu"],
+    "base_weight": 1.0
+  },
+  "relationship": {
+    "houses": [7, 5, 11],
+    "planets": ["Venus", "Moon", "Jupiter"],
+    "dasha_lords": ["Venus", "Jupiter"],
+    "conflict_factors": ["Saturn", "Rahu"],
+    "base_weight": 1.0
+  },
+  "relocation": {
+    "houses": [3, 4, 9],
+    "planets": ["Mars", "Jupiter", "Mercury"],
+    "dasha_lords": ["Mars"],
+    "conflict_factors": ["Saturn"],
+    "base_weight": 1.0
+  },
+  "health": {
+    "houses": [6, 8, 12],
+    "planets": ["Saturn", "Mars"],
+    "dasha_lords": ["Saturn"],
+    "conflict_factors": ["Rahu", "Ketu"],
+    "base_weight": 1.0
+  },
+  "finance": {
+    "houses": [2, 8, 11],
+    "planets": ["Jupiter", "Venus"],
+    "dasha_lords": ["Jupiter"],
+    "conflict_factors": ["Mars", "Saturn"],
+    "base_weight": 1.0
+  },
+  "other": {
+    "houses": [],
+    "planets": [],
+    "dasha_lords": [],
+    "conflict_factors": [],
+    "base_weight": 1.0
+  }
+}

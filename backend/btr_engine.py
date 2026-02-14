@@ -7,12 +7,17 @@ BTR (Birth Time Rectification) 엔진
 
 import math
 import logging
+import json
+import os
 from typing import List, Dict, Optional, Tuple, Any, Literal
 from datetime import datetime
+from pathlib import Path
 
 import swisseph as swe
 
 logger = logging.getLogger("btr_engine")
+calibration_logger = logging.getLogger("btr.calibration")
+calibration_logger.setLevel(logging.INFO)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 상수
@@ -63,38 +68,124 @@ CONFIDENCE_GRADES = [
     (65, "C+"), (60, "C"), (0, "C-"),
 ]
 
-EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, List[Any]]] = {
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
+EVENT_SIGNAL_PROFILE_PATH = CONFIG_DIR / "event_signal_profile.json"
+EVENT_SIGNAL_MAPPING_PATH = CONFIG_DIR / "event_signal_mapping.json"
+
+_DEFAULT_EVENT_SIGNAL_MAPPING: Dict[str, str] = {
+    "career_change": "career",
+    "relationship": "relationship",
+    "relocation": "relocation",
+    "health": "health",
+    "finance": "finance",
+    "other": "other",
+}
+
+_DEFAULT_EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, Any]] = {
     "career": {
         "houses": [10, 6],
         "planets": ["Sun", "Saturn", "Mars"],
         "dasha_lords": ["Sun", "Saturn"],
         "conflict_factors": ["Moon", "Ketu"],
+        "base_weight": 1.0,
     },
     "relationship": {
         "houses": [7, 5, 11],
         "planets": ["Venus", "Moon", "Jupiter"],
         "dasha_lords": ["Venus", "Jupiter"],
         "conflict_factors": ["Saturn", "Rahu"],
+        "base_weight": 1.0,
     },
     "relocation": {
         "houses": [3, 4, 9],
         "planets": ["Mars", "Jupiter", "Mercury"],
         "dasha_lords": ["Mars"],
         "conflict_factors": ["Saturn"],
+        "base_weight": 1.0,
     },
     "health": {
         "houses": [6, 8, 12],
         "planets": ["Saturn", "Mars"],
         "dasha_lords": ["Saturn"],
         "conflict_factors": ["Rahu", "Ketu"],
+        "base_weight": 1.0,
     },
     "finance": {
         "houses": [2, 8, 11],
         "planets": ["Jupiter", "Venus"],
         "dasha_lords": ["Jupiter"],
         "conflict_factors": ["Mars", "Saturn"],
+        "base_weight": 1.0,
+    },
+    "other": {
+        "houses": [],
+        "planets": [],
+        "dasha_lords": [],
+        "conflict_factors": [],
+        "base_weight": 1.0,
     },
 }
+
+
+def _load_json_config(path: Path, fallback: Dict[str, Any], config_name: str) -> Dict[str, Any]:
+    """Load a JSON config file, returning `fallback` on any validation or IO error."""
+    try:
+        if not path.exists():
+            logger.warning("%s missing at %s. Using defaults.", config_name, path)
+            return dict(fallback)
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(loaded, dict):
+            raise ValueError(f"{config_name} must be a JSON object")
+        return loaded
+    except Exception as exc:
+        logger.warning("Failed loading %s (%s). Using defaults.", config_name, exc)
+        return dict(fallback)
+
+
+def _load_event_signal_mapping() -> Dict[str, str]:
+    raw = _load_json_config(EVENT_SIGNAL_MAPPING_PATH, _DEFAULT_EVENT_SIGNAL_MAPPING, "event_signal_mapping")
+    mapping: Dict[str, str] = {}
+    for key, value in raw.items():
+        if isinstance(key, str) and isinstance(value, str):
+            mapping[key] = value
+    return mapping or dict(_DEFAULT_EVENT_SIGNAL_MAPPING)
+
+
+def _load_event_signal_profile() -> Dict[str, Dict[str, Any]]:
+    """Load event signal profile schema.
+
+    JSON schema:
+    {
+      "<profile_name>": {
+        "houses": [int, ...],
+        "planets": [str, ...],
+        "dasha_lords": [str, ...],
+        "conflict_factors": [str, ...],
+        "base_weight": float
+      }
+    }
+
+    Missing keys are filled from safe defaults to preserve runtime stability.
+    """
+    raw = _load_json_config(EVENT_SIGNAL_PROFILE_PATH, _DEFAULT_EVENT_SIGNAL_PROFILE, "event_signal_profile")
+    profile: Dict[str, Dict[str, Any]] = {}
+    required_list_keys = ("houses", "planets", "dasha_lords", "conflict_factors")
+    for event_key, values in raw.items():
+        if not isinstance(event_key, str) or not isinstance(values, dict):
+            continue
+        normalized: Dict[str, Any] = {}
+        for key in required_list_keys:
+            normalized[key] = values.get(key, []) if isinstance(values.get(key, []), list) else []
+        try:
+            normalized["base_weight"] = float(values.get("base_weight", 1.0))
+        except (TypeError, ValueError):
+            normalized["base_weight"] = 1.0
+        profile[event_key] = normalized
+    return profile or dict(_DEFAULT_EVENT_SIGNAL_PROFILE)
+
+
+EVENT_SIGNAL_MAPPING = _load_event_signal_mapping()
+EVENT_SIGNAL_PROFILE: Dict[str, Dict[str, Any]] = _load_event_signal_profile()
 
 EXALTATION_SIGNS: Dict[str, str] = {
     "Sun": "Aries",
@@ -1215,6 +1306,7 @@ def compute_event_signal_strength(
     strength_data: Dict[str, Dict[str, float]],
     influence_matrix: Dict[str, float],
     dasha_vector: Dict[str, Any],
+    contribution_collector: Optional[Dict[str, Any]] = None,
 ) -> float:
     """Compute an event-type specific astrological signal strength in [0, 1].
 
@@ -1223,8 +1315,16 @@ def compute_event_signal_strength(
     Unknown/unsupported event types remain neutral with signal strength 1.0.
     """
     event_type = event.get("event_type")
-    profile = EVENT_SIGNAL_PROFILE.get(event_type)
+    mapped_key = EVENT_SIGNAL_MAPPING.get(str(event_type), str(event_type))
+    profile = EVENT_SIGNAL_PROFILE.get(mapped_key)
     if not profile:
+        if contribution_collector is not None:
+            contribution_collector.update({
+                "event_type": event_type,
+                "mapped_profile": mapped_key,
+                "signal_strength": 1.0,
+                "base_weight": 1.0,
+            })
         return 1.0
 
     houses_map: Dict[int, bool] = chart_data.get("houses", {})
@@ -1253,7 +1353,23 @@ def compute_event_signal_strength(
         + (dasha_lord_weight * 0.25)
         + (conflict_weight * 0.15)
     )
-    return max(0.0, min(1.0, signal_strength))
+    clipped_signal = max(0.0, min(1.0, signal_strength))
+    base_weight = float(profile.get("base_weight", 1.0))
+    weighted_signal = max(0.0, min(1.0, clipped_signal * base_weight))
+
+    if contribution_collector is not None:
+        contribution_collector.update({
+            "event_type": event_type,
+            "mapped_profile": mapped_key,
+            "house_weight": round(house_weight, 6),
+            "planet_weight": round(planet_weight, 6),
+            "dasha_lord_weight": round(dasha_lord_weight, 6),
+            "conflict_weight": round(conflict_weight, 6),
+            "base_weight": round(base_weight, 6),
+            "signal_strength": round(weighted_signal, 6),
+        })
+
+    return weighted_signal
 
 def _hour_to_str(hour_float: float) -> str:
     """시간(소수점) → 'HH:MM' 문자열"""
@@ -1271,6 +1387,7 @@ def _score_candidate(
     lon: float,
     use_dignity: bool = True,
     use_aspects: bool = True,
+    event_signal_collector: Optional[List[Dict[str, Any]]] = None,
 ) -> Tuple[float, int, int, float, List[int]]:
     """
     후보 시간에 대한 종합 스코어 계산
@@ -1341,13 +1458,17 @@ def _score_candidate(
             dasha_lords = event.get("dasha_lords", [])
             dasha_vector = {lord: True for lord in dasha_lords}
 
+        contribution_detail: Dict[str, Any] = {}
         event_signal = compute_event_signal_strength(
             chart_data={"houses": houses},
             event=event,
             strength_data=strength_data,
             influence_matrix=influence_matrix,
             dasha_vector=dasha_vector,
+            contribution_collector=contribution_detail,
         )
+        if event_signal_collector is not None:
+            event_signal_collector.append(contribution_detail)
         effective_weight = event_weight * utility * information_weight * event_signal
         max_possible += effective_weight + (0.2 * utility * information_weight)
 
@@ -1384,6 +1505,7 @@ def analyze_birth_time(
     use_dignity: bool = True,
     use_aspects: bool = True,
     production_mode: bool = False,
+    tune_mode: bool = False,
 ) -> List[Dict]:
     """
     메인 BTR 분석 함수
@@ -1454,14 +1576,17 @@ def analyze_birth_time(
 
     # 2. 각 브래킷 평가
     candidates = []
+    top_event_signal_contributions: List[Dict[str, Any]] = []
     for bracket in brackets:
         mid_hour = bracket["mid"]
         chart = _compute_chart_for_time(birth_date, mid_hour, lat, lon)
         if chart is None:
             continue
 
+        event_signal_contributions: List[Dict[str, Any]] = []
         score, matched, total, confidence, fb_levels = _score_candidate(
             birth_date, mid_hour, chart, events, lat, lon, use_dignity=use_dignity, use_aspects=use_aspects
+            , event_signal_collector=event_signal_contributions
         )
 
         confidence_percent = confidence * 100.0
@@ -1482,6 +1607,8 @@ def analyze_birth_time(
             "fallback_level": round(sum(fb_levels) / len(fb_levels), 2) if fb_levels else 0.0,
             "grade_message": get_grade_message(grade),
         })
+        if not top_event_signal_contributions or score > max(c["score"] for c in candidates[:-1] or [{"score": -float("inf")}]):
+            top_event_signal_contributions = event_signal_contributions
 
     # 3. 정렬 및 Top-N
     candidates.sort(key=lambda x: x["score"], reverse=True)
@@ -1503,13 +1630,77 @@ def analyze_birth_time(
     for candidate in calibrated:
         production_rows.append({
             "ascendant": candidate.get("ascendant", ""),
-            "time_range": candidate.get("time_range", ""),
-            "mid_hour": round(float(candidate.get("mid_hour", 0.0)), 2),
             "score": round(float(candidate.get("score", 0.0)), 2),
             "probability": round(max(0.0, min(1.0, float(candidate.get("probability", 0.0)))), 6),
             "confidence": round(max(0.0, min(1.0, float(candidate.get("confidence", 0.0)))), 3),
             "fallback_level": round(float(candidate.get("fallback_level", 0.0)), 2),
         })
+
+    if calibrated:
+        now_utc = datetime.utcnow().replace(microsecond=0).isoformat() + "Z"
+        top_candidate = calibrated[0]
+        second_probability = float(calibrated[1].get("probability", 0.0)) if len(calibrated) > 1 else 0.0
+        separation_gap = float(top_candidate.get("probability", 0.0)) - second_probability
+        safe_events = [
+            {
+                "event_type": e.get("event_type"),
+                "precision_level": e.get("precision_level"),
+                "year": e.get("year"),
+                "age_range": e.get("age_range"),
+                "other_label": e.get("other_label"),
+            }
+            for e in events
+        ]
+
+        calibration_payload = {
+            "timestamp_utc": now_utc,
+            "input_events": safe_events,
+            "normalized_scores": [
+                {
+                    "raw_score": float(row.get("score", 0.0)),
+                    "probability": float(row.get("probability", 0.0)),
+                }
+                for row in calibrated
+            ],
+            "confidence": float(top_candidate.get("confidence", 0.0)),
+            "top_candidate_time_range": top_candidate.get("time_range", ""),
+            "separation_gap": round(separation_gap, 6),
+            "signal_strength_contributions": top_event_signal_contributions,
+        }
+        calibration_logger.info(json.dumps(calibration_payload, ensure_ascii=False))
+
+    if tune_mode:
+        tune_mode_enabled = os.getenv("BTR_ENABLE_TUNE_MODE", "0") == "1"
+        if not tune_mode_enabled:
+            logger.warning("tune_mode requested but disabled (set BTR_ENABLE_TUNE_MODE=1 to enable).")
+        else:
+            tune_payload = {
+                "events": [
+                    {
+                        "event_type": e.get("event_type"),
+                        "precision_level": e.get("precision_level"),
+                        "year": e.get("year"),
+                        "age_range": e.get("age_range"),
+                        "other_label": e.get("other_label"),
+                    }
+                    for e in events
+                ],
+                "birth_data": {
+                    "year": birth_date.get("year"),
+                    "month": birth_date.get("month"),
+                    "day": birth_date.get("day"),
+                    "lat": lat,
+                    "lon": lon,
+                },
+                "scores": [float(row.get("score", 0.0)) for row in production_rows],
+                "probabilities": [float(row.get("probability", 0.0)) for row in production_rows],
+                "confidence": float(production_rows[0].get("confidence", 0.0)) if production_rows else 0.0,
+                "timestamp": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+            }
+            tuning_path = Path(__file__).resolve().parent.parent / "data" / "tuning_inputs.log"
+            tuning_path.parent.mkdir(parents=True, exist_ok=True)
+            with tuning_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(tune_payload, ensure_ascii=False) + "\n")
 
     return production_rows
 

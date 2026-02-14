@@ -24,6 +24,7 @@ export interface BTRAnalyzeRequest {
   lat: number
   lon: number
   events: BTREvent[]
+  tune_mode?: boolean
 }
 
 export interface ChartRequest {
