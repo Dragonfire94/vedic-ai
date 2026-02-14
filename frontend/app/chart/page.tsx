@@ -53,6 +53,7 @@ export default function ChartPage() {
           ...birthData,
           include_nodes: true,
           include_d9: true,
+          include_vargas: ['d7', 'd10', 'd12'],
         })
         setChart(data)
       } catch (error) {
@@ -79,6 +80,7 @@ export default function ChartPage() {
         language: 'ko',
         include_nodes: true,
         include_d9: true,
+        include_vargas: ['d7', 'd10', 'd12'],
       })
       setAIReading(data)
       setActiveTab('reading')
@@ -99,6 +101,7 @@ export default function ChartPage() {
         language: 'ko',
         include_nodes: true,
         include_d9: true,
+        include_vargas: ['d7', 'd10', 'd12'],
       })
 
       if (data.pdf_base64) {
@@ -350,14 +353,25 @@ export default function ChartPage() {
                                 </div>
                               </div>
 
-                              {chart.d9?.planets?.[planetName] && (
-                                <div className="p-2 bg-purple-50 rounded border border-purple-200">
-                                  <div className="text-xs text-purple-700 font-medium">나밤샤 (D9)</div>
-                                  <div className="text-sm">
-                                    {chart.d9.planets[planetName].rasi_kr}
-                                  </div>
-                                </div>
-                              )}
+                              {(() => {
+                                const vargaItems = [
+                                  { key: 'd9', label: '나밤샤 (D9)' },
+                                  { key: 'd10', label: '다샴샤 (D10)' },
+                                  { key: 'd7', label: '삽탐샤 (D7)' },
+                                  { key: 'd12', label: '드와다샴샤 (D12)' },
+                                ]
+                                const vargaMap = chart.vargas || {}
+                                return vargaItems.map((item) => {
+                                  const sign = vargaMap?.[item.key]?.planets?.[planetName]?.rasi_kr
+                                  if (!sign) return null
+                                  return (
+                                    <div key={item.key} className="p-2 bg-purple-50 rounded border border-purple-200">
+                                      <div className="text-xs text-purple-700 font-medium">{item.label}</div>
+                                      <div className="text-sm">{sign}</div>
+                                    </div>
+                                  )
+                                })
+                              })()}
                             </div>
                           </CardContent>
                         )}

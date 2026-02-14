@@ -57,9 +57,9 @@
     "priority": -999,
     "content": {
       "title": "Psychological Architecture",
-      "summary": "No dominant psychological extremes detected.",
-      "analysis": "",
-      "implication": "",
+      "summary": "No acute psychological imbalance is dominant in the current frame.",
+      "analysis": "Your baseline suggests workable self-regulation with no single destabilizing pattern overriding the whole profile.",
+      "implication": "Maintain rhythm, boundary clarity, and recovery discipline to preserve this stability.",
       "examples": ""
     },
     "intensity_tiers": [
@@ -207,9 +207,9 @@
     "priority": -999,
     "content": {
       "title": "Career & Success",
-      "summary": "No dominant career-extreme signals detected.",
-      "analysis": "",
-      "implication": "",
+      "summary": "No single career-extreme signal is currently overriding your trajectory.",
+      "analysis": "Progress is likely to depend more on execution quality and sequencing than on dramatic structural volatility.",
+      "implication": "Prioritize consistency, measurable milestones, and selective commitments over reactive expansion.",
       "examples": ""
     },
     "intensity_tiers": [
@@ -332,9 +332,9 @@
     "priority": -999,
     "content": {
       "title": "Final Summary",
-      "summary": "No dominant extreme signals detected across chapters.",
-      "analysis": "",
-      "implication": "",
+      "summary": "No singular extreme dominates the full chart narrative at this time.",
+      "analysis": "The overall pattern favors disciplined calibration over radical correction.",
+      "implication": "Steady execution with periodic review is the highest-probability path for compounding results.",
       "examples": ""
     },
     "intensity_tiers": [

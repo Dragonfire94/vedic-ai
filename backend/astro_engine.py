@@ -967,6 +967,64 @@ def calculate_probability_forecast(
     }
 
 
+def _varga_alignment_level(score: float | None) -> str:
+    if score is None:
+        return "unknown"
+    if score >= 0.66:
+        return "high"
+    if score >= 0.4:
+        return "medium"
+    return "low"
+
+
+def _compute_single_varga_alignment(planets: dict[str, Any], varga_planets: dict[str, Any]) -> float | None:
+    sample_planets = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]
+    total = 0
+    matched = 0
+    for name in sample_planets:
+        d1_sign = ((planets.get(name, {}) or {}).get("rasi", {}) or {}).get("name")
+        d_sign = ((varga_planets.get(name, {}) or {})).get("rasi")
+        if not isinstance(d1_sign, str) or not isinstance(d_sign, str):
+            continue
+        total += 1
+        if d1_sign == d_sign:
+            matched += 1
+    if total == 0:
+        return None
+    return round(matched / total, 4)
+
+
+def compute_varga_alignment(chart_data: dict[str, Any]) -> dict[str, Any]:
+    planets = chart_data.get("planets", {}) if isinstance(chart_data.get("planets"), dict) else {}
+    vargas = chart_data.get("vargas", {}) if isinstance(chart_data.get("vargas"), dict) else {}
+
+    def score_for(varga_key: str) -> float | None:
+        payload = vargas.get(varga_key, {})
+        if not isinstance(payload, dict):
+            return None
+        v_planets = payload.get("planets", {})
+        if not isinstance(v_planets, dict):
+            return None
+        return _compute_single_varga_alignment(planets, v_planets)
+
+    relationship_score = score_for("d9")
+    career_score = score_for("d10")
+    creativity_score = score_for("d7")
+    family_score = score_for("d12")
+
+    available_scores = [s for s in [relationship_score, career_score, creativity_score, family_score] if isinstance(s, float)]
+    overall_score = round(sum(available_scores) / len(available_scores), 4) if available_scores else None
+
+    return {
+        "relationship_alignment": {"score": relationship_score, "level": _varga_alignment_level(relationship_score)},
+        "career_alignment": {"score": career_score, "level": _varga_alignment_level(career_score)},
+        "creativity_progeny_alignment": {"score": creativity_score, "level": _varga_alignment_level(creativity_score)},
+        "family_lineage_alignment": {"score": family_score, "level": _varga_alignment_level(family_score)},
+        "overall_alignment": {"score": overall_score, "level": _varga_alignment_level(overall_score)},
+        "available_vargas": sorted([k for k in ["d7", "d9", "d10", "d12"] if k in vargas]),
+    }
+
+
 def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
     """Build the full 4D structural summary payload from chart data."""
     planets = chart_data.get("planets", {})
@@ -1000,6 +1058,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
 
     dasha_summary = summarize_dasha_timeline(planets, strength, yogas, current_dasha)
     probability_forecast = calculate_probability_forecast(strength, house_clusters, dasha_summary, behavioral_risks)
+    varga_alignment = compute_varga_alignment(chart_data)
 
     dominant_theme = max(karmic.items(), key=lambda x: x[1])[0] if karmic else "balanced_growth_pattern"
     relationship_vector = "stability_oriented" if (strength.get("Venus", {}).get("score", 5.0) >= 5.0) else "attachment_healing_required"
@@ -1027,6 +1086,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
         "stability_metrics": stability_metrics,
         "personality_vector": personality_vector,
         "probability_forecast": probability_forecast,
+        "varga_alignment": varga_alignment,
         "karmic_pattern_profile": karmic,
         "current_dasha_vector": dasha_summary,
         "dominant_life_theme": dominant_theme,
@@ -1050,6 +1110,7 @@ def build_structural_summary(chart_data: dict[str, Any]) -> dict[str, Any]:
             "stability_metrics": stability_metrics,
             "personality_vector": personality_vector,
             "probability_forecast": probability_forecast,
+            "varga_alignment": varga_alignment,
             "current_dasha": current_dasha,
         },
     }

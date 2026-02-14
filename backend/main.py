@@ -13,10 +13,16 @@ import base64
 import logging
 import asyncio
 import subprocess
+import sys
 from pathlib import Path
 from enum import Enum
 from datetime import datetime
 from typing import Optional, Any, Literal, Tuple, Dict, List
+
+# Support both `uvicorn backend.main:app` (repo root) and
+# `uvicorn main:app` (backend directory) execution contexts.
+if __package__ is None or __package__ == "":
+    sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 # Structural engine import via the backend package to keep resolution stable
 # when running `uvicorn backend.main:app` from any working directory.
@@ -323,6 +329,14 @@ RASI_NAMES_KR = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
     "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces",
 ]
+
+VARGA_DIVISION_FACTORS: dict[str, int] = {
+    "d7": 7,
+    "d9": 9,
+    "d10": 10,
+    "d12": 12,
+}
+VARGA_OUTPUT_ORDER = ["d7", "d9", "d10", "d12"]
 NAKSHATRA_NAMES = [
     "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
     "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
@@ -439,6 +453,52 @@ def normalize_360(deg: float) -> float:
 def get_rasi_index(lon: float) -> int:
     """Return rasi index in range 0..11."""
     return int(lon / 30.0) % 12
+
+
+def parse_include_vargas(include_vargas: str, include_d9: int) -> list[str]:
+    requested: set[str] = set()
+    raw = (include_vargas or "").strip()
+    if raw:
+        for token in raw.split(","):
+            key = token.strip().lower()
+            if not key:
+                continue
+            if key not in VARGA_DIVISION_FACTORS:
+                raise ValueError(
+                    f"Unsupported include_vargas token '{key}'. "
+                    "Allowed values: d7,d9,d10,d12"
+                )
+            requested.add(key)
+
+    if include_d9:
+        requested.add("d9")
+
+    return [key for key in VARGA_OUTPUT_ORDER if key in requested]
+
+
+def build_divisional_chart(planets: dict[str, Any], division: int) -> dict[str, Any]:
+    d_planets: dict[str, Any] = {}
+    for name, data in planets.items():
+        p_lon = data.get("longitude")
+        if not isinstance(p_lon, (int, float)):
+            continue
+        d_lon = (float(p_lon) * float(division)) % 360.0
+        d_rasi_idx = get_rasi_index(d_lon)
+        d_planets[name] = {
+            "rasi": RASI_NAMES[d_rasi_idx],
+            "rasi_kr": RASI_NAMES_KR[d_rasi_idx],
+        }
+    return {"planets": d_planets}
+
+
+def build_requested_vargas(planets: dict[str, Any], requested_vargas: list[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for key in requested_vargas:
+        division = VARGA_DIVISION_FACTORS.get(key)
+        if not division:
+            continue
+        out[key] = build_divisional_chart(planets, division)
+    return out
 
 def get_nakshatra_info(lon: float):
     """???????????????????????(0~26, pada 1~4)"""
@@ -727,6 +787,7 @@ def get_chart(
     house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(0),
+    include_vargas: str = Query(""),
     include_interpretation: int = Query(0),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
@@ -737,8 +798,8 @@ def get_chart(
     logger.debug(f"year={year}, month={month}, day={day}, hour={hour}")
     logger.debug(f"lat={lat}, lon={lon}")
     logger.debug(f"house_system={house_system}, gender={gender}")
-
     try:
+        requested_vargas = parse_include_vargas(include_vargas, include_d9)
         jd = compute_julian_day_legacy(year, month, day, hour, lat, lon, timezone=timezone)
         
         # ??????????????
@@ -876,19 +937,7 @@ def get_chart(
                 p_rasi = data["rasi"]["index"]
                 data["house"] = ((p_rasi - asc_rasi_idx) % 12) + 1
         
-        # D9 (Navamsa) - ????????????????
-        d9_data = None
-        if include_d9:
-            d9_planets = {}
-            for name, data in planets.items():
-                p_lon = data["longitude"]
-                d9_lon = (p_lon * 9) % 360
-                d9_rasi_idx = get_rasi_index(d9_lon)
-                d9_planets[name] = {
-                    "rasi": RASI_NAMES[d9_rasi_idx],
-                    "rasi_kr": RASI_NAMES_KR[d9_rasi_idx]
-                }
-            d9_data = {"planets": d9_planets}
+        vargas_data = build_requested_vargas(planets, requested_vargas)
         
         # ??? (????????????????
         yogas = []
@@ -910,6 +959,7 @@ def get_chart(
                 "house_system": house_system,
                 "include_nodes": bool(include_nodes),
                 "include_d9": bool(include_d9),
+                "include_vargas": requested_vargas,
                 "gender": gender
             },
             "julian_day": jd,
@@ -925,11 +975,15 @@ def get_chart(
             }
         }
         
-        if d9_data:
-            result["d9"] = d9_data
+        if vargas_data:
+            result["vargas"] = vargas_data
+            if "d9" in vargas_data:
+                result["d9"] = vargas_data["d9"]
         
         return result
         
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -945,6 +999,7 @@ async def get_chart_endpoint(
     house_system: str = Query("W"),
     include_nodes: int = Query(1),
     include_d9: int = Query(0),
+    include_vargas: str = Query(""),
     include_interpretation: int = Query(0),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
@@ -963,6 +1018,7 @@ async def get_chart_endpoint(
             house_system=house_system,
             include_nodes=include_nodes,
             include_d9=include_d9,
+            include_vargas=include_vargas,
             gender=gender,
             timezone=timezone,
         )
@@ -976,6 +1032,7 @@ def build_rectified_chart_payload(
     latitude: float,
     longitude: float,
     timezone: Optional[float],
+    include_vargas: str = "d7,d10,d12",
 ) -> dict:
     """Build deterministic chart payload from a rectified BTR candidate."""
     mid_hour = float(btr_candidate.get("mid_hour", 0.0))
@@ -989,6 +1046,7 @@ def build_rectified_chart_payload(
         house_system="W",
         include_nodes=1,
         include_d9=1,
+        include_vargas=include_vargas,
         include_interpretation=0,
         gender="male",
         timezone=timezone,
@@ -1001,6 +1059,7 @@ def build_rectified_structural_summary(
     latitude: float,
     longitude: float,
     timezone: Optional[float],
+    include_vargas: str = "d7,d10,d12",
 ) -> dict:
     """Bridge top BTR candidate to deterministic structural summary."""
     if not btr_candidates:
@@ -1013,6 +1072,7 @@ def build_rectified_structural_summary(
         latitude=latitude,
         longitude=longitude,
         timezone=timezone,
+        include_vargas=include_vargas,
     )
     structural_summary = build_structural_summary(chart_data)
 
@@ -1054,6 +1114,7 @@ def build_ai_psychological_input(
         "personality_vector",
         "probability_forecast",
         "karmic_pattern_profile",
+        "varga_alignment",
         "interaction_risks",
         "enhanced_behavioral_risks",
     ]
@@ -1081,6 +1142,7 @@ async def get_ai_reading(
     house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
+    include_vargas: str = Query(""),
     language: str = Query("ko"),
     gender: str = Query("male"),
     use_cache: int = Query(1),
@@ -1089,7 +1151,10 @@ async def get_ai_reading(
     timezone: Optional[float] = Query(None),
 ):
     """Generate AI reading."""
-    cache_key = f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{language}_{gender}_{production_mode}_{events_json}_{timezone}"
+    cache_key = (
+        f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{include_d9}_{include_vargas}_"
+        f"{language}_{gender}_{production_mode}_{events_json}_{timezone}"
+    )
 
     if use_cache:
         cached = cache.get(cache_key)
@@ -1133,6 +1198,7 @@ async def get_ai_reading(
                 latitude=lat,
                 longitude=lon,
                 timezone=timezone,
+                include_vargas=include_vargas,
             )
             report_payload = build_report_payload(rectified_summary)
             user_content = build_gpt_user_content(report_payload)
@@ -1176,6 +1242,7 @@ async def get_ai_reading(
         house_system=house_system,
         include_nodes=include_nodes,
         include_d9=include_d9,
+        include_vargas=include_vargas,
         gender=gender,
         timezone=timezone,
     )
@@ -1637,6 +1704,7 @@ async def generate_pdf(
     house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
+    include_vargas: str = Query(""),
     include_ai: int = Query(1),
     language: str = Query("ko"),
     gender: str = Query("male"),
@@ -1668,6 +1736,7 @@ async def generate_pdf(
         house_system=house_system,
         include_nodes=include_nodes,
         include_d9=include_d9,
+        include_vargas=include_vargas,
         gender=gender,
         timezone=timezone,
     )
@@ -1679,9 +1748,20 @@ async def generate_pdf(
             ai_reading = cache.get(ai_cache_key)
         else:
             ai_reading = await get_ai_reading(
-                year, month, day, hour, lat, lon,
-                house_system, include_nodes, include_d9,
-                language, gender, use_cache=1, timezone=timezone
+                year=year,
+                month=month,
+                day=day,
+                hour=hour,
+                lat=lat,
+                lon=lon,
+                house_system=house_system,
+                include_nodes=include_nodes,
+                include_d9=include_d9,
+                include_vargas=include_vargas,
+                language=language,
+                gender=gender,
+                use_cache=1,
+                timezone=timezone,
             )
     
     layout_config = load_pdf_layout_config()
@@ -1758,6 +1838,34 @@ async def generate_pdf(
             story.append(PageBreak())
             story.append(Paragraph("D9 Chart (Navamsa)", styles['ChapterTitle']))
             story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
+            story.append(Spacer(1, 0.5*cm))
+
+        vargas = chart.get("vargas", {}) if isinstance(chart, dict) else {}
+        for varga_key, varga_label in [("d10", "D10 Chart (Dashamsha)"), ("d7", "D7 Chart (Saptamsha)"), ("d12", "D12 Chart (Dvadasamsha)")]:
+            varga_data = vargas.get(varga_key, {}) if isinstance(vargas, dict) else {}
+            varga_planets = varga_data.get("planets", {}) if isinstance(varga_data, dict) else {}
+            if not isinstance(varga_planets, dict) or not varga_planets:
+                continue
+            story.append(PageBreak())
+            story.append(Paragraph(varga_label, styles['ChapterTitle']))
+            varga_rows = [["Planet", "Sign"]]
+            for planet_name in ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]:
+                pdata = varga_planets.get(planet_name, {})
+                sign_name = "-"
+                if isinstance(pdata, dict):
+                    sign_name = pdata.get("rasi_kr" if language == "ko" else "rasi", "-")
+                varga_rows.append([planet_name, sign_name])
+            varga_table = Table(varga_rows, colWidths=[4 * cm, 8 * cm])
+            varga_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.black),
+            ]))
+            story.append(varga_table)
             story.append(Spacer(1, 0.5*cm))
 
         # ???????????????AI ???????fallback

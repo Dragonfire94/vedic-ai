@@ -12,10 +12,10 @@
     "logic": "AND",
     "priority": 85,
     "content": {
-      "title": "Psychological Axis: High Inner Tension",
-      "summary": "Your internal architecture shows meaningful friction between competing priorities.",
-      "analysis": "Conflicting drives increase cognitive load but can fuel constructive output.",
-      "implication": "Structured reflection and pre-commitment reduce avoidable volatility.",
+      "title": "Psychological Axis: Elevated Inner Tension",
+      "summary": "Your profile shows a persistent internal push-pull between control, duty, and emotional recovery.",
+      "analysis": "When these drives activate simultaneously, discernment can narrow and reaction speed can overtake judgment quality.",
+      "implication": "Treat high-pressure decisions as a two-step process: regulate first, commit second.",
       "examples": ""
     },
     "intensity_tiers": [
@@ -45,10 +45,10 @@
     "logic": "AND",
     "priority": 60,
     "content": {
-      "title": "Psychological Axis: Functional Balance",
-      "summary": "Your profile indicates relatively balanced emotional and strategic processing.",
-      "analysis": "Regulation capacity appears sufficient for sustained planning and adaptation.",
-      "implication": "Protecting recovery cycles helps preserve this baseline stability.",
+      "title": "Psychological Axis: Regulated Balance",
+      "summary": "Your baseline shows workable balance between emotion, strategy, and restraint.",
+      "analysis": "This pattern supports stable planning and cleaner adaptation under pressure when routines remain intact.",
+      "implication": "Your edge is repeatable regulation; protect it with clear boundaries and recovery rhythm.",
       "examples": ""
     },
     "intensity_tiers": [
@@ -82,10 +82,10 @@
     "priority": 95,
     "content": {
       "title": "High Tension with Reactive Risk Profile",
-      "summary": "High internal tension combines with elevated impulse risk under pressure.",
-      "analysis": "Fast-reactive patterns are more likely in high-friction phases.",
-      "implication": "Decision gates and cooldown windows are essential safeguards.",
-      "examples": "In high-pressure exchanges, responses may become abrupt, defensive, or prematurely final."
+      "summary": "High internal pressure is currently coupled with a measurable tendency toward premature action.",
+      "analysis": "In this state, the mind seeks immediate closure, which can create second-order costs in trust and timing.",
+      "implication": "Use fixed cooldown windows before major responses to preserve strategic accuracy.",
+      "examples": "During heated exchanges, conclusions may be reached too quickly and later require repair."
     },
     "intensity_tiers": [
       {
@@ -124,10 +124,10 @@
     "chain_followups": [],
     "content": {
       "title": "Tension–Stability Interaction Pattern",
-      "summary": "Psychological pressure and stability dynamics interact in ways that amplify reactivity cycles.",
-      "analysis": "When internal friction rises while stability weakens, attention narrows and recovery latency increases.",
-      "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",
-      "examples": "You may notice conflict spillover from one domain into unrelated decisions unless decompression boundaries are enforced."
+      "summary": "Psychological pressure and baseline stability are tightly linked in this phase.",
+      "analysis": "When friction rises and stability drops together, attentional bandwidth narrows and spillover decisions increase.",
+      "implication": "Install reset rituals between domains so one conflict does not contaminate the next choice.",
+      "examples": "Without decompression boundaries, one unresolved issue can bleed into relationship, finance, and career judgment."
     }
   },
   {
@@ -200,9 +200,9 @@
     "priority": 89,
     "content": {
       "title": "Summary Echo: Identity Under Pressure",
-      "summary": "The core psychological theme is identity coherence under stress.",
-      "analysis": "Sustained pressure can fragment attention, relational tone, and strategic consistency unless consciously integrated.",
-      "implication": "Your long-cycle outcomes depend on converting stress responses into coherent self-leadership.",
+      "summary": "The central theme is identity coherence under sustained pressure.",
+      "analysis": "If stress is unmanaged, relational tone, strategic continuity, and emotional steadiness fragment together.",
+      "implication": "Long-cycle outcomes improve when stress response is trained into coherent self-leadership.",
       "examples": "",
       "shadow_pattern": "A hidden self-worth equation tied to uninterrupted competence.",
       "defense_mechanism": "Over-functioning and selective emotional suppression.",

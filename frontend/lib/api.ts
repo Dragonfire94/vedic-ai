@@ -79,7 +79,19 @@ export interface ChartRequest {
   house_system?: string
   include_nodes?: boolean
   include_d9?: boolean
+  include_vargas?: string[]
   gender?: string
+}
+
+function applyVargaParams(params: URLSearchParams, data: ChartRequest): void {
+  if (Array.isArray(data.include_vargas) && data.include_vargas.length > 0) {
+    const normalized = data.include_vargas
+      .map((v) => v.trim().toLowerCase())
+      .filter((v) => v.length > 0)
+    if (normalized.length > 0) {
+      params.set('include_vargas', normalized.join(','))
+    }
+  }
 }
 
 // API Functions
@@ -147,6 +159,7 @@ export async function getChart(data: ChartRequest) {
     include_d9: data.include_d9 ? '1' : '0',
     gender: data.gender || 'male',
   })
+  applyVargaParams(params, data)
 
   const response = await fetch(`${API_BASE_URL}/chart?${params}`)
   if (!response.ok) {
@@ -169,6 +182,7 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
     language: data.language || 'ko',
     gender: data.gender || 'male',
   })
+  applyVargaParams(params, data)
 
   const response = await fetch(`${API_BASE_URL}/ai_reading?${params}`)
   if (!response.ok) {
@@ -191,6 +205,7 @@ export async function getPDF(data: ChartRequest & { language?: string }) {
     language: data.language || 'ko',
     gender: data.gender || 'male',
   })
+  applyVargaParams(params, data)
 
   const response = await fetch(`${API_BASE_URL}/pdf?${params}`)
   if (!response.ok) {
