@@ -72,3 +72,29 @@ PII must not be logged.
 `analyze_birth_time(..., tune_mode=True)` appends records to `data/tuning_inputs.log`, but only when environment variable `BTR_ENABLE_TUNE_MODE=1` is set.
 
 > Do not expose tune mode in production without authorization controls.
+
+
+### Empirical tuning (Phase 5)
+Empirical tuning uses accumulated `data/tuning_inputs.log` (JSONL) to derive conservative base-weight multipliers per `event_type`.
+
+Flow (admin-triggered only):
+1. `analyze_tuning_data(...)` computes per-event statistics:
+   - `avg_gap` (mean top-1 vs top-2 probability separation)
+   - `avg_confidence` (mean calibrated confidence)
+   - `event_count`
+2. `compute_weight_adjustments(...)` generates multipliers:
+   - `+5%` when `avg_gap > 1.5` and `avg_confidence > 0.7`
+   - `-5%` when `avg_gap < 0.5`
+   - otherwise `1.0`
+3. `apply_weight_adjustments(...)` writes `backend/config/event_signal_profile_adjusted.json` without overwriting the original profile.
+
+To trigger recalculation:
+- Set `BTR_ENABLE_TUNE_MODE=1`
+- Call `POST /btr/admin/recalculate-weights`
+
+Safety constraints:
+- No automatic recalculation on normal runs (admin endpoint only)
+- Multipliers are capped to `±10%` (`0.9` to `1.1`)
+- `base_weight` is never reduced below `0.1`
+
+> Warning: Empirical tuning requires sufficient sample size (>100 events recommended).

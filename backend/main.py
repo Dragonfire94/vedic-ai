@@ -1412,6 +1412,11 @@ try:
         get_dasha_at_date,
         convert_age_range_to_year_range,
     )
+    from backend.tuning_analyzer import (
+        analyze_tuning_data,
+        compute_weight_adjustments,
+        apply_weight_adjustments,
+    )
     BTR_ENGINE_AVAILABLE = True
     print("[INFO] BTR engine loaded successfully")
 except ImportError as e:
@@ -1608,6 +1613,36 @@ def refine_btr(request: BTRRefineRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"BTR 정밀화 오류: {str(e)}")
+
+
+@app.post("/btr/admin/recalculate-weights")
+def recalculate_btr_weights():
+    """Admin endpoint for empirical weight adjustment recalculation."""
+    if os.getenv("BTR_ENABLE_TUNE_MODE", "0") != "1":
+        raise HTTPException(status_code=403, detail="Tune mode is disabled.")
+
+    tuning_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tuning_inputs.log")
+    profile_path = os.path.join(os.path.dirname(__file__), "config", "event_signal_profile.json")
+
+    stats = analyze_tuning_data(tuning_path)
+    adjustments = compute_weight_adjustments(stats)
+    output_path = apply_weight_adjustments(profile_path, adjustments)
+
+    applied_changes = []
+    for event_type, multiplier in adjustments.items():
+        applied_changes.append({
+            "event_type": event_type,
+            "multiplier": round(float(multiplier), 6),
+            "stats": stats.get(event_type, {}),
+        })
+
+    return {
+        "status": "ok",
+        "tuning_log": tuning_path,
+        "profile_output": output_path,
+        "events_updated": len(applied_changes),
+        "adjustments": applied_changes,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
