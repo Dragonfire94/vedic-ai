@@ -108,7 +108,7 @@ def compute_weight_adjustments(stats: dict) -> dict:
     return adjustments
 
 
-def apply_weight_adjustments(profile_path, adjustments):
+def apply_weight_adjustments(profile_path, adjustments, output_path: str | None = None):
     """
     Loads event_signal_profile.json,
     applies multiplier to base_weight,
@@ -134,7 +134,12 @@ def apply_weight_adjustments(profile_path, adjustments):
         updated_weight = max(0.1, base_weight * multiplier)
         values["base_weight"] = round(updated_weight, 6)
 
-    output_path = source_path.with_name("event_signal_profile_adjusted.json")
-    output_path.write_text(json.dumps(adjusted_profile, ensure_ascii=False, indent=2), encoding="utf-8")
+    resolved_output = (
+        Path(output_path).expanduser().resolve()
+        if output_path
+        else source_path.with_name("event_signal_profile_adjusted.json")
+    )
+    resolved_output.parent.mkdir(parents=True, exist_ok=True)
+    resolved_output.write_text(json.dumps(adjusted_profile, ensure_ascii=False, indent=2), encoding="utf-8")
 
-    return str(output_path)
+    return str(resolved_output)

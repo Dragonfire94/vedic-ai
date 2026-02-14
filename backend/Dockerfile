@@ -27,7 +27,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 # The archive is expected to contain ephemeris files at its root.
 ARG SWE_EPHE_URL=""
 ARG SWE_EPHE_SHA256=""
-ARG SWE_ENFORCE_EPHE=0
+ARG APP_ENV=development
+ARG SWE_ENFORCE_EPHE=""
 RUN mkdir -p /usr/share/libswe/ephe \
     && if [ -n "$SWE_EPHE_URL" ]; then \
         curl -fsSL "$SWE_EPHE_URL" -o /tmp/se_ephe.tar.xz \
@@ -37,9 +38,13 @@ RUN mkdir -p /usr/share/libswe/ephe \
         && tar -xJf /tmp/se_ephe.tar.xz -C /usr/share/libswe/ephe \
         && rm -f /tmp/se_ephe.tar.xz; \
        fi \
-    && if [ "$SWE_ENFORCE_EPHE" = "1" ] && [ -z "$(ls /usr/share/libswe/ephe/*.se1 /usr/share/libswe/ephe/*.se2 2>/dev/null)" ]; then \
+    && ENFORCE="$SWE_ENFORCE_EPHE" \
+    && if [ -z "$ENFORCE" ]; then \
+        if [ "$APP_ENV" = "production" ]; then ENFORCE="1"; else ENFORCE="0"; fi; \
+       fi \
+    && if [ "$ENFORCE" = "1" ] && [ -z "$(ls /usr/share/libswe/ephe/*.se1 /usr/share/libswe/ephe/*.se2 2>/dev/null)" ]; then \
         echo "Missing Swiss Ephemeris files under /usr/share/libswe/ephe"; \
-        echo "Set SWE_EPHE_URL at build time, or set SWE_ENFORCE_EPHE=0 for non-production."; \
+        echo "Set SWE_EPHE_URL at build time. For non-production builds, set SWE_ENFORCE_EPHE=0."; \
         exit 1; \
        fi
 

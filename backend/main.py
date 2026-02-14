@@ -2042,12 +2042,34 @@ def recalculate_btr_weights():
     if os.getenv("BTR_ENABLE_TUNE_MODE", "0") != "1":
         raise HTTPException(status_code=403, detail="Tune mode is disabled.")
 
+    runtime_env = (
+        os.getenv("APP_ENV")
+        or os.getenv("ENVIRONMENT")
+        or os.getenv("RAILWAY_ENVIRONMENT")
+        or "development"
+    ).strip().lower()
+    is_production = runtime_env in {"prod", "production"}
+    output_path_override = (os.getenv("BTR_TUNING_OUTPUT_PATH") or "").strip()
+
+    if is_production and not output_path_override:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "BTR tuning persistence is not configured for production. "
+                "Set BTR_TUNING_OUTPUT_PATH to a persistent volume or external mount."
+            ),
+        )
+
     tuning_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "tuning_inputs.log")
     profile_path = os.path.join(os.path.dirname(__file__), "config", "event_signal_profile.json")
 
     stats = analyze_tuning_data(tuning_path)
     adjustments = compute_weight_adjustments(stats)
-    output_path = apply_weight_adjustments(profile_path, adjustments)
+    output_path = apply_weight_adjustments(
+        profile_path,
+        adjustments,
+        output_path=output_path_override or None,
+    )
 
     applied_changes = []
     for event_type, multiplier in adjustments.items():
@@ -2059,6 +2081,7 @@ def recalculate_btr_weights():
 
     return {
         "status": "ok",
+        "runtime_env": runtime_env,
         "tuning_log": tuning_path,
         "profile_output": output_path,
         "events_updated": len(applied_changes),
