@@ -1193,7 +1193,8 @@ def _compute_chart_for_time(
     date: Dict[str, int],
     hour_float: float,
     lat: float,
-    lon: float
+    lon: float,
+    tz_offset: float,
 ) -> Optional[Dict]:
     """
     특정 시간의 차트 계산 (BTR 내부용)
@@ -1215,24 +1216,11 @@ def _compute_chart_for_time(
         }
     """
     try:
-        import pytz
-
         year = date["year"]
         month = date["month"]
         day = date["day"]
 
-        # KST → UTC 변환
-        hour_int = int(hour_float)
-        minute = int((hour_float - hour_int) * 60)
-        tz = pytz.timezone("Asia/Seoul")
-        local_dt = datetime(year, month, day, hour_int, minute)
-        local_dt = tz.localize(local_dt)
-        utc_dt = local_dt.astimezone(pytz.utc)
-
-        jd = swe.julday(
-            utc_dt.year, utc_dt.month, utc_dt.day,
-            utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
-        )
+        jd = swe.julday(year, month, day, hour_float - tz_offset)
 
         # Ascendant 계산
         cusps, ascmc = swe.houses(jd, lat, lon, b'W')
@@ -1551,6 +1539,7 @@ def analyze_birth_time(
     use_aspects: bool = True,
     production_mode: bool = False,
     tune_mode: bool = False,
+    tz_offset: float = 0.0,
 ) -> List[Dict]:
     """
     메인 BTR 분석 함수
@@ -1624,7 +1613,7 @@ def analyze_birth_time(
     top_event_signal_contributions: List[Dict[str, Any]] = []
     for bracket in brackets:
         mid_hour = bracket["mid"]
-        chart = _compute_chart_for_time(birth_date, mid_hour, lat, lon)
+        chart = _compute_chart_for_time(birth_date, mid_hour, lat, lon, tz_offset)
         if chart is None:
             continue
 
@@ -1759,6 +1748,7 @@ def analyze_birth_time(
                     "day": birth_date.get("day"),
                     "lat": lat,
                     "lon": lon,
+                    "tz_offset": tz_offset,
                 },
                 "scores": [float(row.get("score", 0.0)) for row in production_rows],
                 "probabilities": [float(row.get("probability", 0.0)) for row in production_rows],

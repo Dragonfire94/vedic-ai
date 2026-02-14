@@ -360,28 +360,40 @@ def is_combust(planet_name: str, planet_lon: float, sun_lon: float) -> bool:
         diff = 360 - diff
     return diff < threshold
 
-def compute_julian_day(year: int, month: int, day: int, hour_frac: float, lat: float, lon: float) -> float:
-    """율리우스일 계산 (UTC 변환)"""
-    # 위도/경도로 타임존 자동 결정
+def resolve_timezone_offset(year: int, month: int, day: int, lat: float, lon: float) -> float:
+    """위도/경도로 타임존을 결정해 UTC 오프셋(시간)을 반환한다."""
     tf = TimezoneFinder()
     tz_name = tf.timezone_at(lat=lat, lng=lon)
     if not tz_name:
-        tz_name = 'UTC'  # 타임존을 찾을 수 없으면 UTC 사용
+        raise HTTPException(status_code=400, detail="Unable to determine timezone.")
+
     tz = pytz.timezone(tz_name)
+    sample_dt = datetime(year, month, day)
+    tz_offset = tz.utcoffset(sample_dt).total_seconds() / 3600.0
+    logger.debug(f"Timezone: {tz_name}, tz_offset={tz_offset}")
+    return tz_offset
 
-    local_dt = datetime(year, month, day, int(hour_frac), int((hour_frac % 1) * 60))
-    local_dt = tz.localize(local_dt)
-    utc_dt = local_dt.astimezone(pytz.utc)
 
-    # 🔍 디버그: 시간 변환 확인
-    logger.debug(f"Timezone: {tz_name}")
-    logger.debug(f"Local time: {local_dt}")
-    logger.debug(f"UTC time: {utc_dt}")
-
-    jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day,
-                    utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0)
+def compute_julian_day(
+    year: int,
+    month: int,
+    day: int,
+    hour_frac: float,
+    lat: float,
+    lon: float,
+    tz_offset: float,
+) -> float:
+    """율리우스일 계산 (로컬시각 - UTC 오프셋)."""
+    del lat, lon
+    jd = swe.julday(year, month, day, hour_frac - tz_offset)
     logger.debug(f"Julian day: {jd}")
     return jd
+
+
+def compute_julian_day_legacy(year: int, month: int, day: int, hour_frac: float, lat: float, lon: float) -> float:
+    """기존 시그니처 호환용 래퍼."""
+    tz_offset = resolve_timezone_offset(year, month, day, lat, lon)
+    return compute_julian_day(year, month, day, hour_frac, lat, lon, tz_offset)
 
 def extract_atomic_interpretation_text(entry: Any) -> str | None:
     """해석 엔트리(dict/str)에서 text를 추출"""
@@ -556,7 +568,7 @@ def get_chart(
     logger.debug(f"house_system={house_system}, gender={gender}")
 
     try:
-        jd = compute_julian_day(year, month, day, hour, lat, lon)
+        jd = compute_julian_day_legacy(year, month, day, hour, lat, lon)
         
         # 행성 계산
         planets = {}
@@ -896,6 +908,7 @@ def get_ai_reading(
                 raise ValueError("production_mode=1 requires non-empty events_json list")
 
             birth_date = {"year": year, "month": month, "day": day}
+            tz_offset = resolve_timezone_offset(year, month, day, lat, lon)
             btr_candidates = analyze_birth_time(
                 birth_date=birth_date,
                 events=events,
@@ -904,6 +917,7 @@ def get_ai_reading(
                 num_brackets=8,
                 top_n=3,
                 production_mode=True,
+                tz_offset=tz_offset,
             )
 
             rectified_summary = build_rectified_structural_summary(
@@ -1696,6 +1710,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
         # Pydantic 모델을 dict로 변환
         events_dict = [ev.model_dump(mode="json") for ev in request.events]
 
+        tz_offset = resolve_timezone_offset(request.year, request.month, request.day, request.lat, request.lon)
         candidates = analyze_birth_time(
             birth_date=birth_date,
             events=events_dict,
@@ -1704,6 +1719,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
             num_brackets=8,
             top_n=3,
             tune_mode=request.tune_mode,
+            tz_offset=tz_offset,
         )
 
         return {
