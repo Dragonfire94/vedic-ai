@@ -23,7 +23,10 @@ from backend.report_engine import build_report_payload, REPORT_CHAPTERS, build_g
 from backend.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 from backend.cache_manager import cache
 
-import swisseph as swe
+try:
+    import swisseph as swe
+except Exception as e:
+    raise RuntimeError("Swiss Ephemeris not properly installed in container") from e
 import pytz
 from timezonefinder import TimezoneFinder
 from openai import OpenAI
@@ -73,28 +76,46 @@ PDF_FONT_MONO = 'Courier'
 
 
 def init_fonts() -> None:
-    """PDF 폰트를 초기화하고 실패 시 Helvetica로 안전하게 fallback 한다."""
+    """PDF 폰트를 초기화하고 유효한 한글 폰트가 없으면 즉시 실패한다."""
     global KOREAN_FONT_AVAILABLE, PDF_FONT_REG, PDF_FONT_BOLD, PDF_FONT_MONO
 
-    # 기본 fallback 값
     KOREAN_FONT_AVAILABLE = False
     PDF_FONT_REG = 'Helvetica'
     PDF_FONT_BOLD = 'Helvetica-Bold'
     PDF_FONT_MONO = 'Courier'
 
-    try:
-        if not (os.path.exists(FONT_REGULAR) and os.path.exists(FONT_BOLD)):
-            raise FileNotFoundError(f"Pretendard fonts not found in {FONT_DIR}")
+    nanum_path = '/usr/share/fonts/truetype/nanum/NanumGothic.ttf'
 
-        pdfmetrics.registerFont(TTFont('Pretendard', FONT_REGULAR))
-        pdfmetrics.registerFont(TTFont('Pretendard-Bold', FONT_BOLD))
-        KOREAN_FONT_AVAILABLE = True
-        PDF_FONT_REG = 'Pretendard'
-        PDF_FONT_BOLD = 'Pretendard-Bold'
-        PDF_FONT_MONO = 'Pretendard'
-        logger.info("Pretendard fonts loaded successfully")
+    try:
+        if os.path.exists(FONT_REGULAR):
+            pdfmetrics.registerFont(TTFont('Pretendard', FONT_REGULAR))
+            if os.path.exists(FONT_BOLD):
+                pdfmetrics.registerFont(TTFont('Pretendard-Bold', FONT_BOLD))
+                PDF_FONT_BOLD = 'Pretendard-Bold'
+            else:
+                PDF_FONT_BOLD = 'Pretendard'
+
+            KOREAN_FONT_AVAILABLE = True
+            PDF_FONT_REG = 'Pretendard'
+            PDF_FONT_MONO = 'Pretendard'
+            logger.info('Pretendard font loaded.')
+            return
+
+        if os.path.exists(nanum_path):
+            pdfmetrics.registerFont(TTFont('NanumGothic', nanum_path))
+            KOREAN_FONT_AVAILABLE = True
+            PDF_FONT_REG = 'NanumGothic'
+            PDF_FONT_BOLD = 'NanumGothic'
+            PDF_FONT_MONO = 'NanumGothic'
+            logger.info('NanumGothic font loaded from system.')
+            return
+
+        raise FileNotFoundError(
+            f'Neither Pretendard ({FONT_REGULAR}) nor NanumGothic ({nanum_path}) was found.'
+        )
     except Exception as e:
-        logger.warning(f"Font load fallback triggered: {e}")
+        logger.error(f'Font initialization failed: {e}')
+        raise RuntimeError('No valid Korean font available in production container.') from e
 
 
 init_fonts()
