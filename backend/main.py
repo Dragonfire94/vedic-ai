@@ -10,6 +10,7 @@ import os
 import json
 import math
 import base64
+from pathlib import Path
 from enum import Enum
 from datetime import datetime
 from typing import Optional, Any, Literal, Tuple, Dict, List
@@ -1128,65 +1129,211 @@ class SouthIndianChart(Flowable):
 # PDF 생성 헬퍼
 # ─────────────────────────────────────────────────────────────────────────────
 def create_pdf_styles():
-    """PDF 스타일 생성 (Pretendard 폰트 사용)"""
+    """PDF 스타일 생성 (config 기반)."""
+    config = load_pdf_layout_config()
+    font_cfg = config["fonts"]
+    color_cfg = config["colors"]
+
     styles = getSampleStyleSheet()
-    
-    # 한글 제목
+
     styles.add(ParagraphStyle(
-        name='KoreanTitle',
+        name='ReportTitle',
         parent=styles['Title'],
         fontName=PDF_FONT_BOLD,
-        fontSize=24,
-        leading=30,
+        fontSize=font_cfg["title"],
+        leading=font_cfg["title"] + 6,
         alignment=TA_CENTER,
         spaceAfter=12,
+        textColor=colors.HexColor(color_cfg["title"]),
     ))
-    
-    # 한글 Heading1
+
     styles.add(ParagraphStyle(
-        name='KoreanHeading1',
+        name='ChapterTitle',
         parent=styles['Heading1'],
         fontName=PDF_FONT_BOLD,
-        fontSize=16,
-        leading=20,
-        spaceAfter=8,
-        textColor=colors.HexColor('#2C3E50'),
+        fontSize=font_cfg["chapter"],
+        leading=font_cfg["chapter"] + 4,
+        spaceAfter=12,
+        textColor=colors.HexColor(color_cfg["chapter"]),
     ))
-    
-    # 한글 Heading2
+
     styles.add(ParagraphStyle(
-        name='KoreanHeading2',
+        name='Subtitle',
         parent=styles['Heading2'],
         fontName=PDF_FONT_BOLD,
-        fontSize=13,
-        leading=16,
+        fontSize=font_cfg["subtitle"],
+        leading=font_cfg["subtitle"] + 4,
         spaceAfter=6,
-        textColor=colors.HexColor('#34495E'),
+        textColor=colors.HexColor(color_cfg["chapter"]),
     ))
-    
-    # 한글 본문
+
     styles.add(ParagraphStyle(
-        name='KoreanBody',
+        name='Body',
         parent=styles['Normal'],
         fontName=PDF_FONT_REG,
-        fontSize=10,
-        leading=14,
+        fontSize=font_cfg["body"],
+        leading=16,
         alignment=TA_JUSTIFY,
         spaceAfter=8,
+        textColor=colors.HexColor(color_cfg["body"]),
     ))
-    
-    # 한글 캡션
+
     styles.add(ParagraphStyle(
-        name='KoreanCaption',
+        name='Small',
         parent=styles['Normal'],
         fontName=PDF_FONT_REG,
-        fontSize=9,
-        leading=11,
+        fontSize=font_cfg["small"],
+        leading=font_cfg["small"] + 2,
         textColor=colors.grey,
         alignment=TA_CENTER,
     ))
-    
+
+    styles.add(ParagraphStyle(
+        name='InsightSpike',
+        parent=styles['Normal'],
+        fontName=PDF_FONT_BOLD,
+        fontSize=font_cfg["body"],
+        leading=16,
+        textColor=colors.HexColor(color_cfg["insight_spike"]),
+        leftIndent=10,
+        spaceAfter=12,
+    ))
+
     return styles
+
+
+def load_pdf_layout_config() -> dict[str, Any]:
+    """PDF 레이아웃 설정 파일을 로드하고 기본값으로 fallback 한다."""
+    config_path = Path(__file__).resolve().parent / "pdf_layout_config.json"
+    default_config = {
+        "page": {
+            "size": "A4",
+            "margin_top": 36,
+            "margin_bottom": 36,
+            "margin_left": 48,
+            "margin_right": 48,
+        },
+        "fonts": {"title": 22, "chapter": 18, "subtitle": 14, "body": 12, "small": 10},
+        "colors": {
+            "title": "#222222",
+            "chapter": "#111111",
+            "body": "#444444",
+            "insight_spike": "#A00000",
+            "choice_fork": "#0033AA",
+            "predictive": "#006633",
+            "separator": "#CCCCCC",
+        },
+        "chapters": {},
+    }
+
+    try:
+        with open(config_path, "r", encoding="utf-8") as f:
+            loaded = json.load(f)
+            if isinstance(loaded, dict):
+                default_config.update({k: v for k, v in loaded.items() if k in default_config})
+    except Exception as e:
+        print(f"[WARN] PDF layout config load failed. Using defaults: {e}")
+
+    return default_config
+
+
+def _sanitize_pdf_text(value: Any) -> str:
+    """ReportLab Paragraph safe text conversion."""
+    if value is None:
+        return ""
+    text = str(value)
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any]) -> list:
+    """Deterministic report payload를 chapter-aware layout으로 렌더링한다."""
+    chapter_blocks = report_payload.get("chapter_blocks", {}) if isinstance(report_payload, dict) else {}
+    if not isinstance(chapter_blocks, dict):
+        return []
+
+    elements: list[Any] = []
+    chapter_config = config.get("chapters", {}) if isinstance(config.get("chapters"), dict) else {}
+    color_cfg = config.get("colors", {}) if isinstance(config.get("colors"), dict) else {}
+    separator_color = colors.HexColor(color_cfg.get("separator", "#CCCCCC"))
+    choice_color = colors.HexColor(color_cfg.get("choice_fork", "#0033AA"))
+    predictive_color = colors.HexColor(color_cfg.get("predictive", "#006633"))
+
+    for chapter in REPORT_CHAPTERS:
+        fragments = chapter_blocks.get(chapter, [])
+        if not isinstance(fragments, list) or not fragments:
+            continue
+
+        if elements and chapter_config.get(chapter, {}).get("break_before"):
+            elements.append(PageBreak())
+
+        elements.append(Paragraph(_sanitize_pdf_text(chapter), styles["ChapterTitle"]))
+        elements.append(Spacer(1, 8))
+
+        for fragment in fragments:
+            if not isinstance(fragment, dict):
+                continue
+
+            if "spike_text" in fragment:
+                elements.append(Paragraph(_sanitize_pdf_text(fragment.get("spike_text", "")), styles["InsightSpike"]))
+                elements.append(Spacer(1, 8))
+                continue
+
+            for field in ("title", "summary", "analysis", "implication"):
+                value = fragment.get(field)
+                if not value:
+                    continue
+                style_name = "Subtitle" if field == "title" else "Body"
+                elements.append(Paragraph(_sanitize_pdf_text(value), styles[style_name]))
+
+            choice_fork = fragment.get("choice_fork")
+            if isinstance(choice_fork, str) and choice_fork.strip():
+                elements.append(Paragraph(_sanitize_pdf_text(choice_fork), styles["Body"]))
+            elif isinstance(choice_fork, dict):
+                path_a = choice_fork.get("path_a", {}) if isinstance(choice_fork.get("path_a"), dict) else {}
+                path_b = choice_fork.get("path_b", {}) if isinstance(choice_fork.get("path_b"), dict) else {}
+                table_rows = [
+                    ["Path", "Trajectory"],
+                    [f"A: {_sanitize_pdf_text(path_a.get('label', '-'))}", _sanitize_pdf_text(path_a.get("trajectory", "-"))],
+                    ["Emotional Cost", _sanitize_pdf_text(path_a.get("emotional_cost", "-"))],
+                    [f"B: {_sanitize_pdf_text(path_b.get('label', '-'))}", _sanitize_pdf_text(path_b.get("trajectory", "-"))],
+                    ["Emotional Cost", _sanitize_pdf_text(path_b.get("emotional_cost", "-"))],
+                ]
+                choice_table = Table(table_rows, colWidths=[120, 350])
+                choice_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), choice_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                    ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                    ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                ]))
+                elements.append(choice_table)
+            elements.append(Spacer(1, 10))
+
+            predictive = fragment.get("predictive_compression")
+            if isinstance(predictive, dict):
+                predictive_rows = [
+                    ["Window", _sanitize_pdf_text(predictive.get("window", "-"))],
+                    ["Dominant Theme", _sanitize_pdf_text(predictive.get("dominant_theme", "-"))],
+                    ["Probability", _sanitize_pdf_text(predictive.get("probability_strength", "-"))],
+                    ["Warning", _sanitize_pdf_text(predictive.get("structural_warning", "-"))],
+                    ["Alignment", _sanitize_pdf_text(predictive.get("recommended_alignment", "-"))],
+                ]
+                predictive_table = Table(predictive_rows, colWidths=[150, 320])
+                predictive_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), predictive_color),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                    ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                    ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                ]))
+                elements.append(predictive_table)
+                elements.append(Spacer(1, 12))
+
+    return elements
 
 def parse_markdown_to_flowables(text: str, styles):
     """간단한 마크다운 파싱 → Flowables"""
@@ -1202,26 +1349,26 @@ def parse_markdown_to_flowables(text: str, styles):
         # Heading
         if line.startswith('### '):
             clean_line = line[4:].replace('**', '')  # Remove bold markers from headings
-            flowables.append(Paragraph(clean_line, styles['KoreanHeading2']))
+            flowables.append(Paragraph(clean_line, styles['Subtitle']))
         elif line.startswith('## '):
             clean_line = line[3:].replace('**', '')
-            flowables.append(Paragraph(clean_line, styles['KoreanHeading1']))
+            flowables.append(Paragraph(clean_line, styles['ChapterTitle']))
         elif line.startswith('# '):
             clean_line = line[2:].replace('**', '')
-            flowables.append(Paragraph(clean_line, styles['KoreanTitle']))
+            flowables.append(Paragraph(clean_line, styles['ReportTitle']))
         # Section markers
         elif line.startswith('[') and line.endswith(']'):
             flowables.append(Spacer(1, 0.3*cm))
             clean_line = line.replace('**', '')
-            flowables.append(Paragraph(f"<b>{clean_line}</b>", styles['KoreanHeading1']))
+            flowables.append(Paragraph(f"<b>{clean_line}</b>", styles['ChapterTitle']))
         # List
         elif line.startswith('- ') or line.startswith('* '):
             clean_line = convert_markdown_bold(line[2:])
-            flowables.append(Paragraph('• ' + clean_line, styles['KoreanBody']))
+            flowables.append(Paragraph('• ' + clean_line, styles['Body']))
         else:
             # Regular paragraph
             clean_line = convert_markdown_bold(line)
-            flowables.append(Paragraph(clean_line, styles['KoreanBody']))
+            flowables.append(Paragraph(clean_line, styles['Body']))
     
     return flowables
 
@@ -1271,15 +1418,18 @@ def generate_pdf(
                 language, gender, use_cache=1
             )
     
+    layout_config = load_pdf_layout_config()
+    page_cfg = layout_config.get("page", {}) if isinstance(layout_config.get("page"), dict) else {}
+
     # PDF 생성
     with BytesIO() as buffer:
         doc = SimpleDocTemplate(
             buffer,
             pagesize=A4,
-            rightMargin=2*cm,
-            leftMargin=2*cm,
-            topMargin=2*cm,
-            bottomMargin=2*cm,
+            rightMargin=float(page_cfg.get("margin_right", 48)),
+            leftMargin=float(page_cfg.get("margin_left", 48)),
+            topMargin=float(page_cfg.get("margin_top", 36)),
+            bottomMargin=float(page_cfg.get("margin_bottom", 36)),
         )
 
         story = []
@@ -1287,7 +1437,7 @@ def generate_pdf(
 
         # 제목
         title_text = "베딕 점성학 리포트" if language == "ko" else "Vedic Astrology Report"
-        story.append(Paragraph(title_text, styles['KoreanTitle']))
+        story.append(Paragraph(title_text, styles['ReportTitle']))
         story.append(Spacer(1, 0.5*cm))
 
         # 출생 정보
@@ -1302,16 +1452,16 @@ def generate_pdf(
         Time: {int(hour)}:{int((hour % 1) * 60):02d}<br/>
         Location: {lat:.4f}°N, {lon:.4f}°E
         """
-        story.append(Paragraph(birth_info, styles['KoreanBody']))
+        story.append(Paragraph(birth_info, styles['Body']))
         story.append(Spacer(1, 0.5*cm))
 
         # D1 차트
-        story.append(Paragraph("D1 차트 (Rasi)" if language == "ko" else "D1 Chart (Rasi)", styles['KoreanHeading1']))
+        story.append(Paragraph("D1 차트 (Rasi)" if language == "ko" else "D1 Chart (Rasi)", styles['ChapterTitle']))
         story.append(SouthIndianChart(chart, width=350, height=350))
         story.append(Spacer(1, 0.5*cm))
 
         # 행성 테이블
-        story.append(Paragraph("행성 배치" if language == "ko" else "Planetary Positions", styles['KoreanHeading1']))
+        story.append(Paragraph("행성 배치" if language == "ko" else "Planetary Positions", styles['ChapterTitle']))
 
         planet_data = [["행성", "라시", "하우스", "나크샤트라", "Dignity"] if language == "ko"
                     else ["Planet", "Sign", "House", "Nakshatra", "Dignity"]]
@@ -1338,17 +1488,23 @@ def generate_pdf(
         story.append(planet_table)
         story.append(Spacer(1, 0.5*cm))
 
+        report_payload = build_report_payload({"structural_summary": build_structural_summary(chart)})
+        deterministic_elements = render_report_payload_to_pdf(report_payload, styles, layout_config)
+        if deterministic_elements:
+            story.append(PageBreak())
+            story.extend(deterministic_elements)
+
         # D9 차트 (옵션)
         if include_d9 and "d9" in chart:
             story.append(PageBreak())
-            story.append(Paragraph("D9 차트 (Navamsa)" if language == "ko" else "D9 Chart (Navamsa)", styles['KoreanHeading1']))
+            story.append(Paragraph("D9 차트 (Navamsa)" if language == "ko" else "D9 Chart (Navamsa)", styles['ChapterTitle']))
             story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
             story.append(Spacer(1, 0.5*cm))
 
-        # AI 리딩
-        if ai_reading and ai_reading.get("reading"):
+        # 비결정적 AI 리딩 fallback
+        if (not deterministic_elements) and ai_reading and ai_reading.get("reading"):
             story.append(PageBreak())
-            story.append(Paragraph("AI 상세 리딩" if language == "ko" else "AI Detailed Reading", styles['KoreanHeading1']))
+            story.append(Paragraph("AI 상세 리딩" if language == "ko" else "AI Detailed Reading", styles['ChapterTitle']))
             story.append(Spacer(1, 0.3*cm))
 
             reading_text = ai_reading["reading"]

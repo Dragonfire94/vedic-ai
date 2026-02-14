@@ -1,0 +1,34 @@
+{
+  "page": {
+    "size": "A4",
+    "margin_top": 36,
+    "margin_bottom": 36,
+    "margin_left": 48,
+    "margin_right": 48
+  },
+  "fonts": {
+    "title": 22,
+    "chapter": 18,
+    "subtitle": 14,
+    "body": 12,
+    "small": 10
+  },
+  "colors": {
+    "title": "#222222",
+    "chapter": "#111111",
+    "body": "#444444",
+    "insight_spike": "#A00000",
+    "choice_fork": "#0033AA",
+    "predictive": "#006633",
+    "separator": "#CCCCCC"
+  },
+  "chapters": {
+    "Executive Summary": { "break_before": true },
+    "Purushartha Profile": { "break_before": true },
+    "Psychological Architecture": { "break_before": true },
+    "Behavioral Risks": { "break_before": true },
+    "Stability Metrics": { "break_before": true },
+    "Wealth & Material Flow": { "break_before": true },
+    "Final Summary": { "break_before": true }
+  }
+}
