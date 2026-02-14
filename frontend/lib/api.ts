@@ -44,11 +44,39 @@ export interface ChartRequest {
 }
 
 // API Functions
+async function buildApiError(response: Response, fallbackMessage: string): Promise<Error> {
+  try {
+    const contentType = response.headers.get('content-type') || ''
+    if (contentType.includes('application/json')) {
+      const data = await response.json()
+      if (typeof data?.detail === 'string' && data.detail.trim()) {
+        return new Error(data.detail)
+      }
+      if (Array.isArray(data?.detail) && data.detail.length > 0) {
+        const first = data.detail[0]
+        if (typeof first?.msg === 'string' && first.msg.trim()) {
+          return new Error(first.msg)
+        }
+      }
+      if (typeof data?.message === 'string' && data.message.trim()) {
+        return new Error(data.message)
+      }
+    } else {
+      const text = await response.text()
+      if (text.trim()) {
+        return new Error(text)
+      }
+    }
+  } catch {
+    // Fall through to fallback below.
+  }
+  return new Error(fallbackMessage)
+}
 
 export async function getBTRQuestions(age: number, language: string = 'ko') {
   const response = await fetch(`${API_BASE_URL}/btr/questions?age=${age}&language=${language}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch BTR questions')
+    throw await buildApiError(response, 'Failed to fetch BTR questions')
   }
   return response.json()
 }
@@ -62,7 +90,7 @@ export async function analyzeBTR(data: BTRAnalyzeRequest) {
     body: JSON.stringify(data),
   })
   if (!response.ok) {
-    throw new Error('Failed to analyze BTR')
+    throw await buildApiError(response, 'Failed to analyze BTR')
   }
   return response.json()
 }
@@ -83,7 +111,7 @@ export async function getChart(data: ChartRequest) {
 
   const response = await fetch(`${API_BASE_URL}/chart?${params}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch chart')
+    throw await buildApiError(response, 'Failed to fetch chart')
   }
   return response.json()
 }
@@ -105,7 +133,7 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
 
   const response = await fetch(`${API_BASE_URL}/ai_reading?${params}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch AI reading')
+    throw await buildApiError(response, 'Failed to fetch AI reading')
   }
   return response.json()
 }
@@ -127,7 +155,7 @@ export async function getPDF(data: ChartRequest & { language?: string }) {
 
   const response = await fetch(`${API_BASE_URL}/pdf?${params}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch PDF')
+    throw await buildApiError(response, 'Failed to fetch PDF')
   }
-  return response.json()
+  return response.blob()
 }
