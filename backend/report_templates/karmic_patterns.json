@@ -135,5 +135,95 @@
       }
     ],
     "chain_followups": []
+  },
+  {
+    "id": "career_conflict_insight",
+    "chapter": "Career & Success",
+    "conditions": [
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "correction"
+      },
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 68
+      }
+    ],
+    "logic": "AND",
+    "priority": 88,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "insight_spike": {
+      "text": "The ambition that fuels your progress may also be the source of your quiet dissatisfaction.",
+      "min_intensity": 0.75
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "Career Conflict Insight",
+      "summary": "Professional acceleration and internal fulfillment can drift apart during correction-heavy cycles.",
+      "analysis": "Repeated achievement without value alignment creates friction that appears as chronic restlessness.",
+      "implication": "Long-term success requires recalibrating goals to match intrinsic meaning, not only external momentum.",
+      "examples": "Milestones may be met while motivation drops unexpectedly after each peak.",
+      "shadow_pattern": "Validation pursuit replaces purpose clarity.",
+      "defense_mechanism": "Overachievement as emotional compensation.",
+      "emotional_trigger": "Comparative pressure and fear of falling behind.",
+      "repetition_cycle": "Push → deliver → emptiness → recommit harder → repeat.",
+      "integration_path": "Pair each performance objective with a purpose criterion before escalation."
+    }
+  },
+  {
+    "id": "karmic_repetition_insight",
+    "chapter": "Life Timeline Interpretation",
+    "conditions": [
+      {
+        "field": "karmic_pattern_profile.primary_pattern",
+        "operator": "==",
+        "value": "correction"
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 91,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "insight_spike": {
+      "text": "The lesson repeats not because fate insists, but because recognition has not yet occurred.",
+      "min_intensity": 0.85
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "Karmic Repetition Insight",
+      "summary": "Timeline loops tend to persist until the underlying recognition threshold is crossed.",
+      "analysis": "Recurring disruptions signal an unintegrated decision pattern rather than random adversity.",
+      "implication": "Pattern interruption begins with recognition before behavior redesign.",
+      "examples": "Similar urgency mistakes may recur at different life stages under new narratives.",
+      "shadow_pattern": "Familiar pain is preferred over uncertain change.",
+      "defense_mechanism": "Rationalization after reactive decisions.",
+      "emotional_trigger": "Perceived delay, rejection, or loss of momentum.",
+      "repetition_cycle": "Trigger → reflex decision → consequence → retrospective insight → trigger.",
+      "integration_path": "Convert retrospective insight into pre-commitment protocols."
+    }
   }
 ]

@@ -361,14 +361,38 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
 
     raw_blocks = select_template_blocks(structural)
 
-    chapter_blocks: dict[str, list[dict[str, str]]] = {}
+    chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     for chapter in REPORT_CHAPTERS:
         blocks = raw_blocks.get(chapter, [])
         if not blocks:
             blocks = DEFAULT_BLOCKS.get(chapter, [])
 
-        chapter_payload: list[dict[str, str]] = []
-        for block in blocks[:5]:
+        for block in blocks:
+            if "_intensity" not in block:
+                block["_intensity"] = compute_block_intensity(block, structural)
+
+        spike_texts: list[str] = []
+        for block in blocks:
+            spike_data = block.get("insight_spike")
+            if not isinstance(spike_data, dict):
+                continue
+
+            text = spike_data.get("text")
+            min_intensity = spike_data.get("min_intensity")
+            if not isinstance(text, str) or not isinstance(min_intensity, (int, float)):
+                continue
+            if not 0.0 <= float(min_intensity) <= 1.0:
+                continue
+            if block.get("_intensity", 0) >= float(min_intensity):
+                spike_texts.append(text)
+
+        spike_texts = list(dict.fromkeys(spike_texts))
+
+        chapter_payload: list[dict[str, Any]] = [{"spike_text": spike_text} for spike_text in spike_texts]
+        for block in blocks:
+            if len(chapter_payload) >= 5:
+                break
+
             content = block.get("content", {})
             intensity = block.get("_intensity", 0)
 
@@ -410,9 +434,10 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
                     payload_block[field] = str(content.get(field, chapter))
                 elif field in content:
                     payload_block[field] = str(content.get(field, ""))
-            chapter_payload.append(payload_block)
+            if payload_block:
+                chapter_payload.append(payload_block)
 
-        chapter_blocks[chapter] = chapter_payload
+        chapter_blocks[chapter] = chapter_payload[:5]
 
     return {"chapter_blocks": chapter_blocks}
 

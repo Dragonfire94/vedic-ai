@@ -290,5 +290,95 @@
       }
     ],
     "chain_followups": []
+  },
+  {
+    "id": "identity_control_paradox",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 75
+      },
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 50
+      }
+    ],
+    "logic": "AND",
+    "priority": 90,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "insight_spike": {
+      "text": "Your inner drive to control outcomes paradoxically undermines your sense of agency.",
+      "min_intensity": 0.8
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "Identity-Control Paradox",
+      "summary": "A strong need to direct outcomes can quietly erode trust in your own adaptive capacity.",
+      "analysis": "When pressure rises, control behaviors reduce flexibility and reinforce an internal story that safety exists only through total management.",
+      "implication": "Agency improves when precision is balanced with tolerance for uncertainty.",
+      "examples": "You may over-structure decisions, then feel trapped by the rigidity you created.",
+      "shadow_pattern": "Self-worth gets fused with uninterrupted control performance.",
+      "defense_mechanism": "Hyper-vigilant planning and corrective micromanagement.",
+      "emotional_trigger": "Ambiguity, delayed feedback, or perceived loss of influence.",
+      "repetition_cycle": "Uncertainty → control escalation → short-term relief → reduced adaptability → renewed anxiety.",
+      "integration_path": "Define controllable zones explicitly and permit bounded experimentation outside them."
+    }
+  },
+  {
+    "id": "relational_mirroring_insight",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 84,
+    "intensity_tiers": [
+      {
+        "threshold": 0.7,
+        "modifier": "strong"
+      },
+      {
+        "threshold": 0.4,
+        "modifier": "moderate"
+      }
+    ],
+    "insight_spike": {
+      "text": "You often meet in others the very tension you refuse to confront within yourself.",
+      "min_intensity": 0.8
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "Relational Mirroring Insight",
+      "summary": "Partnership friction tends to reflect unresolved internal conflict with unusual precision.",
+      "analysis": "External disputes can become containers for unprocessed fear, control pressure, and unmet emotional needs.",
+      "implication": "Repair accelerates when projection is translated into accountable self-inquiry.",
+      "examples": "The same argument pattern may recur with different people because the inner trigger remains unchanged.",
+      "shadow_pattern": "Disowned vulnerability appears as criticism of the other person's behavior.",
+      "defense_mechanism": "Projection combined with reactive justification.",
+      "emotional_trigger": "Feeling misunderstood, dismissed, or deprived of influence.",
+      "repetition_cycle": "Inner activation → relational conflict → temporary resolution → unresolved trigger reactivates.",
+      "integration_path": "Name the internal fear before debating external facts."
+    }
   }
 ]
