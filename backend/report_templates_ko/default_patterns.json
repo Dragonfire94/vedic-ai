@@ -1,0 +1,182 @@
+[
+  {
+    "id": "default_executive_summary",
+    "chapter": "Executive Summary",
+    "priority": -999,
+    "content": {
+      "title": "핵심 요약",
+      "summary": "결정론 신호를 기반으로 전체 구조를 요약합니다.",
+      "analysis": "핵심 벡터, 안정성 지표, 긴장 축을 통합해 현재 국면의 구조적 우선순위를 정리합니다.",
+      "implication": "확장보다 정렬을 우선하고, 강한 축부터 실행 우선순위를 배치합니다.",
+      "examples": "동일 입력에서는 동일 구조 요약이 재현됩니다."
+    }
+  },
+  {
+    "id": "default_purushartha_profile",
+    "chapter": "Purushartha Profile",
+    "priority": -999,
+    "content": {
+      "title": "푸루샤르타 프로파일",
+      "summary": "삶의 네 축 균형을 결정론 지표로 정리합니다.",
+      "analysis": "지배 축과 저발현 축의 차이를 확인해 에너지 분배 패턴을 해석합니다.",
+      "implication": "과도한 축은 분산하고 약한 축은 단계적으로 보강하는 전략이 필요합니다.",
+      "examples": "축 균형 변화는 행동 선택의 안정성에 직접 반영됩니다."
+    }
+  },
+  {
+    "id": "default_psychological_architecture",
+    "chapter": "Psychological Architecture",
+    "priority": -999,
+    "content": {
+      "title": "심리 구조",
+      "summary": "긴장 축과 성향 벡터를 통해 내적 구조를 분석합니다.",
+      "analysis": "반응 패턴은 계산된 긴장 점수와 자기조절 지표의 교차에서 설명됩니다.",
+      "implication": "고긴장 구간에서는 의사결정 속도를 낮추고 복구 루틴을 먼저 확보해야 합니다.",
+      "examples": "정량 지표가 변하면 동일 규칙으로 서술도 함께 갱신됩니다."
+    }
+  },
+  {
+    "id": "default_behavioral_risks",
+    "chapter": "Behavioral Risks",
+    "priority": -999,
+    "content": {
+      "title": "행동 리스크",
+      "summary": "주요 행동 리스크를 구조 지표로 정리합니다.",
+      "analysis": "충동·과통제·자기방해 위험을 상호작용 점수와 함께 해석합니다.",
+      "implication": "고위험 리스크는 즉시 완화 루틴을 두고, 중위험은 추적 주기를 설정합니다.",
+      "examples": "리스크 프로파일은 실행 순서와 복구 설계의 기준이 됩니다."
+    }
+  },
+  {
+    "id": "default_karmic_patterns",
+    "chapter": "Karmic Patterns",
+    "priority": -999,
+    "content": {
+      "title": "카르마 패턴",
+      "summary": "반복 패턴과 교정 흐름을 결정론 신호로 정리합니다.",
+      "analysis": "주요 패턴은 현재 선택 루프와 시간축 사건 확률에 반영됩니다.",
+      "implication": "반복 루프를 끊기 위해선 동일 자극-반응 연결을 단계적으로 재설계해야 합니다.",
+      "examples": "패턴 판정은 입력 데이터가 동일하면 동일 결과를 반환합니다."
+    }
+  },
+  {
+    "id": "default_stability_metrics",
+    "chapter": "Stability Metrics",
+    "priority": -999,
+    "content": {
+      "title": "안정성 지표",
+      "summary": "안정성·긴장성 지표를 기반으로 현재 내구성을 평가합니다.",
+      "analysis": "안정성 점수와 긴장 지수의 균형이 실행 지속 가능성을 결정합니다.",
+      "implication": "저안정 국면에서는 확장보다 회복과 리듬 정비가 우선입니다.",
+      "examples": "지표 기반 의사결정은 재현성과 일관성을 확보합니다."
+    }
+  },
+  {
+    "id": "default_personality_vector",
+    "chapter": "Personality Vector",
+    "priority": -999,
+    "content": {
+      "title": "성향 벡터",
+      "summary": "성향 벡터를 통해 기본 반응 성질을 확인합니다.",
+      "analysis": "자기주도·정서조절·규율 지수의 조합이 실행 스타일을 구성합니다.",
+      "implication": "강점 축을 과부하하지 않도록 분산 계획이 필요합니다.",
+      "examples": "벡터 수치는 행동 설계의 우선순위를 정할 때 기준이 됩니다."
+    }
+  },
+  {
+    "id": "default_life_timeline_interpretation",
+    "chapter": "Life Timeline Interpretation",
+    "priority": -999,
+    "content": {
+      "title": "생애 타임라인",
+      "summary": "확률 전망과 패턴 정보를 결합해 시기 흐름을 해석합니다.",
+      "analysis": "단기·중기 창에서 변동 위험과 기회 밀도를 구조적으로 구분합니다.",
+      "implication": "고변동 창은 보수적으로, 정렬 창은 실행 강도를 높여야 합니다.",
+      "examples": "타임라인 서술은 확률 지표와 규칙 매칭 결과를 그대로 반영합니다."
+    }
+  },
+  {
+    "id": "default_career_success",
+    "chapter": "Career & Success",
+    "priority": -999,
+    "content": {
+      "title": "커리어와 성과",
+      "summary": "성과 축은 안정성·책임 축과의 정렬 정도로 판단됩니다.",
+      "analysis": "경력 전환 확률, 지배 축, 하우스 클러스터 신호를 함께 검토합니다.",
+      "implication": "실행은 강한 축 중심으로 배치하고 변동 축은 단계적으로 확장합니다.",
+      "examples": "성과 판단은 단일 사건보다 구조 지표의 누적 변화로 확인합니다."
+    }
+  },
+  {
+    "id": "default_love_relationships",
+    "chapter": "Love & Relationships",
+    "priority": -999,
+    "content": {
+      "title": "관계와 애정",
+      "summary": "관계 정렬 신호와 정서 조절 지표를 통해 관계 패턴을 분석합니다.",
+      "analysis": "애착 반응은 리스크 프로파일과 상호작용 지표의 결합으로 설명됩니다.",
+      "implication": "고긴장 반응을 낮추기 위한 대화 리듬과 경계 설정이 필요합니다.",
+      "examples": "관계 지표는 반복 갈등 패턴의 조기 탐지 기준이 됩니다."
+    }
+  },
+  {
+    "id": "default_health_body_patterns",
+    "chapter": "Health & Body Patterns",
+    "priority": -999,
+    "content": {
+      "title": "건강 및 신체 패턴",
+      "summary": "안정성·행동 지표를 통해 신체 부담 패턴을 정리합니다.",
+      "analysis": "수면·회복·과부하 신호는 안정성 하락과 함께 나타나는 경향이 있습니다.",
+      "implication": "저안정 구간에서는 회복 루틴을 먼저 고정해야 합니다.",
+      "examples": "지표 추적은 변동 구간의 과부하 누적을 조기에 확인하게 해줍니다."
+    }
+  },
+  {
+    "id": "default_confidence_forecast",
+    "chapter": "Confidence & Forecast",
+    "priority": -999,
+    "content": {
+      "title": "신뢰도 및 전망",
+      "summary": "전망 값은 현재 구조와 리스크 지표를 기반으로 해석됩니다.",
+      "analysis": "확률 신호는 절대 예언이 아니라 구조적 가능성 분포로 읽어야 합니다.",
+      "implication": "고확률 신호도 안정성 확인 없이 즉시 실행하지 않아야 합니다.",
+      "examples": "전망은 의사결정 순서를 조정하는 보조 지표로 사용됩니다."
+    }
+  },
+  {
+    "id": "default_remedies_program",
+    "chapter": "Remedies & Program",
+    "priority": -999,
+    "content": {
+      "title": "교정 및 실행 프로그램",
+      "summary": "결정론 리스크를 기준으로 교정 순서를 제안합니다.",
+      "analysis": "약한 축 안정화 -> 강한 축 과부하 완화 순으로 단계화하는 것이 효율적입니다.",
+      "implication": "짧은 점검 주기를 두고 지표 변화에 맞춰 강도를 조절해야 합니다.",
+      "examples": "프로그램은 정량 지표 기반으로 반복 조정됩니다."
+    }
+  },
+  {
+    "id": "default_final_summary",
+    "chapter": "Final Summary",
+    "priority": -999,
+    "content": {
+      "title": "최종 종합",
+      "summary": "핵심 신호를 통합해 실행 우선순위를 제시합니다.",
+      "analysis": "지배 축, 안정성, 리스크, 정렬 신호를 함께 검토해 전략을 확정합니다.",
+      "implication": "강한 축 실행과 약한 축 복구를 병행하는 이중 전략이 필요합니다.",
+      "examples": "종합 문단은 앞선 장의 결정론 근거를 재정렬해 제공합니다."
+    }
+  },
+  {
+    "id": "default_appendix_optional",
+    "chapter": "Appendix (Optional)",
+    "priority": -999,
+    "content": {
+      "title": "부록",
+      "summary": "분석에 사용된 보조 신호를 정리합니다.",
+      "analysis": "행성 우선순위, 분할차트 정렬, 영향 행렬의 보조 근거를 제공합니다.",
+      "implication": "부록 지표는 본문 결론을 검증하는 재현성 체크포인트입니다.",
+      "examples": "동일 조건 재실행 시 동일 부록 구조가 생성됩니다."
+    }
+  }
+]

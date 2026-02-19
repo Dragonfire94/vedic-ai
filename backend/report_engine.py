@@ -1,9 +1,10 @@
-"""Deterministic report block selector and GPT payload builder."""
+﻿"""Deterministic report block selector and GPT payload builder."""
 
 from __future__ import annotations
 
 import json
 import logging
+import os
 import operator as op
 from pathlib import Path
 from typing import Any
@@ -34,12 +35,16 @@ You are only to stitch the provided text fragments into a cohesive narrative.
 Constraints:
 - Do NOT invent new astrology interpretations.
 - Do NOT add new causes or facts.
+- You must only refine and improve readability of the provided deterministic astrology report. Do not add, infer, or invent new astrological interpretation.
 - Write in a professional, analytical and coherent style.
+- Produce full-length, publication-grade detail in every chapter.
+- Do not compress chapters into short summaries.
 - Each chapter should have:
     Title
     Intro paragraph
-    At least 2 paragraphs discussing the block content
-    A concluding sentence tying it to the person’s journey.
+    At least 4 substantial paragraphs discussing the block content
+    Practical implications and application guidance
+    A concluding sentence tying it to the person's journey.
 
 Output must be plain text (no JSON) with explicit chapter boundaries marked.
 
@@ -80,7 +85,29 @@ OP_MAP = {
 
 TEMPLATES: list[dict[str, Any]] = []
 DEFAULT_BLOCKS: dict[str, list[dict[str, Any]]] = {}
+_TEMPLATES_BY_LANG: dict[str, list[dict[str, Any]]] = {}
+_DEFAULTS_BY_LANG: dict[str, dict[str, list[dict[str, Any]]]] = {}
+_ACTIVE_LANGUAGE = "en"
 logger = logging.getLogger("report_engine")
+REPORT_MAPPING_DEBUG = str(os.getenv("REPORT_MAPPING_DEBUG", "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+INTERPRETATIONS_KR_FILE = Path("C:/dev/vedic-ai/assets/data/interpretations.kr_final.json")
+if not INTERPRETATIONS_KR_FILE.exists():
+    INTERPRETATIONS_KR_FILE = Path(__file__).resolve().parent.parent / "assets" / "data" / "interpretations.kr_final.json"
+INTERPRETATIONS_KR: dict[str, Any] = {}
+INTERPRETATIONS_KR_ATOMIC: dict[str, Any] = {}
+INTERPRETATIONS_KR_ENTRIES_COUNT = 0
+ATOMIC_RUNTIME_AUDIT = {
+    "atomic_keys_generated": 0,
+    "atomic_lookup_hits": 0,
+    "atomic_lookup_misses": 0,
+    "atomic_text_applied_count": 0,
+}
+
+MIN_DEPTH_KO_CHARS = 1200
+MIN_DEPTH_EN_WORDS = 600
+BASE_CHAPTER_LIMIT = 5
+MAX_DYNAMIC_CHAPTER_LIMIT = 12
 
 REINFORCE_RULES = [
     {
@@ -156,24 +183,145 @@ SCENARIO_COMPRESSION_RULES = [
 ]
 
 
+def _extract_interpretation_text(entry: Any) -> str | None:
+    if isinstance(entry, dict):
+        text = entry.get("text")
+        if isinstance(text, str) and text.strip():
+            return text.strip()
+    elif isinstance(entry, str) and entry.strip():
+        return entry.strip()
+    return None
+
+
+def _new_mapping_audit() -> dict[str, Any]:
+    return {
+        "total_signals_processed": 0,
+        "mapping_hits": 0,
+        "mapping_misses": 0,
+        "used_mapping_keys": {},
+        "atomic_inputs_available": {
+            "ascendant": False,
+            "sun": False,
+            "moon": False,
+        },
+        "atomic_usage": {
+            "ascendant": {"hits": 0, "misses": 0},
+            "sun": {"hits": 0, "misses": 0},
+            "moon": {"hits": 0, "misses": 0},
+        },
+    }
+
+
+def _load_interpretations_kr() -> tuple[dict[str, Any], dict[str, Any], int]:
+    try:
+        with open("C:/dev/vedic-ai/assets/data/interpretations.kr_final.json", encoding="utf-8") as f:
+            data = json.load(f)
+    except Exception:
+        if not INTERPRETATIONS_KR_FILE.exists():
+            logger.warning("interpretations.kr_final.json not found at %s", INTERPRETATIONS_KR_FILE)
+            return {}, {}, 0
+        try:
+            with open(INTERPRETATIONS_KR_FILE, "r", encoding="utf-8") as handle:
+                data = json.load(handle)
+        except Exception as exc:
+            logger.warning("interpretations.kr_final.json load failed: %s", exc)
+            return {}, {}, 0
+
+    try:
+        ko_payload = data["ko"]
+        atomic_payload = ko_payload["atomic"]
+    except Exception as exc:
+        logger.warning("interpretations.kr_final.json missing ko/atomic structure: %s", exc)
+        return {}, {}, 0
+
+    if not isinstance(ko_payload, dict) or not isinstance(atomic_payload, dict):
+        logger.warning("interpretations.kr_final.json invalid ko/atomic types")
+        return {}, {}, 0
+
+    entries = 0
+    for section_name in ("atomic", "lagna_lord", "yogas", "patterns"):
+        section = ko_payload.get(section_name)
+        if isinstance(section, dict):
+            entries += len(section)
+
+    logger.info("interpretations.kr_final.json loaded successfully, entries count=%s", entries)
+    logger.info("interpretations.kr_final.json loaded: atomic_count=%d", len(atomic_payload))
+    return ko_payload, atomic_payload, entries
+
+
+INTERPRETATIONS_KR, INTERPRETATIONS_KR_ATOMIC, INTERPRETATIONS_KR_ENTRIES_COUNT = _load_interpretations_kr()
+
+
 def _load_template_file(path: Path) -> list[dict[str, Any]]:
-    with path.open("r", encoding="utf-8") as handle:
+    if not path.exists():
+        return []
+    with open(path, "r", encoding="utf-8") as handle:
         payload = json.load(handle)
     return payload if isinstance(payload, list) else []
 
 
-def _load_templates() -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+def _localized_ko_content(chapter: str, block_id: str) -> dict[str, Any]:
+    return {
+        "title": f"{chapter} 遺꾩꽍 - {block_id}",
+        "summary": f"???⑤씫? 洹쒖튃 `{block_id}`??留ㅼ묶??寃곗젙濡좎쟻 ?좏샇瑜?湲곕컲?쇰줈 ?앹꽦?섏뿀?듬땲??",
+        "analysis": "?좏샇 怨꾩궛媛믨낵 援ъ“ ?붿빟??愿怨꾨? 洹몃?濡??좎??섎ŉ, 異붽? 異붾줎 ?놁씠 ?댁꽍 ?먮쫫留??뺣━?⑸땲??",
+        "implication": "?섏궗寃곗젙? ?꾩옱 ?좏샇 媛뺣룄? ?덉젙??吏?쒕? ?④퍡 ?뺤씤?섎뒗 諛⑹떇?쇰줈 ?④퀎?곸쑝濡?吏꾪뻾?섎뒗 寃껋씠 ?곸젅?⑸땲??",
+        "examples": "?숈씪 ?낅젰?먯꽌???숈씪 臾몄옣???ъ깮?깅릺硫? 洹쒖튃 湲곕컲 寃쎈줈???ы쁽 媛?μ꽦???좎??⑸땲??",
+    }
+
+
+def _localize_block_ko(base_block: dict[str, Any]) -> dict[str, Any]:
+    localized = dict(base_block)
+    content = localized.get("content")
+    if isinstance(content, dict):
+        localized_content = dict(content)
+        localized_content.update(_localized_ko_content(str(localized.get("chapter", "")), str(localized.get("id", "block"))))
+        localized["content"] = localized_content
+    else:
+        localized["content"] = _localized_ko_content(str(localized.get("chapter", "")), str(localized.get("id", "block")))
+    return localized
+
+
+def _load_templates_for_language(language: str) -> tuple[list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    lang = str(language or "en").strip().lower()
     base = Path(__file__).resolve().parent / "report_templates"
+    ko_base = Path(__file__).resolve().parent / "report_templates_ko"
     templates: list[dict[str, Any]] = []
+    ko_templates_by_id: dict[str, dict[str, Any]] = {}
+    if lang == "ko":
+        for filename in _TEMPLATE_FILES:
+            for block in _load_template_file(ko_base / filename):
+                block_id = str(block.get("id", "")).strip()
+                if block_id:
+                    ko_templates_by_id[block_id] = block
+
     for filename in _TEMPLATE_FILES:
         for block in _load_template_file(base / filename):
+            if lang == "ko":
+                block_id = str(block.get("id", "")).strip()
+                if block_id in ko_templates_by_id:
+                    block = dict(ko_templates_by_id[block_id])
+                else:
+                    block = _localize_block_ko(block)
             chapter = block.get("chapter")
             if chapter not in REPORT_CHAPTERS:
                 logger.warning("Template block has unknown chapter '%s': id=%s", chapter, block.get("id"))
             templates.append(block)
 
     defaults: dict[str, list[dict[str, Any]]] = {chapter: [] for chapter in REPORT_CHAPTERS}
+    ko_defaults_by_id: dict[str, dict[str, Any]] = {}
+    if lang == "ko":
+        for block in _load_template_file(ko_base / _DEFAULT_TEMPLATE_FILE):
+            block_id = str(block.get("id", "")).strip()
+            if block_id:
+                ko_defaults_by_id[block_id] = block
     for block in _load_template_file(base / _DEFAULT_TEMPLATE_FILE):
+        if lang == "ko":
+            block_id = str(block.get("id", "")).strip()
+            if block_id in ko_defaults_by_id:
+                block = dict(ko_defaults_by_id[block_id])
+            else:
+                block = _localize_block_ko(block)
         chapter = block.get("chapter")
         if chapter in defaults:
             defaults[chapter].append(block)
@@ -197,15 +345,31 @@ def _validate_rule_chapters() -> None:
             )
 
 
-def _ensure_loaded() -> None:
-    global TEMPLATES, DEFAULT_BLOCKS
-    if not TEMPLATES and not DEFAULT_BLOCKS:
-        TEMPLATES, DEFAULT_BLOCKS = _load_templates()
+def _set_active_language(language: str) -> None:
+    global TEMPLATES, DEFAULT_BLOCKS, _ACTIVE_LANGUAGE
+    lang = "ko" if str(language or "").strip().lower().startswith("ko") else "en"
+    _ensure_loaded(lang)
+    TEMPLATES = _TEMPLATES_BY_LANG.get(lang, [])
+    DEFAULT_BLOCKS = _DEFAULTS_BY_LANG.get(lang, {chapter: [] for chapter in REPORT_CHAPTERS})
+    _ACTIVE_LANGUAGE = lang
+
+
+def _ensure_loaded(language: str = "en") -> None:
+    lang = "ko" if str(language or "").strip().lower().startswith("ko") else "en"
+    if lang not in _TEMPLATES_BY_LANG or lang not in _DEFAULTS_BY_LANG:
+        templates, defaults = _load_templates_for_language(lang)
+        _TEMPLATES_BY_LANG[lang] = templates
+        _DEFAULTS_BY_LANG[lang] = defaults
         _validate_rule_chapters()
+    global TEMPLATES, DEFAULT_BLOCKS, _ACTIVE_LANGUAGE
+    if not TEMPLATES and not DEFAULT_BLOCKS:
+        TEMPLATES = _TEMPLATES_BY_LANG.get("en", [])
+        DEFAULT_BLOCKS = _DEFAULTS_BY_LANG.get("en", {chapter: [] for chapter in REPORT_CHAPTERS})
+        _ACTIVE_LANGUAGE = "en"
 
 
-def get_template_libraries() -> dict[str, Any]:
-    _ensure_loaded()
+def get_template_libraries(language: str = "en") -> dict[str, Any]:
+    _set_active_language(language)
     return {"templates": TEMPLATES, "defaults": DEFAULT_BLOCKS}
 
 
@@ -323,35 +487,21 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
     if not isinstance(content, dict):
         return {}
 
-    if intensity >= 0.85:
-        include_fields = [
-            "title",
-            "summary",
-            "analysis",
-            "implication",
-            "examples",
-            "shadow_pattern",
-            "defense_mechanism",
-            "emotional_trigger",
-            "repetition_cycle",
-            "integration_path",
-            "choice_fork",
-            "predictive_compression",
-        ]
-    elif intensity >= 0.75:
-        include_fields = [
-            "title",
-            "summary",
-            "analysis",
-            "implication",
-            "examples",
-            "choice_fork",
-            "predictive_compression",
-        ]
-    elif intensity >= 0.5:
-        include_fields = ["title", "summary", "analysis", "implication", "predictive_compression"]
-    else:
-        include_fields = ["title", "summary", "analysis", "predictive_compression"]
+    # Preserve full narrative detail regardless of intensity band.
+    include_fields = [
+        "title",
+        "summary",
+        "analysis",
+        "implication",
+        "examples",
+        "shadow_pattern",
+        "defense_mechanism",
+        "emotional_trigger",
+        "repetition_cycle",
+        "integration_path",
+        "choice_fork",
+        "predictive_compression",
+    ]
 
     payload_block: dict[str, Any] = {}
     for field in include_fields:
@@ -363,7 +513,7 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
 
         value = content.get(field)
         if field == "choice_fork":
-            if intensity >= 0.75 and isinstance(value, dict):
+            if isinstance(value, dict):
                 payload_block["choice_fork"] = value
         elif field == "predictive_compression":
             if isinstance(value, dict):
@@ -539,7 +689,7 @@ def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: s
 
     top_planets_text = ", ".join([str(p) for p in top3[:3] if isinstance(p, str) and p]) or "No clear top cluster"
     analysis = (
-        "Shadbala 근사 지표와 Avastha 상태를 함께 본 핵심 판독입니다:\n"
+        "Shadbala approximate metrics and Avastha state viewed together:\n"
         + "\n".join(lines)
     )
 
@@ -554,12 +704,12 @@ def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: s
                 "summary": f"Top stabilizing planets: {top_planets_text}.",
                 "analysis": analysis,
                 "implication": (
-                    "강한 행성은 다샤/고차라 타이밍의 실행축으로 쓰고, 약한 행성이 지배하는 영역은 "
-                    "루틴과 회복력을 먼저 세운 뒤 확장하는 것이 안전합니다."
+                    "Use stronger planets as execution anchors for timing cycles, and treat weaker-planet domains "
+                    "with stabilization and recovery before expansion."
                 ),
                 "examples": (
-                    "근거 태그는 Directional Strength, Exalted, Own Sign, Combust, Retrograde를 사용하며, "
-                    "해석은 정량 점수보다 행성 간 상대 우선순위에 중점을 둡니다."
+                    "Evidence tags include Directional Strength, Exalted, Own Sign, Combust, and Retrograde. "
+                    "Interpretation emphasizes relative planetary hierarchy over single scalar scores."
                 ),
             },
         }
@@ -571,12 +721,12 @@ def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: s
             "_intensity": 0.8,
             "content": {
                 "title": "Final Synthesis: Strength Axis",
-                "summary": f"핵심 행성 축은 {top_planets_text}로 수렴합니다.",
+                "summary": f"The primary strength axis converges on {top_planets_text}.",
                 "analysis": (
-                    "상위 행성은 현실 실행력과 회복 탄력의 중심이며, 약한 행성 영역은 과속 시 변동성이 확대됩니다. "
-                    "이번 리포트의 권고는 이 강약 구조를 기준으로 배열되어야 정확도가 높습니다."
+                    "Top planets act as the center of execution and resilience, while weak-planet domains become volatile "
+                    "under overextension. Recommendations should be prioritized by this strong-weak structure."
                 ),
-                "implication": "의사결정은 강한 축에 맞추고, 약한 축은 단계적 보정으로 접근하는 것이 손실을 줄입니다.",
+                "implication": "Align major decisions to strong axes first, and approach weaker axes with staged correction.",
             },
         }
     if chapter == "Remedies & Program":
@@ -587,12 +737,12 @@ def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: s
             "_intensity": 0.8,
             "content": {
                 "title": "Remedy Priority by Shadbala",
-                "summary": "처방 우선순위는 약한 행성의 안정화, 강한 행성의 과부하 방지 순으로 잡습니다.",
+                "summary": "Set remedy priority as weak-planet stabilization first, then strong-planet overload prevention.",
                 "analysis": (
-                    "약한 행성은 수면/루틴/행동 반복의 기본기부터 보강하고, 강한 행성은 과도한 책임 집중을 분산해야 "
-                    "전체 차트의 균형이 유지됩니다."
+                    "Start weak-planet correction with sleep, rhythm, and behavioral consistency. For strong planets, "
+                    "distribute excessive responsibility concentration to preserve global chart balance."
                 ),
-                "examples": "실행 계획은 2주 단위 점검으로 시작하고, 강약 밴드 변화에 따라 강도를 조정합니다.",
+                "examples": "Begin with a two-week check cycle and adjust intensity according to observed band shifts.",
             },
         }
     return None
@@ -727,8 +877,1009 @@ def _apply_psychological_echo(selected: dict[str, list[dict[str, Any]]], structu
         _append_unique_block(selected, "Final Summary", summary_match, structural_summary)
 
 
-def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
-    _ensure_loaded()
+def _is_korean_language(structural_summary: dict[str, Any]) -> bool:
+    lang = str(structural_summary.get("language", "ko")).strip().lower()
+    return not lang.startswith("en")
+
+
+def _canonical_value(value: Any) -> str:
+    if isinstance(value, float):
+        return f"{value:.4f}".rstrip("0").rstrip(".")
+    if isinstance(value, (int, bool)):
+        return str(value)
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return ", ".join(_canonical_value(v) for v in value[:6])
+    if isinstance(value, dict):
+        keys = sorted(str(k) for k in value.keys())
+        return "{ " + ", ".join(keys[:8]) + " }"
+    return str(value)
+
+
+def _flatten_deterministic_signals(structural_summary: dict[str, Any]) -> list[tuple[str, Any]]:
+    flattened: list[tuple[str, Any]] = []
+
+    def walk(prefix: str, value: Any) -> None:
+        if isinstance(value, dict):
+            for key in sorted(value.keys(), key=lambda x: str(x)):
+                walk(f"{prefix}.{key}" if prefix else str(key), value.get(key))
+            return
+        if isinstance(value, list):
+            if value and all(isinstance(v, (str, int, float, bool)) for v in value):
+                flattened.append((prefix, list(value[:8])))
+            return
+        if isinstance(value, (str, int, float, bool)) or value is None:
+            flattened.append((prefix, value))
+
+    allowed = [
+        "personality_vector",
+        "stability_metrics",
+        "psychological_tension_axis",
+        "life_purpose_vector",
+        "planet_power_ranking",
+        "dominant_house_cluster",
+        "purushartha_profile",
+        "behavioral_risk_profile",
+        "interaction_risks",
+        "enhanced_behavioral_risks",
+        "probability_forecast",
+        "karmic_pattern_profile",
+        "varga_alignment",
+    ]
+    engine = structural_summary.get("engine")
+    if isinstance(engine, dict):
+        for engine_key in ["influence_matrix", "house_clusters", "personality_vector", "stability_metrics", "varga_alignment"]:
+            if engine_key in engine:
+                walk(f"engine.{engine_key}", engine.get(engine_key))
+
+    for key in allowed:
+        if key in structural_summary:
+            walk(key, structural_summary.get(key))
+
+    dedup: dict[str, Any] = {}
+    for path, value in flattened:
+        if path and path not in dedup:
+            dedup[path] = value
+    return [(path, dedup[path]) for path in sorted(dedup.keys())]
+
+
+def _chapter_signal_priorities(chapter: str) -> list[str]:
+    mapping = {
+        "Executive Summary": ["life_purpose_vector", "planet_power_ranking", "stability_metrics", "psychological_tension_axis"],
+        "Purushartha Profile": ["purushartha_profile", "life_purpose_vector", "dominant_house_cluster"],
+        "Psychological Architecture": ["psychological_tension_axis", "personality_vector", "engine.influence_matrix", "interaction_risks"],
+        "Behavioral Risks": ["behavioral_risk_profile", "enhanced_behavioral_risks", "interaction_risks", "stability_metrics"],
+        "Karmic Patterns": ["karmic_pattern_profile", "life_purpose_vector", "engine.influence_matrix", "varga_alignment"],
+        "Stability Metrics": ["stability_metrics", "engine.stability_metrics", "engine.influence_matrix", "behavioral_risk_profile"],
+        "Personality Vector": ["personality_vector", "engine.personality_vector", "stability_metrics", "psychological_tension_axis"],
+        "Life Timeline Interpretation": ["probability_forecast", "karmic_pattern_profile", "stability_metrics", "varga_alignment"],
+        "Career & Success": ["probability_forecast", "varga_alignment.career_alignment", "life_purpose_vector", "engine.house_clusters"],
+        "Love & Relationships": ["varga_alignment.relationship_alignment", "personality_vector.emotional_regulation", "behavioral_risk_profile", "karmic_pattern_profile"],
+        "Health & Body Patterns": ["stability_metrics", "behavioral_risk_profile", "personality_vector.discipline_index", "engine.house_clusters"],
+        "Confidence & Forecast": ["probability_forecast", "stability_metrics", "psychological_tension_axis", "personality_vector"],
+        "Remedies & Program": ["behavioral_risk_profile", "stability_metrics", "personality_vector", "varga_alignment"],
+        "Final Summary": ["life_purpose_vector", "stability_metrics", "personality_vector", "varga_alignment", "probability_forecast"],
+        "Appendix (Optional)": ["planet_power_ranking", "varga_alignment", "stability_metrics", "personality_vector", "engine.influence_matrix"],
+    }
+    return mapping.get(chapter, ["stability_metrics", "personality_vector", "psychological_tension_axis"])
+
+
+def _collect_chapter_signals(chapter: str, structural_summary: dict[str, Any], limit: int = 20) -> list[tuple[str, Any]]:
+    flattened = _flatten_deterministic_signals(structural_summary)
+    priorities = _chapter_signal_priorities(chapter)
+    weighted: list[tuple[int, str, Any]] = []
+    for path, value in flattened:
+        rank = len(priorities) + 2
+        for idx, prefix in enumerate(priorities):
+            if path == prefix or path.startswith(prefix + "."):
+                rank = idx
+                break
+        weighted.append((rank, path, value))
+    weighted.sort(key=lambda item: (item[0], item[1]))
+    out: list[tuple[str, Any]] = []
+    seen: set[str] = set()
+    for _, path, value in weighted:
+        if path in seen:
+            continue
+        out.append((path, value))
+        seen.add(path)
+        if len(out) >= max(1, limit):
+            break
+    return out
+
+
+def _dynamic_chapter_limit(structural_summary: dict[str, Any], spike_count: int = 0) -> int:
+    richness = 0
+    for _, value in _flatten_deterministic_signals(structural_summary):
+        if isinstance(value, (str, int, float, bool)):
+            richness += 1
+        elif isinstance(value, list):
+            richness += max(1, len(value))
+    dynamic = BASE_CHAPTER_LIMIT + min(7, richness // 30)
+    bounded = min(MAX_DYNAMIC_CHAPTER_LIMIT, max(BASE_CHAPTER_LIMIT, dynamic))
+    return max(1, bounded - max(0, spike_count))
+
+
+def _fragment_text_length(fragment: dict[str, Any]) -> tuple[int, int]:
+    parts: list[str] = []
+    for field in ("title", "summary", "analysis", "implication", "examples"):
+        value = fragment.get(field)
+        if isinstance(value, str) and value.strip():
+            parts.append(value.strip())
+    combined = "\n".join(parts)
+    return len(combined), len(combined.split())
+
+
+def _chapter_depth_stats(chapter_blocks: list[dict[str, Any]]) -> tuple[int, int]:
+    total_chars = 0
+    total_words = 0
+    for fragment in chapter_blocks:
+        if not isinstance(fragment, dict):
+            continue
+        chars, words = _fragment_text_length(fragment)
+        total_chars += chars
+        total_words += words
+    return total_chars, total_words
+
+
+def _planet_meaning_text(planet: str, ko_mode: bool) -> str:
+    ko = {
+        "Sun": "Sun 우세는 자아 의식과 리더십을 강화해 스스로 방향을 결정하려는 성향을 높입니다.",
+        "Moon": "Moon 우세는 정서 감수성과 공감 반응을 강화해 관계와 분위기에 민감하게 반응하게 만듭니다.",
+        "Mars": "Mars 우세는 추진력과 독립성을 강화해 목표 달성을 위해 빠르게 행동하는 경향을 만듭니다.",
+        "Mercury": "Mercury 우세는 분석력과 언어적 판단력을 강화해 전략적 의사결정의 정확도를 높입니다.",
+        "Jupiter": "Jupiter 우세는 확장성과 성장 지향성을 강화해 장기적 기회 포착 능력을 높입니다.",
+        "Venus": "Venus 우세는 조화 감각과 관계 품질을 강화해 균형 중심의 선택을 선호하게 만듭니다.",
+        "Saturn": "Saturn 우세는 규율과 책임을 강화하지만 성과는 지연되어 축적형 결과로 나타납니다.",
+        "Rahu": "Rahu 우세는 급진적 변화 추구를 강화해 빠른 상승 가능성과 변동 리스크를 함께 키웁니다.",
+        "Ketu": "Ketu 우세는 분리와 내적 통찰을 강화해 단순화와 재정렬을 요구합니다.",
+    }
+    en = {
+        "Sun": "Sun dominance strengthens identity and leadership, increasing self-directed agency.",
+        "Moon": "Moon dominance heightens emotional sensitivity and relational responsiveness.",
+        "Mars": "Mars dominance amplifies initiative and independence, driving fast goal-oriented action.",
+        "Mercury": "Mercury dominance strengthens analytical and verbal judgment in complex decisions.",
+        "Jupiter": "Jupiter dominance supports expansion and long-range developmental growth.",
+        "Venus": "Venus dominance reinforces harmony and relational quality in value-based choices.",
+        "Saturn": "Saturn dominance emphasizes discipline and responsibility with delayed but durable outcomes.",
+        "Rahu": "Rahu dominance increases disruptive ambition with both opportunity and volatility.",
+        "Ketu": "Ketu dominance encourages detachment and inner restructuring priorities.",
+    }
+    return (ko if ko_mode else en).get(
+        planet,
+        f"{planet} {'우세는 해당 행성의 주제를 삶의 중심 동력으로 끌어올립니다.' if ko_mode else 'dominance elevates that planet theme into a core life driver.'}",
+    )
+
+
+def _signal_numeric(signal_value: Any) -> float | None:
+    if isinstance(signal_value, (int, float)):
+        value = float(signal_value)
+        if 0.0 <= value <= 1.0:
+            return value * 100.0
+        return value
+    return None
+
+
+def _interpretation_lookup(section: str, key: str) -> str | None:
+    if section == "atomic":
+        hit = key in INTERPRETATIONS_KR_ATOMIC
+        if hit:
+            ATOMIC_RUNTIME_AUDIT["atomic_lookup_hits"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_hits", 0)) + 1
+        else:
+            ATOMIC_RUNTIME_AUDIT["atomic_lookup_misses"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_misses", 0)) + 1
+        logger.info("atomic_lookup key=%s hit=%s", key, hit)
+        return _extract_interpretation_text(INTERPRETATIONS_KR_ATOMIC.get(key))
+
+    section_payload = INTERPRETATIONS_KR.get(section) if isinstance(INTERPRETATIONS_KR, dict) else None
+    if not isinstance(section_payload, dict):
+        return None
+    return _extract_interpretation_text(section_payload.get(key))
+
+
+def _get_atomic_chart_interpretations(structural_summary: dict[str, Any]) -> dict[str, str]:
+    chart_signature = structural_summary.get("chart_signature") if isinstance(structural_summary.get("chart_signature"), dict) else {}
+    ascendant_sign = chart_signature.get("ascendant_sign") or structural_summary.get("ascendant_sign") or structural_summary.get("asc_sign")
+    sun_sign = chart_signature.get("sun_sign") or structural_summary.get("sun_sign")
+    moon_sign = chart_signature.get("moon_sign") or structural_summary.get("moon_sign")
+
+    asc_key = f"asc:{str(ascendant_sign).strip()}" if isinstance(ascendant_sign, str) and ascendant_sign.strip() else ""
+    sun_key = f"ps:Sun:{str(sun_sign).strip()}" if isinstance(sun_sign, str) and sun_sign.strip() else ""
+    moon_key = f"ps:Moon:{str(moon_sign).strip()}" if isinstance(moon_sign, str) and moon_sign.strip() else ""
+
+    logger.info("atomic_keys_generated asc=%s sun=%s moon=%s", asc_key, sun_key, moon_key)
+    if any((asc_key, sun_key, moon_key)):
+        ATOMIC_RUNTIME_AUDIT["atomic_keys_generated"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_keys_generated", 0)) + 1
+
+    out = {"asc": "", "sun": "", "moon": ""}
+    for label, key in (("asc", asc_key), ("sun", sun_key), ("moon", moon_key)):
+        if not key:
+            continue
+        hit = key in INTERPRETATIONS_KR_ATOMIC
+        if hit:
+            ATOMIC_RUNTIME_AUDIT["atomic_lookup_hits"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_hits", 0)) + 1
+        else:
+            ATOMIC_RUNTIME_AUDIT["atomic_lookup_misses"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_misses", 0)) + 1
+        logger.info("atomic_lookup key=%s hit=%s", key, hit)
+        text = _extract_interpretation_text(INTERPRETATIONS_KR_ATOMIC.get(key))
+        if isinstance(text, str) and text.strip():
+            out[label] = text.strip()
+    return out
+
+
+def _atomic_key_for_signal_path(signal_path: str, structural_summary: dict[str, Any]) -> str:
+    chart_signature = structural_summary.get("chart_signature") if isinstance(structural_summary.get("chart_signature"), dict) else {}
+    ascendant_sign = chart_signature.get("ascendant_sign") or structural_summary.get("ascendant_sign") or structural_summary.get("asc_sign")
+    sun_sign = chart_signature.get("sun_sign") or structural_summary.get("sun_sign")
+    moon_sign = chart_signature.get("moon_sign") or structural_summary.get("moon_sign")
+    p = str(signal_path or "").lower()
+    if ("moon" in p) or ("emotional" in p) or ("relationship" in p) or ("tension" in p):
+        if isinstance(moon_sign, str) and moon_sign.strip():
+            return f"ps:Moon:{moon_sign.strip()}"
+    if ("sun" in p) or ("career" in p) or ("authority" in p) or ("leadership" in p):
+        if isinstance(sun_sign, str) and sun_sign.strip():
+            return f"ps:Sun:{sun_sign.strip()}"
+    if isinstance(ascendant_sign, str) and ascendant_sign.strip():
+        return f"asc:{ascendant_sign.strip()}"
+    if isinstance(sun_sign, str) and sun_sign.strip():
+        return f"ps:Sun:{sun_sign.strip()}"
+    if isinstance(moon_sign, str) and moon_sign.strip():
+        return f"ps:Moon:{moon_sign.strip()}"
+    return ""
+
+
+def _integrate_atomic_with_signals(atomic_text: str, structural_summary: dict[str, Any]) -> str:
+    base = str(atomic_text or "").strip()
+    if not base:
+        return ""
+    stability = structural_summary.get("stability_metrics") if isinstance(structural_summary.get("stability_metrics"), dict) else {}
+    personality = structural_summary.get("personality_vector") if isinstance(structural_summary.get("personality_vector"), dict) else {}
+    purpose = structural_summary.get("life_purpose_vector") if isinstance(structural_summary.get("life_purpose_vector"), dict) else {}
+    tension = structural_summary.get("psychological_tension_axis") if isinstance(structural_summary.get("psychological_tension_axis"), dict) else {}
+
+    extensions: list[str] = []
+    dominant_planet = purpose.get("dominant_planet")
+    if isinstance(dominant_planet, str) and dominant_planet.strip():
+        extensions.append(f"이 기반 위에서 {dominant_planet.strip()} 성향이 실행 방식의 일관성과 선택 우선순위를 강화합니다.")
+    stability_grade = stability.get("stability_grade") or stability.get("grade")
+    if isinstance(stability_grade, str) and stability_grade.strip():
+        extensions.append(f"안정성 등급({stability_grade.strip()})은 이 특성이 현실에서 발현될 때의 변동 폭과 유지력을 규정합니다.")
+    tension_axis = tension.get("axis")
+    if isinstance(tension_axis, str) and tension_axis.strip():
+        extensions.append(f"심리 긴장 축({tension_axis.strip()})과 결합되면서 관계·의사결정 장면에서 반복 패턴이 형성됩니다.")
+    discipline = personality.get("discipline_index")
+    if isinstance(discipline, (int, float)):
+        extensions.append("규율 지표와 결합될 때 이 구조는 단기 반응보다 누적형 성과를 만들도록 행동 리듬을 고정합니다.")
+
+    if not extensions:
+        return base
+    return base + "\n\n" + " ".join(extensions[:2])
+
+
+def _mapping_keys_for_signal(signal_path: str, signal_value: Any, structural_summary: dict[str, Any]) -> list[tuple[str, str]]:
+    p = signal_path.lower()
+    candidates: list[tuple[str, str]] = []
+    chart_signature = structural_summary.get("chart_signature") if isinstance(structural_summary.get("chart_signature"), dict) else {}
+    asc = chart_signature.get("ascendant_sign")
+    sun = chart_signature.get("sun_sign")
+    moon = chart_signature.get("moon_sign")
+
+    # Global chart identity context: always include atomic sign keys before signal-specific rules.
+    global_atomic_candidates: list[tuple[str, str]] = []
+    asc_key = ""
+    sun_key = ""
+    moon_key = ""
+    if isinstance(asc, str) and asc.strip():
+        asc_key = f"asc:{asc.strip()}"
+        global_atomic_candidates.append(("atomic", asc_key))
+    if isinstance(sun, str) and sun.strip():
+        sun_key = f"ps:Sun:{sun.strip()}"
+        global_atomic_candidates.append(("atomic", sun_key))
+    if isinstance(moon, str) and moon.strip():
+        moon_key = f"ps:Moon:{moon.strip()}"
+        global_atomic_candidates.append(("atomic", moon_key))
+
+    if any((asc_key, sun_key, moon_key)):
+        ATOMIC_RUNTIME_AUDIT["atomic_keys_generated"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_keys_generated", 0)) + 1
+        logger.info("atomic_keys_generated asc=%s sun=%s moon=%s", asc_key, sun_key, moon_key)
+
+    # Deterministic prioritization so Sun/Moon keys are actively used where semantically aligned.
+    if ("moon" in p) or ("emotional" in p) or ("relationship" in p) or ("tension" in p):
+        priority_order = ("ps:Moon:", "ps:Sun:", "asc:")
+    elif ("sun" in p) or ("career" in p) or ("authority" in p) or ("leadership" in p):
+        priority_order = ("ps:Sun:", "ps:Moon:", "asc:")
+    else:
+        priority_order = ("asc:", "ps:Sun:", "ps:Moon:")
+
+    for prefix in priority_order:
+        for section, key in global_atomic_candidates:
+            if key.startswith(prefix):
+                candidates.append((section, key))
+
+    personality = structural_summary.get("personality_vector") if isinstance(structural_summary.get("personality_vector"), dict) else {}
+    stability = structural_summary.get("stability_metrics") if isinstance(structural_summary.get("stability_metrics"), dict) else {}
+    forecast = structural_summary.get("probability_forecast") if isinstance(structural_summary.get("probability_forecast"), dict) else {}
+    varga = structural_summary.get("varga_alignment") if isinstance(structural_summary.get("varga_alignment"), dict) else {}
+    house_strengths = structural_summary.get("house_strengths") if isinstance(structural_summary.get("house_strengths"), dict) else {}
+    if not house_strengths:
+        engine = structural_summary.get("engine") if isinstance(structural_summary.get("engine"), dict) else {}
+        clusters = engine.get("house_clusters") if isinstance(engine.get("house_clusters"), dict) else {}
+        cluster_scores = clusters.get("cluster_scores")
+        if isinstance(cluster_scores, dict):
+            house_strengths = cluster_scores
+
+    if "dominant_planet" in p or "planet_power_ranking" in p:
+        dominant = str(signal_value[0] if isinstance(signal_value, list) and signal_value else signal_value or "").strip()
+        planet_strategy = {
+            "Mars": "ll:strategy:direct_action",
+            "Sun": "ll:strategy:direct_action",
+            "Rahu": "ll:strategy:direct_action",
+            "Saturn": "ll:strategy:long_game",
+            "Jupiter": "ll:strategy:long_game",
+            "Mercury": "ll:strategy:skill_compounding",
+            "Venus": "ll:strategy:relationship_leverage",
+            "Moon": "ll:strategy:relationship_leverage",
+            "Ketu": "ll:strategy:structure_routine",
+        }
+        if dominant in planet_strategy:
+            candidates.append(("lagna_lord", planet_strategy[dominant]))
+        candidates.append(("patterns", "pat:strong_lagna_lord"))
+
+    if "personality_vector" in p:
+        discipline = _signal_numeric(personality.get("discipline_index"))
+        risk_appetite = _signal_numeric(personality.get("risk_appetite"))
+        emotional_regulation = _signal_numeric(personality.get("emotional_regulation"))
+        if isinstance(discipline, float):
+            candidates.append(("lagna_lord", "ll:strategy:structure_routine" if discipline >= 60 else "ll:strategy:skill_compounding"))
+        if isinstance(risk_appetite, float):
+            candidates.append(("lagna_lord", "ll:strategy:direct_action" if risk_appetite >= 65 else "ll:strategy:avoid_overextension"))
+        if isinstance(emotional_regulation, float):
+            candidates.append(("patterns", "pat:strong_moon" if emotional_regulation >= 55 else "pat:afflicted_moon"))
+
+    if "stability_index" in p or "stability_grade" in p:
+        stability_index = _signal_numeric(stability.get("stability_index", signal_value))
+        grade = str(stability.get("stability_grade") or stability.get("grade") or "").upper()
+        if (isinstance(stability_index, float) and stability_index <= 45) or grade in {"D", "E", "F"}:
+            candidates.append(("patterns", "pat:malefic_overload"))
+            candidates.append(("lagna_lord", "ll:strategy:avoid_overextension"))
+        else:
+            candidates.append(("patterns", "pat:benefic_support"))
+            candidates.append(("lagna_lord", "ll:strategy:structure_routine"))
+
+    if "psychological_tension_axis" in p or "tension_index" in p:
+        tension_value = _signal_numeric(signal_value)
+        if tension_value is None and isinstance(signal_value, dict):
+            tension_value = _signal_numeric(signal_value.get("score"))
+        candidates.append(("patterns", "pat:afflicted_moon" if isinstance(tension_value, float) and tension_value >= 55 else "pat:strong_moon"))
+
+    if "house_strengths" in p or "house_clusters" in p or "dominant_house_cluster" in p:
+        dominant_house = None
+        if isinstance(signal_value, dict) and signal_value:
+            try:
+                dominant_house = int(max(signal_value.items(), key=lambda item: float(item[1]))[0])
+            except Exception:
+                dominant_house = None
+        if dominant_house is None and isinstance(house_strengths, dict) and house_strengths:
+            try:
+                dominant_house = int(max(house_strengths.items(), key=lambda item: float(item[1]))[0])
+            except Exception:
+                dominant_house = None
+        if dominant_house in {1, 4, 7, 10}:
+            candidates.append(("patterns", "pat:kendra_emphasis"))
+        if dominant_house in {3, 6, 10, 11}:
+            candidates.append(("patterns", "pat:upachaya_emphasis"))
+
+    if "varga_alignment" in p:
+        career = varga.get("career_alignment") if isinstance(varga.get("career_alignment"), dict) else {}
+        overall = varga.get("overall_alignment") if isinstance(varga.get("overall_alignment"), dict) else {}
+        career_score = _signal_numeric(career.get("score"))
+        overall_score = _signal_numeric(overall.get("score"))
+        if isinstance(career_score, float):
+            candidates.append(("patterns", "pat:strong_10th_lord" if career_score >= 55 else "pat:weak_10th_lord"))
+        if isinstance(overall_score, float):
+            candidates.append(("patterns", "pat:strong_lagna_lord" if overall_score >= 55 else "pat:weak_lagna_lord"))
+
+    if "probability_forecast" in p:
+        burnout = _signal_numeric(forecast.get("burnout_2yr"))
+        career_shift = _signal_numeric(forecast.get("career_shift_3yr"))
+        marriage = _signal_numeric(forecast.get("marriage_5yr"))
+        if isinstance(burnout, float):
+            candidates.append(("lagna_lord", "ll:strategy:avoid_overextension" if burnout >= 65 else "ll:strategy:structure_routine"))
+        if isinstance(career_shift, float):
+            candidates.append(("lagna_lord", "ll:strategy:skill_compounding" if career_shift >= 55 else "ll:strategy:long_game"))
+        if isinstance(marriage, float) and marriage >= 55:
+            candidates.append(("lagna_lord", "ll:strategy:relationship_leverage"))
+
+    deduped: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for section, key in candidates:
+        marker = f"{section}:{key}"
+        if marker in seen:
+            continue
+        deduped.append((section, key))
+        seen.add(marker)
+    return deduped
+
+
+def _interpretation_mapping_text(
+    signal_path: str,
+    signal_value: Any,
+    structural_summary: dict[str, Any],
+    mapping_audit: dict[str, Any] | None = None,
+) -> str | None:
+    candidates = _mapping_keys_for_signal(signal_path, signal_value, structural_summary)
+    candidate_markers = [f"{section}:{key}" for section, key in candidates]
+    chart_signature = structural_summary.get("chart_signature") if isinstance(structural_summary.get("chart_signature"), dict) else {}
+    atomic_global_candidates = {
+        "asc": chart_signature.get("ascendant_sign") or structural_summary.get("ascendant_sign") or structural_summary.get("asc_sign"),
+        "sun": chart_signature.get("sun_sign") or structural_summary.get("sun_sign"),
+        "moon": chart_signature.get("moon_sign") or structural_summary.get("moon_sign"),
+    }
+    key_used: str | None = None
+    mapped_text: str | None = None
+
+    for section, key in candidates:
+        text = _interpretation_lookup(section, key)
+        if isinstance(text, str) and text.strip():
+            key_used = f"{section}:{key}"
+            mapped_text = text.strip()
+            break
+
+    if isinstance(mapping_audit, dict):
+        mapping_audit["total_signals_processed"] = int(mapping_audit.get("total_signals_processed", 0)) + 1
+        if isinstance(mapped_text, str) and mapped_text:
+            mapping_audit["mapping_hits"] = int(mapping_audit.get("mapping_hits", 0)) + 1
+            used = mapping_audit.setdefault("used_mapping_keys", {})
+            if isinstance(used, dict) and key_used:
+                used[key_used] = int(used.get(key_used, 0)) + 1
+        else:
+            mapping_audit["mapping_misses"] = int(mapping_audit.get("mapping_misses", 0)) + 1
+
+        atomic_usage = mapping_audit.setdefault("atomic_usage", {})
+        if isinstance(atomic_usage, dict):
+            atomic_candidates = {
+                "ascendant": any(marker.startswith("atomic:asc:") for marker in candidate_markers),
+                "sun": any(marker.startswith("atomic:ps:Sun:") for marker in candidate_markers),
+                "moon": any(marker.startswith("atomic:ps:Moon:") for marker in candidate_markers),
+            }
+            for atomic_name, present in atomic_candidates.items():
+                if not present:
+                    continue
+                bucket = atomic_usage.setdefault(atomic_name, {"hits": 0, "misses": 0})
+                if not isinstance(bucket, dict):
+                    continue
+                if key_used and (
+                    (atomic_name == "ascendant" and key_used.startswith("atomic:asc:"))
+                    or (atomic_name == "sun" and key_used.startswith("atomic:ps:Sun:"))
+                    or (atomic_name == "moon" and key_used.startswith("atomic:ps:Moon:"))
+                ):
+                    bucket["hits"] = int(bucket.get("hits", 0)) + 1
+                else:
+                    bucket["misses"] = int(bucket.get("misses", 0)) + 1
+
+    if REPORT_MAPPING_DEBUG:
+        logger.info(
+            "mapping_debug signal_path=%s atomic_global_candidates=%s candidate_mapping_keys=%s mapping_hit=%s mapping_key_used=%s",
+            signal_path,
+            atomic_global_candidates,
+            candidate_markers,
+            "YES" if isinstance(mapped_text, str) and mapped_text else "NO",
+            key_used or "",
+        )
+
+    return mapped_text
+
+
+def _signal_focus_label_ko(signal_path: str) -> str:
+    p = signal_path.lower()
+    if "dominant_planet" in p or "planet_power_ranking" in p:
+        return "지배 행성 축"
+    if "personality_vector" in p:
+        return "성향 벡터 축"
+    if "stability" in p:
+        return "안정성 축"
+    if "tension" in p or "psychological_tension_axis" in p:
+        return "긴장 축"
+    if "house" in p:
+        return "하우스 강도 축"
+    if "varga" in p:
+        return "분할차트 정렬 축"
+    if "probability_forecast" in p:
+        return "전개 확률 축"
+    return "핵심 구조 축"
+
+
+def _risk_band(value: Any) -> str:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return "unknown"
+    if score >= 75:
+        return "high"
+    if score >= 55:
+        return "elevated"
+    if score >= 35:
+        return "moderate"
+    return "low"
+
+
+def _interpret_signal_sentence(
+    *,
+    signal_path: str,
+    signal_value: Any,
+    chapter: str,
+    ko_mode: bool,
+    structural_summary: dict[str, Any] | None = None,
+    mapping_audit: dict[str, Any] | None = None,
+) -> tuple[str, str, str, str]:
+    del chapter
+    p = signal_path.lower()
+    structural = structural_summary if isinstance(structural_summary, dict) else {}
+
+    if ko_mode:
+        selected_atomic_key: str | None = None
+        atomic_text: dict[str, Any] | None = None
+        for section, key in _mapping_keys_for_signal(signal_path, signal_value, structural):
+            if section != "atomic":
+                continue
+            hit = key in INTERPRETATIONS_KR_ATOMIC
+            if hit:
+                ATOMIC_RUNTIME_AUDIT["atomic_lookup_hits"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_hits", 0)) + 1
+            else:
+                ATOMIC_RUNTIME_AUDIT["atomic_lookup_misses"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_lookup_misses", 0)) + 1
+            logger.info("atomic_lookup key=%s hit=%s", key, hit)
+
+            candidate = INTERPRETATIONS_KR_ATOMIC.get(key)
+            if isinstance(candidate, dict) and "text" in candidate and isinstance(candidate.get("text"), str) and candidate.get("text", "").strip():
+                selected_atomic_key = key
+                atomic_text = candidate
+                break
+
+        if atomic_text and isinstance(atomic_text.get("text"), str):
+            summary = str(atomic_text["text"]).strip()
+            ATOMIC_RUNTIME_AUDIT["atomic_text_applied_count"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_text_applied_count", 0)) + 1
+            logger.info(
+                "atomic_text_applied key=%s length=%d",
+                selected_atomic_key or "",
+                len(summary),
+            )
+            if isinstance(mapping_audit, dict):
+                mapping_audit["total_signals_processed"] = int(mapping_audit.get("total_signals_processed", 0)) + 1
+                mapping_audit["mapping_hits"] = int(mapping_audit.get("mapping_hits", 0)) + 1
+                used = mapping_audit.setdefault("used_mapping_keys", {})
+                if isinstance(used, dict) and selected_atomic_key:
+                    used[f"atomic:{selected_atomic_key}"] = int(used.get(f"atomic:{selected_atomic_key}", 0)) + 1
+                atomic_usage = mapping_audit.setdefault("atomic_usage", {})
+                if isinstance(atomic_usage, dict):
+                    for atomic_name, prefix in (("ascendant", "asc:"), ("sun", "ps:Sun:"), ("moon", "ps:Moon:")):
+                        bucket = atomic_usage.setdefault(atomic_name, {"hits": 0, "misses": 0})
+                        if not isinstance(bucket, dict):
+                            continue
+                        if selected_atomic_key and selected_atomic_key.startswith(prefix):
+                            bucket["hits"] = int(bucket.get("hits", 0)) + 1
+                        else:
+                            bucket["misses"] = int(bucket.get("misses", 0)) + 1
+
+            focus_label = _signal_focus_label_ko(signal_path)
+            return (
+                summary,
+                f"{focus_label} 관점에서 보면 위 해석은 성향, 관계, 성과의 발현 순서를 규정하는 핵심 규칙으로 작동합니다.",
+                f"{focus_label}에서 드러난 강점을 실행 채널로 쓰고 취약 구간을 선제 완충하면 변동 비용을 유의미하게 줄일 수 있습니다.",
+                f"{focus_label}의 리듬에 맞춰 실행 속도와 우선순위를 조정할 때 같은 역량도 더 안정적으로 누적됩니다.",
+            )
+
+        mapped_text = _interpretation_mapping_text(signal_path, signal_value, structural, mapping_audit=mapping_audit)
+        if isinstance(mapped_text, str) and mapped_text.strip():
+            focus_label = _signal_focus_label_ko(signal_path)
+            return (
+                mapped_text,
+                f"{focus_label} 관점에서 보면 위 해석은 성향, 관계, 성과의 발현 순서를 규정하는 핵심 규칙으로 작동합니다.",
+                f"{focus_label}에서 드러난 강점을 실행 채널로 쓰고 취약 구간을 선제 완충하면 변동 비용을 유의미하게 줄일 수 있습니다.",
+                f"{focus_label}의 리듬에 맞춰 실행 속도와 우선순위를 조정할 때 같은 역량도 더 안정적으로 누적됩니다.",
+            )
+
+    if "dominant_planet" in p:
+        planet = str(signal_value or "Moon")
+        summary = _planet_meaning_text(planet, ko_mode)
+        if ko_mode:
+            return (
+                summary,
+                "지배 행성의 기질은 성향 벡터와 행동 위험의 발현 강도를 조정하며 반복되는 선택 패턴을 만듭니다.",
+                "강점은 실행 가속에 사용하되 과잉 발현이 충돌로 바뀌지 않도록 속도와 경계를 함께 관리해야 합니다.",
+                "주요 결정은 지배 행성의 강점 영역에서 시작할 때 성과 일관성이 높아집니다.",
+            )
+        return (
+            summary,
+            "Dominant-planet temperament modulates personality expression and behavioral risk intensity across repeating patterns.",
+            "Use this strength for momentum while controlling overexpression so drive does not turn into conflict.",
+            "Execution consistency usually improves when major decisions start from dominant-planet strengths.",
+        )
+
+    if "tension_index" in p or "psychological_tension_axis.score" in p:
+        raw = float(signal_value) * 100 if isinstance(signal_value, (int, float)) and float(signal_value) <= 1 else signal_value
+        band = _risk_band(raw)
+        if ko_mode:
+            return (
+                "긴장 지수가 높아 내적 갈등과 반응 과열 가능성이 커지며 판단 변동성이 증가합니다."
+                if band in {"high", "elevated"}
+                else "긴장 지수가 중간 이하로 유지되어 정서 반응의 진폭이 비교적 안정적입니다.",
+                "이 지표는 정서 처리 속도와 통제력의 균형을 보여주며 압박 구간에서 충돌 패턴의 반복 가능성을 시사합니다.",
+                "고긴장 구간에서는 결정 속도를 낮추고 회복 루틴을 먼저 확보한 뒤 실행 강도를 높이는 것이 유리합니다.",
+                "관계 대화와 협상처럼 감정 비용이 큰 장면에서는 사전 정렬 시간을 확보해야 손실을 줄일 수 있습니다.",
+            )
+        return (
+            "Elevated tension indicates stronger internal conflict and higher decision volatility."
+            if band in {"high", "elevated"}
+            else "Moderate-to-low tension supports steadier emotional amplitude and judgment consistency.",
+            "This metric reflects balance between emotional load and self-regulation under pressure.",
+            "During high-tension windows, reduce decision velocity and restore regulation before escalation.",
+            "Pre-alignment before negotiation or relational dialogue lowers avoidable emotional cost.",
+        )
+
+    if "stability_index" in p:
+        band = _risk_band(signal_value)
+        if ko_mode:
+            return (
+                "안정성 지수가 낮아 계획의 연속성과 성과의 누적성이 흔들릴 가능성이 큽니다."
+                if band in {"high", "elevated"}
+                else "안정성 지수가 확보되어 실행 리듬과 장기 누적 성과의 가능성이 높아집니다.",
+                "안정성은 행동 지속성과 회복 탄력의 결합 지표로 변동기 판단 품질을 직접 좌우합니다.",
+                "저안정 국면에서는 확장보다 리듬 복원과 누수 차단을 우선해야 변동 손실을 줄일 수 있습니다.",
+                "수면, 일정, 실행 블록을 고정하는 루틴이 안정성 회복의 핵심 레버리지입니다.",
+            )
+        return (
+            "Lower stability raises volatility and weakens continuity of execution."
+            if band in {"high", "elevated"}
+            else "Higher stability supports sustainable rhythm and cumulative outcomes.",
+            "Stability combines persistence and recovery capacity under shifting pressure.",
+            "When stability is weak, restore rhythm and reduce leakage before expansion.",
+            "Consistent sleep, schedule, and execution blocks are primary stabilizers.",
+        )
+
+    if "saturn" in p:
+        if ko_mode:
+            return (
+                "Saturn 영향이 강하면 규율과 책임감이 강화되지만 성과는 지연되어 나타나기 쉽습니다.",
+                "이 구조는 단기 보상보다 장기 축적에 유리하며 기준 미달 상태의 조기 확장은 역효과를 냅니다.",
+                "검증된 절차와 품질 기준을 먼저 확보하면 지연 구간의 손실을 크게 줄일 수 있습니다.",
+                "속도보다 재현성 높은 루틴을 유지할 때 최종 성과가 안정적으로 커집니다.",
+            )
+        return (
+            "Strong Saturn influence builds discipline and responsibility with delayed realization of results.",
+            "This favors long-run accumulation and penalizes premature expansion below quality thresholds.",
+            "Establish validated procedures and standards before scaling commitments.",
+            "Prioritizing reproducible process over speed improves eventual outcome durability.",
+        )
+
+    if "varga_alignment" in p and isinstance(signal_value, (int, float)):
+        score = float(signal_value)
+        if ko_mode:
+            return (
+                "분할차트 정렬도가 높아 의사결정과 실제 결과 사이의 일치 가능성이 큽니다."
+                if score >= 70
+                else "분할차트 정렬도가 중간 이하이므로 전략과 환경 적합성의 미세 조정이 필요합니다.",
+                "정렬 지표는 잠재력 자체보다 현재 맥락에서 얼마나 안정적으로 발현되는지를 보여줍니다.",
+                "정렬이 낮은 영역은 속도보다 맥락 조정과 역할 재배치를 우선해야 손실을 줄일 수 있습니다.",
+                "동일한 역량도 정렬도가 높은 분야에서 더 낮은 비용으로 성과가 발생합니다.",
+            )
+        return (
+            "High varga alignment increases convergence between decisions and lived outcomes."
+            if score >= 70
+            else "Mid/low varga alignment requires finer strategy-context calibration.",
+            "Alignment indicates manifestation reliability under real-world constraints.",
+            "For lower alignment domains, optimize context and role fit before acceleration.",
+            "Equivalent effort tends to perform better in higher-alignment domains.",
+        )
+
+    if "probability_forecast" in p and isinstance(signal_value, (int, float)):
+        prob = float(signal_value)
+        if ko_mode:
+            return (
+                "해당 사건 확률이 높아 구조적 전환이 활성화될 가능성이 큽니다."
+                if prob >= 0.65
+                else "확률이 중간 이하이므로 급격한 전환보다 점진적 조정 전략이 합리적입니다.",
+                "확률 지표는 예언이 아니라 현재 구조에서 어떤 경로가 더 쉽게 활성화되는지 보여줍니다.",
+                "고확률 구간에서는 대비 시나리오를 선제 배치해 전환 비용을 낮추는 것이 핵심입니다.",
+                "보수·기준·확장 시나리오를 분리하면 변동 구간 대응력이 높아집니다.",
+            )
+        return (
+            "Elevated probability indicates stronger activation of a structural transition path."
+            if prob >= 0.65
+            else "With moderate/lower probability, gradual adjustment often outperforms abrupt shifts.",
+            "This is a pathway-likelihood signal, not a deterministic prophecy.",
+            "Pre-position contingency scenarios in high-probability windows to reduce transition cost.",
+            "Separating conservative/base/expansion tracks improves resilience under uncertainty.",
+        )
+
+    if ko_mode:
+        return (
+            "현재 지표 조합은 핵심 축의 일관성을 유지하면서 선택 우선순위를 조정해야 함을 시사합니다.",
+            "성향 벡터와 안정성·리스크를 함께 보면 과잉 반응 또는 회피 반응이 발생하는 구간을 예측할 수 있습니다.",
+            "강점 축은 실행에 사용하고 약점 축은 보호 장치를 먼저 배치하는 방식이 손실을 줄입니다.",
+            "결정 전 점검 루틴을 표준화하면 동일 패턴의 반복 손실을 완화할 수 있습니다.",
+        )
+    return (
+        "The current metric mix suggests reprioritizing choices while preserving coherence across core life axes.",
+        "Cross-reading personality, stability, and risk signals helps anticipate overreaction or avoidance windows.",
+        "Deploy strengths for execution while protecting weaker axes first to reduce avoidable downside.",
+        "A standardized pre-decision routine lowers repeated losses from familiar pattern loops.",
+    )
+
+
+def _create_signal_fragment(
+    *,
+    chapter: str,
+    index: int,
+    signal_path: str,
+    signal_value: Any,
+    rule_id: str,
+    language: str = "en",
+    structural_summary: dict[str, Any] | None = None,
+    mapping_audit: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    ko_mode = str(language or "").strip().lower().startswith("ko")
+    structural = structural_summary if isinstance(structural_summary, dict) else {}
+    atomic_key = _atomic_key_for_signal_path(signal_path, structural) if ko_mode else ""
+    atomic_candidate = INTERPRETATIONS_KR_ATOMIC.get(atomic_key) if atomic_key else None
+    atomic_text = (
+        str(atomic_candidate.get("text")).strip()
+        if isinstance(atomic_candidate, dict) and isinstance(atomic_candidate.get("text"), str) and atomic_candidate.get("text", "").strip()
+        else ""
+    )
+
+    summary, analysis, implication, examples = _interpret_signal_sentence(
+        signal_path=signal_path,
+        signal_value=signal_value,
+        chapter=chapter,
+        ko_mode=ko_mode,
+        structural_summary=structural,
+        mapping_audit=mapping_audit,
+    )
+    source_type = "signal"
+    should_use_atomic = ko_mode and atomic_text and str(signal_path).lower().startswith("atomic.")
+    if should_use_atomic:
+        summary = atomic_text
+        analysis = "이 해석은 개인의 기본 심리 구조와 행동 패턴을 형성하는 핵심 요소로 작용합니다."
+        implication = "이 특성은 삶의 주요 선택과 방향성에서 반복적으로 영향을 미칠 가능성이 큽니다."
+        source_type = "atomic"
+        ATOMIC_RUNTIME_AUDIT["atomic_text_applied_count"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_text_applied_count", 0)) + 1
+        logger.info("atomic_text_applied key=%s length=%d", atomic_key, len(atomic_text))
+
+    fragment = {
+        "title": f"{chapter} - {'해석 단락' if ko_mode else 'Interpretive Block'} {index}",
+        "summary": summary,
+        "analysis": analysis,
+        "implication": implication,
+        "examples": examples,
+        "_source": source_type,
+    }
+    trace = {
+        "text": f"{summary} {analysis}",
+        "source_signal": signal_path,
+        "source_value": signal_value,
+        "rule_id": rule_id,
+    }
+    return fragment, trace
+
+
+def _build_deterministic_fallback_fragments(
+    chapter: str,
+    structural_summary: dict[str, Any],
+    has_atomic_base: bool = False,
+    mapping_audit: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    signals = _collect_chapter_signals(chapter, structural_summary, limit=6)
+    if not signals:
+        signals = [("stability_metrics.stability_index", ((structural_summary.get("stability_metrics") or {}).get("stability_index", 0)))]
+
+    fragments: list[dict[str, Any]] = []
+    meta: list[dict[str, Any]] = []
+    max_fallback = 2 if has_atomic_base else 3
+    for idx, (path, value) in enumerate(signals[:max_fallback], start=1):
+        fragment, trace = _create_signal_fragment(
+            chapter=chapter,
+            index=idx,
+            signal_path=path,
+            signal_value=value,
+            rule_id=f"fallback_{chapter.lower().replace(' ', '_')}_{idx}",
+            language="ko" if _is_korean_language(structural_summary) else "en",
+            structural_summary=structural_summary,
+            mapping_audit=mapping_audit,
+        )
+        fragments.append(fragment)
+        meta.append(
+            {
+                "id": f"fallback::{chapter}::{idx}",
+                "priority": -500 + idx,
+                "_intensity": 0.55,
+                "_deterministic_trace": [trace],
+            }
+        )
+    return fragments, meta
+
+
+def _expand_chapter_depth(
+    chapter: str,
+    chapter_blocks: list[dict[str, Any]],
+    chapter_meta: list[dict[str, Any]],
+    structural_summary: dict[str, Any],
+    mapping_audit: dict[str, Any] | None = None,
+) -> None:
+    ko_mode = _is_korean_language(structural_summary)
+    target_chars = MIN_DEPTH_KO_CHARS
+    target_words = MIN_DEPTH_EN_WORDS
+    signals = _collect_chapter_signals(chapter, structural_summary, limit=40)
+    if not signals:
+        return
+
+    existing_texts: set[str] = set()
+    for fragment in chapter_blocks:
+        if not isinstance(fragment, dict):
+            continue
+        fragment_text = " ".join(
+            str(fragment.get(field, "")).strip()
+            for field in ("title", "summary", "analysis", "implication", "examples")
+        ).strip()
+        if fragment_text:
+            existing_texts.add(fragment_text)
+
+    signal_cursor = 0
+    guard = 0
+    atomic_count = len([f for f in chapter_blocks if isinstance(f, dict) and f.get("_source") == "atomic"])
+    if atomic_count > 0:
+        atomic_indices = [i for i, f in enumerate(chapter_blocks) if isinstance(f, dict) and f.get("_source") == "atomic"]
+        if not atomic_indices:
+            return
+        target_idx = atomic_indices[0]
+        while guard < 80:
+            guard += 1
+            chars, words = _chapter_depth_stats(chapter_blocks)
+            if ko_mode and chars >= target_chars:
+                break
+            if (not ko_mode) and words >= target_words:
+                break
+
+            path, value = signals[signal_cursor % len(signals)]
+            rule_id = f"depth_guard_{chapter.lower().replace(' ', '_')}_{guard}"
+            _, analysis_s, implication_s, examples_s = _interpret_signal_sentence(
+                signal_path=path,
+                signal_value=value,
+                chapter=chapter,
+                ko_mode=ko_mode,
+                structural_summary=structural_summary,
+                mapping_audit=mapping_audit,
+            )
+            fragment_text = " ".join(
+                part.strip() for part in (analysis_s, implication_s, examples_s) if isinstance(part, str) and part.strip()
+            )
+            if fragment_text in existing_texts:
+                signal_cursor += 1
+                continue
+            for field in ("analysis", "implication", "examples"):
+                existing = chapter_blocks[target_idx].get(field, "")
+                if not isinstance(existing, str):
+                    existing = ""
+                addition = analysis_s if field == "analysis" else implication_s if field == "implication" else examples_s
+                chapter_blocks[target_idx][field] = (existing + "\n\n" + addition).strip()
+            existing_texts.add(fragment_text)
+
+            trace = {
+                "text": f"{analysis_s}",
+                "source_signal": path,
+                "source_value": value,
+                "rule_id": rule_id,
+            }
+            if target_idx < len(chapter_meta):
+                traces = chapter_meta[target_idx].setdefault("_deterministic_trace", [])
+                if isinstance(traces, list):
+                    traces.append(trace)
+            signal_cursor += 1
+        return
+
+    while guard < 80:
+        guard += 1
+        chars, words = _chapter_depth_stats(chapter_blocks)
+        if ko_mode and chars >= target_chars:
+            break
+        if (not ko_mode) and words >= target_words:
+            break
+
+        if not chapter_blocks:
+            fragment, trace = _create_signal_fragment(
+                chapter=chapter,
+                index=1,
+                signal_path=signals[0][0],
+                signal_value=signals[0][1],
+                rule_id=f"depth_seed_{chapter.lower().replace(' ', '_')}",
+                language="ko" if ko_mode else "en",
+                structural_summary=structural_summary,
+                mapping_audit=mapping_audit,
+            )
+            chapter_blocks.append(fragment)
+            chapter_meta.append(
+                {
+                    "id": f"depth_seed::{chapter}",
+                    "priority": -300,
+                    "_intensity": 0.6,
+                    "_deterministic_trace": [trace],
+                }
+            )
+            signal_cursor = 1
+            continue
+
+        non_atomic_indices = [i for i, frag in enumerate(chapter_blocks) if isinstance(frag, dict) and frag.get("_source") != "atomic"]
+        if non_atomic_indices:
+            target_idx = min(non_atomic_indices, key=lambda i: _fragment_text_length(chapter_blocks[i])[0])
+        else:
+            path_seed, value_seed = signals[signal_cursor % len(signals)]
+            fragment_seed, trace_seed = _create_signal_fragment(
+                chapter=chapter,
+                index=len(chapter_blocks) + 1,
+                signal_path=path_seed,
+                signal_value=value_seed,
+                rule_id=f"depth_append_{chapter.lower().replace(' ', '_')}_{guard}",
+                language="ko" if ko_mode else "en",
+                structural_summary=structural_summary,
+                mapping_audit=mapping_audit,
+            )
+            chapter_blocks.append(fragment_seed)
+            chapter_meta.append(
+                {
+                    "id": f"depth_append::{chapter}::{guard}",
+                    "priority": -250,
+                    "_intensity": 0.6,
+                    "_deterministic_trace": [trace_seed],
+                }
+            )
+            signal_cursor += 1
+            continue
+        path, value = signals[signal_cursor % len(signals)]
+        rule_id = f"depth_guard_{chapter.lower().replace(' ', '_')}_{guard}"
+        summary_s, analysis_s, implication_s, examples_s = _interpret_signal_sentence(
+            signal_path=path,
+            signal_value=value,
+            chapter=chapter,
+            ko_mode=ko_mode,
+            structural_summary=structural_summary,
+            mapping_audit=mapping_audit,
+        )
+        fragment_text = " ".join(
+            part.strip() for part in (summary_s, analysis_s, implication_s, examples_s) if isinstance(part, str) and part.strip()
+        )
+        if fragment_text in existing_texts:
+            signal_cursor += 1
+            continue
+        for field in ("analysis", "implication", "examples"):
+            existing = chapter_blocks[target_idx].get(field, "")
+            if not isinstance(existing, str):
+                existing = ""
+            addition = analysis_s if field == "analysis" else implication_s if field == "implication" else examples_s
+            chapter_blocks[target_idx][field] = (existing + "\n\n" + addition).strip()
+        existing_texts.add(fragment_text)
+
+        trace = {
+            "text": f"{summary_s} {analysis_s}",
+            "source_signal": path,
+            "source_value": value,
+            "rule_id": rule_id,
+        }
+        if target_idx < len(chapter_meta):
+            traces = chapter_meta[target_idx].setdefault("_deterministic_trace", [])
+            if isinstance(traces, list):
+                traces.append(trace)
+        signal_cursor += 1
+
+def _has_manual_template_override() -> bool:
+    cached_templates = _TEMPLATES_BY_LANG.get(_ACTIVE_LANGUAGE)
+    cached_defaults = _DEFAULTS_BY_LANG.get(_ACTIVE_LANGUAGE)
+    if cached_templates is None or cached_defaults is None:
+        return False
+    return (TEMPLATES is not cached_templates) or (DEFAULT_BLOCKS is not cached_defaults)
+
+
+def select_template_blocks(structural_summary: dict[str, Any], language: str | None = None) -> dict[str, list[dict[str, Any]]]:
+    if isinstance(language, str) and language.strip():
+        _set_active_language(language)
     selected: dict[str, list[dict[str, Any]]] = {chapter: [] for chapter in REPORT_CHAPTERS}
 
     matched_index = 0
@@ -788,22 +1939,102 @@ def select_template_blocks(structural_summary: dict[str, Any]) -> dict[str, list
 
 
 def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[str, Any]:
-    _ensure_loaded()
+    explicit_language = False
+    requested_language = "en"
+    if isinstance(rectified_structural_summary, dict):
+        raw_lang = rectified_structural_summary.get("language")
+        if not isinstance(raw_lang, str):
+            structural_candidate = rectified_structural_summary.get("structural_summary")
+            if isinstance(structural_candidate, dict):
+                raw_lang = structural_candidate.get("language")
+        if isinstance(raw_lang, str) and raw_lang.strip():
+            requested_language = raw_lang.strip().lower()
+            explicit_language = True
+
+    if explicit_language or not _has_manual_template_override():
+        _set_active_language(requested_language)
     structural = rectified_structural_summary.get("structural_summary") if isinstance(rectified_structural_summary, dict) else None
     if not isinstance(structural, dict):
         structural = rectified_structural_summary if isinstance(rectified_structural_summary, dict) else {}
+    if "language" not in structural and isinstance(requested_language, str):
+        structural = {**structural, "language": requested_language}
 
-    raw_blocks = select_template_blocks(structural)
+    raw_blocks = select_template_blocks(structural, language=requested_language if explicit_language else None)
+    mapping_audit = _new_mapping_audit()
+    atomic_interpretations = _get_atomic_chart_interpretations(structural)
+    chart_signature = structural.get("chart_signature") if isinstance(structural.get("chart_signature"), dict) else {}
+    mapping_audit["atomic_inputs_available"] = {
+        "ascendant": bool(structural.get("ascendant_sign") or structural.get("asc_sign") or chart_signature.get("ascendant_sign")),
+        "sun": bool(structural.get("sun_sign") or chart_signature.get("sun_sign")),
+        "moon": bool(structural.get("moon_sign") or chart_signature.get("moon_sign")),
+    }
 
     chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     chapter_meta: dict[str, list[dict[str, Any]]] = {}
     chapter_limits: dict[str, int] = {}
     chapter_spikes: dict[str, list[str]] = {}
+    atomic_fragments_per_chapter: dict[str, int] = {chapter: 0 for chapter in REPORT_CHAPTERS}
+
+    def _build_atomic_anchor_fragment(chapter_name: str, key_label: str, text: str, index_seed: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        integrated = _integrate_atomic_with_signals(text, structural)
+        return (
+            {
+                "title": f"{chapter_name} - 해석 단락 {index_seed}",
+                "summary": integrated,
+                "analysis": "이 해석은 개인의 기본 심리 구조와 행동 패턴을 형성하는 핵심 요소로 작용합니다.",
+                "implication": "이 특성은 삶의 주요 선택과 방향성에서 반복적으로 영향을 미칠 가능성이 큽니다.",
+                "examples": "이 축은 다른 구조 신호와 결합될 때 반복되는 선택 패턴으로 드러납니다.",
+                "_source": "atomic",
+            },
+            {
+                "id": f"atomic::{chapter_name}::{key_label}",
+                "priority": -999,
+                "_intensity": 0.95,
+                "_deterministic_trace": [
+                    {
+                        "text": text,
+                        "source_signal": f"atomic.{key_label}",
+                        "source_value": key_label,
+                        "rule_id": f"atomic_anchor_{chapter_name.lower().replace(' ', '_')}_{key_label}",
+                    }
+                ],
+            },
+        )
+
+    def _chapter_atomic_anchors(chapter_name: str) -> list[tuple[str, str]]:
+        asc_text = atomic_interpretations.get("asc", "")
+        sun_text = atomic_interpretations.get("sun", "")
+        moon_text = atomic_interpretations.get("moon", "")
+        chunks = [c for c in (asc_text, sun_text, moon_text) if isinstance(c, str) and c.strip()]
+        if not chunks:
+            return []
+        if chapter_name == "Life Timeline Interpretation":
+            return [("asc_sun_moon", "\n\n".join(chunks))]
+        chapter_key_map = {
+            "Executive Summary": "asc",
+            "Personality Vector": "moon",
+            "Career & Success": "sun",
+            "Love & Relationships": "moon",
+            "Psychological Architecture": "moon",
+            "Behavioral Risks": "moon",
+            "Stability Metrics": "asc",
+            "Confidence & Forecast": "sun",
+            "Final Summary": "asc",
+            "Remedies & Program": "asc",
+            "Karmic Patterns": "asc",
+            "Purushartha Profile": "asc",
+            "Health & Body Patterns": "asc",
+            "Appendix (Optional)": "asc",
+        }
+        preferred_key = chapter_key_map.get(chapter_name, "asc")
+        preferred_text = atomic_interpretations.get(preferred_key, "")
+        if isinstance(preferred_text, str) and preferred_text.strip():
+            return [(preferred_key, preferred_text)]
+        return [("asc_sun_moon", "\n\n".join(chunks))]
 
     for chapter in REPORT_CHAPTERS:
         blocks = raw_blocks.get(chapter, [])
-        if not blocks:
-            blocks = DEFAULT_BLOCKS.get(chapter, [])
+        use_fallback_builders = not blocks
 
         for block in blocks:
             if "_intensity" not in block:
@@ -826,20 +2057,46 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
 
         spike_texts = list(dict.fromkeys(spike_texts))
         chapter_spikes[chapter] = spike_texts
-        chapter_limit = max(0, 5 - len(spike_texts))
+        chapter_limit = _dynamic_chapter_limit(structural, spike_count=len(spike_texts))
         chapter_limits[chapter] = chapter_limit
 
         chapter_payload: list[dict[str, Any]] = []
         chapter_payload_meta: list[dict[str, Any]] = []
-        for block in blocks:
-            if len(chapter_payload) >= chapter_limit:
-                break
-            intensity = block.get("_intensity", 0)
-            payload_block = _render_payload_fragment(block, chapter, intensity)
 
-            if payload_block:
-                chapter_payload.append(payload_block)
-                chapter_payload_meta.append(block)
+        anchors = _chapter_atomic_anchors(chapter)
+        for idx_anchor, (anchor_key, anchor_text) in enumerate(anchors, start=1):
+            if not isinstance(anchor_text, str) or not anchor_text.strip():
+                continue
+            anchor_fragment, anchor_meta = _build_atomic_anchor_fragment(chapter, anchor_key, anchor_text.strip(), idx_anchor)
+            chapter_payload.append(anchor_fragment)
+            chapter_payload_meta.append(anchor_meta)
+            atomic_fragments_per_chapter[chapter] = int(atomic_fragments_per_chapter.get(chapter, 0)) + 1
+
+        has_atomic = len(chapter_payload) > 0 and any(isinstance(f, dict) and f.get("_source") == "atomic" for f in chapter_payload)
+        if has_atomic:
+            # Atomic exists: generic fallback/template fragments are disabled.
+            pass
+        elif use_fallback_builders:
+            fallback_payload, fallback_meta = _build_deterministic_fallback_fragments(
+                chapter,
+                structural,
+                has_atomic_base=False,
+                mapping_audit=mapping_audit,
+            )
+            remaining = max(0, chapter_limit - len(chapter_payload))
+            chapter_payload.extend(fallback_payload[:remaining])
+            chapter_payload_meta.extend(fallback_meta[:remaining])
+        else:
+            for block in blocks:
+                if len(chapter_payload) >= chapter_limit:
+                    break
+                intensity = block.get("_intensity", 0)
+                payload_block = _render_payload_fragment(block, chapter, intensity)
+
+                if payload_block:
+                    payload_block["_source"] = payload_block.get("_source", "signal")
+                    chapter_payload.append(payload_block)
+                    chapter_payload_meta.append(block)
 
         chapter_blocks[chapter] = chapter_payload
         chapter_meta[chapter] = chapter_payload_meta
@@ -848,14 +2105,118 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
     _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
     _inject_scenario_compression(structural, chapter_blocks, chapter_meta, chapter_limits)
 
+    # Atomic dominance lock: where atomic fragment exists, remove non-atomic fragments.
+    for chapter in REPORT_CHAPTERS:
+        frags = chapter_blocks.get(chapter, [])
+        metas = chapter_meta.get(chapter, [])
+        if not isinstance(frags, list) or not isinstance(metas, list):
+            continue
+        if not any(isinstance(f, dict) and f.get("_source") == "atomic" for f in frags):
+            continue
+        filtered_frags: list[dict[str, Any]] = []
+        filtered_meta: list[dict[str, Any]] = []
+        for idx, frag in enumerate(frags):
+            if not isinstance(frag, dict):
+                continue
+            if frag.get("_source") != "atomic":
+                continue
+            filtered_frags.append(frag)
+            filtered_meta.append(metas[idx] if idx < len(metas) else {})
+        chapter_blocks[chapter] = filtered_frags
+        chapter_meta[chapter] = filtered_meta
+
+    for chapter in REPORT_CHAPTERS:
+        _expand_chapter_depth(
+            chapter,
+            chapter_blocks.get(chapter, []),
+            chapter_meta.get(chapter, []),
+            structural,
+            mapping_audit=mapping_audit,
+        )
+
     final_chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     for chapter in REPORT_CHAPTERS:
         spike_fragments = [{"spike_text": spike_text} for spike_text in chapter_spikes.get(chapter, [])]
-        content_fragments = chapter_blocks.get(chapter, [])[: max(0, 5 - len(spike_fragments))]
-        final_chapter_blocks[chapter] = (spike_fragments + content_fragments)[:5]
+        content_fragments = chapter_blocks.get(chapter, [])
+        final_chapter_blocks[chapter] = content_fragments + spike_fragments
 
-    return {"chapter_blocks": final_chapter_blocks}
+    def _strip_internal_fields(chapter_blocks_payload: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+        sanitized: dict[str, list[dict[str, Any]]] = {}
+        if not isinstance(chapter_blocks_payload, dict):
+            return sanitized
+        for chapter_name, fragments in chapter_blocks_payload.items():
+            if not isinstance(fragments, list):
+                sanitized[chapter_name] = []
+                continue
+            cleaned_fragments: list[dict[str, Any]] = []
+            for fragment in fragments:
+                if not isinstance(fragment, dict):
+                    continue
+                cleaned_fragment = {
+                    key: value
+                    for key, value in fragment.items()
+                    if isinstance(key, str) and not key.startswith("_")
+                }
+                cleaned_fragments.append(cleaned_fragment)
+            sanitized[chapter_name] = cleaned_fragments
+        return sanitized
+
+    sanitized_chapter_blocks = _strip_internal_fields(final_chapter_blocks)
+
+    total = int(mapping_audit.get("total_signals_processed", 0))
+    hits = int(mapping_audit.get("mapping_hits", 0))
+    misses = int(mapping_audit.get("mapping_misses", 0))
+    hit_rate = (hits / total) if total > 0 else 0.0
+    atomic_usage = mapping_audit.get("atomic_usage", {})
+    atomic_inputs_available = mapping_audit.get("atomic_inputs_available", {})
+    if REPORT_MAPPING_DEBUG:
+        logger.info(
+            "mapping_summary total_signals_processed=%s mapping_hits=%s mapping_misses=%s hit_rate=%.4f atomic_inputs_available=%s atomic_usage=%s",
+            total,
+            hits,
+            misses,
+            hit_rate,
+            atomic_inputs_available,
+            atomic_usage,
+        )
+    # Always emit summary once so production logs can verify mapping effectiveness.
+    logger.info(
+        "mapping_effectiveness total=%s hits=%s misses=%s hit_rate=%.4f",
+        total,
+        hits,
+        misses,
+        hit_rate,
+    )
+    atomic_fragments_count = sum(int(v) for v in atomic_fragments_per_chapter.values())
+    total_content_fragments = 0
+    generic_fragments_count = 0
+    for chapter in REPORT_CHAPTERS:
+        for fragment in final_chapter_blocks.get(chapter, []):
+            if not isinstance(fragment, dict) or "spike_text" in fragment:
+                continue
+            total_content_fragments += 1
+            if fragment.get("_source") != "atomic":
+                generic_fragments_count += 1
+    atomic_fragment_ratio = (atomic_fragments_count / total_content_fragments) if total_content_fragments else 0.0
+    generic_fragment_ratio = (generic_fragments_count / total_content_fragments) if total_content_fragments else 0.0
+    atomic_dominance_verified = atomic_fragments_count >= generic_fragments_count if total_content_fragments else False
+    logger.info(
+        "atomic_injected_into_chapters=%s atomic_fragments_count=%s atomic_fragments_per_chapter=%s",
+        "True" if atomic_fragments_count > 0 else "False",
+        atomic_fragments_count,
+        atomic_fragments_per_chapter,
+    )
+    logger.info(
+        "atomic_dominance_verified=%s atomic_fragment_ratio=%.4f generic_fragment_ratio=%.4f",
+        "True" if atomic_dominance_verified else "False",
+        atomic_fragment_ratio,
+        generic_fragment_ratio,
+    )
+
+    return {"chapter_blocks": sanitized_chapter_blocks}
 
 
 def build_gpt_user_content(payload: dict[str, Any]) -> str:
     return "<BEGIN STRUCTURED BLOCKS>\n" + json.dumps(payload.get("chapter_blocks", {}), ensure_ascii=False, indent=2) + "\n<END STRUCTURED BLOCKS>"
+
+

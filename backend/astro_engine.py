@@ -1119,7 +1119,31 @@ def compute_behavioral_risks(
         risks["obsession_tendency"] += 1.2
         risks["authority_conflict_risk"] += 0.9
 
-    return {k: round(max(0.0, min(10.0, v)), 2) for k, v in risks.items()}
+    normalized = {k: round(max(0.0, min(10.0, v)), 2) for k, v in risks.items()}
+
+    # Template compatibility aliases (0..100 scale expected by report templates).
+    impulsivity_risk = (
+        normalized.get("relationship_break_risk", 0.0) * 0.35
+        + normalized.get("authority_conflict_risk", 0.0) * 0.25
+        + normalized.get("self_sabotage_risk", 0.0) * 0.40
+    ) * 10.0
+
+    overcontrol_base = max(0.0, 10.0 - normalized.get("emotional_volatility", 0.0))
+    overcontrol_risk = (
+        normalized.get("burnout_risk", 0.0) * 0.45
+        + normalized.get("obsession_tendency", 0.0) * 0.35
+        + overcontrol_base * 0.20
+    ) * 10.0
+
+    normalized["impulsivity_risk"] = round(_clamp(impulsivity_risk, 0.0, 100.0), 2)
+    normalized["overcontrol_risk"] = round(_clamp(overcontrol_risk, 0.0, 100.0), 2)
+    normalized["primary_risk"] = (
+        "impulsivity"
+        if normalized["impulsivity_risk"] >= normalized["overcontrol_risk"]
+        else "overcontrol"
+    )
+
+    return normalized
 
 
 def calculate_interaction_risks(
@@ -1286,7 +1310,17 @@ def calculate_stability_index(
     tension_index = float(influence_metrics.get("tension_index", 0.0))
     yoga_support_index = len(yogas) / 10.0
 
-    risk_vals = [float(v) for v in behavioral_risks.values()]
+    base_risk_keys = [
+        "ego_instability",
+        "emotional_volatility",
+        "financial_instability",
+        "relationship_break_risk",
+        "authority_conflict_risk",
+        "burnout_risk",
+        "obsession_tendency",
+        "self_sabotage_risk",
+    ]
+    risk_vals = [float(behavioral_risks.get(key, 0.0)) for key in base_risk_keys]
     risk_index = sum(risk_vals) / len(risk_vals) if risk_vals else 0.0
 
     stability_raw = (
@@ -1520,6 +1554,8 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
     purushartha_profile = calculate_life_quadrants(house_clusters)
 
     asc_sign = (((houses.get("ascendant") or {}).get("rasi") or {}).get("name"))
+    sun_sign = (((planets.get("Sun") or {}).get("rasi") or {}).get("name"))
+    moon_sign = (((planets.get("Moon") or {}).get("rasi") or {}).get("name"))
     lagna_lord = SIGN_LORDS.get(asc_sign) if asc_sign else None
     lagna_lord_score = float(strength.get(lagna_lord or "", {}).get("score", 5.0))
     behavioral_risks = compute_behavioral_risks(strength, influence_matrix, house_clusters, karmic, lagna_lord_score)
@@ -1547,6 +1583,9 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
     shadbala_summary = build_shadbala_summary(strength)
 
     dominant_theme = max(karmic.items(), key=lambda x: x[1])[0] if karmic else "balanced_growth_pattern"
+    primary_pattern = "integration" if dominant_theme == "balanced_growth_pattern" else "correction"
+    karmic_profile = dict(karmic)
+    karmic_profile["primary_pattern"] = primary_pattern
     relationship_vector = "stability_oriented" if (strength.get("Venus", {}).get("score", 5.0) >= 5.0) else "attachment_healing_required"
     career_vector = "authority_building" if (strength.get("Sun", {}).get("score", 5.0) + strength.get("Saturn", {}).get("score", 5.0)) / 2 >= 5.5 else "skill_consolidation_phase"
 
@@ -1556,9 +1595,22 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         reverse=True,
     )
 
+    stability_metrics_alias = dict(stability_metrics)
+    stability_metrics_alias["grade"] = stability_metrics.get("stability_grade", "D")
+
     return {
+        "ascendant_sign": asc_sign,
+        "sun_sign": sun_sign,
+        "moon_sign": moon_sign,
+        "chart_signature": {
+            "ascendant_sign": asc_sign,
+            "sun_sign": sun_sign,
+            "moon_sign": moon_sign,
+        },
         "planet_power_ranking": power_ranking,
         "psychological_tension_axis": influence_matrix["most_conflicted_axis"],
+        # Backward-compatible alias for template conditions.
+        "dominant_purushartha": purushartha_profile["dominant_purushartha"],
         "life_purpose_vector": {
             "dominant_planet": influence_matrix["dominant_planet"],
             "dominant_purushartha": purushartha_profile["dominant_purushartha"],
@@ -1569,12 +1621,12 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         "behavioral_risk_profile": behavioral_risks,
         "interaction_risks": interaction_risks,
         "enhanced_behavioral_risks": enhanced_behavioral_risks,
-        "stability_metrics": stability_metrics,
+        "stability_metrics": stability_metrics_alias,
         "personality_vector": personality_vector,
         "probability_forecast": probability_forecast,
         "varga_alignment": varga_alignment,
         "shadbala_summary": shadbala_summary,
-        "karmic_pattern_profile": karmic,
+        "karmic_pattern_profile": karmic_profile,
         "current_dasha_vector": dasha_summary,
         "dominant_life_theme": dominant_theme,
         "psychological_axis": dasha_summary["dominant_axis"],
@@ -1587,7 +1639,7 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
             "dispositor_analysis": dispositor,
             "yogas": yogas,
             "yogas_all": yogas_all,
-            "karmic_patterns": karmic,
+            "karmic_patterns": karmic_profile,
             "influence_matrix": {
                 **influence_matrix,
                 "matrix": _serialize_influence_matrix(influence_matrix.get("matrix", {})),
@@ -1596,7 +1648,7 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
             "purushartha_profile": purushartha_profile,
             "behavioral_risks": behavioral_risks,
             "interaction_summary": interaction_summary,
-            "stability_metrics": stability_metrics,
+            "stability_metrics": stability_metrics_alias,
             "personality_vector": personality_vector,
             "probability_forecast": probability_forecast,
             "varga_alignment": varga_alignment,

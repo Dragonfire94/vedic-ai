@@ -126,7 +126,8 @@ export default function ChartPage() {
         language: 'ko',
         include_nodes: true,
         include_d9: true,
-        include_vargas: ['d9'],
+        include_vargas: ['d7', 'd9', 'd10', 'd12'],
+        analysis_mode: 'pro',
       })
       setAIReading(data)
       setActiveTab('reading')
@@ -148,6 +149,7 @@ export default function ChartPage() {
         include_nodes: true,
         include_d9: true,
         include_vargas: ['d9', 'd10', 'd12'],
+        analysis_mode: 'pro',
       })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -190,6 +192,10 @@ export default function ChartPage() {
   const top3 = planetRows.slice(0, 3)
   const hourInt = Math.floor(birthData.hour)
   const minInt = Math.round((birthData.hour - hourInt) * 60)
+  const readingText =
+    aiReading?.polished_reading ||
+    aiReading?.reading ||
+    ''
 
   if (loading) {
     return (
@@ -357,8 +363,8 @@ export default function ChartPage() {
                 <CardDescription>필요하면 다시 생성해서 최신 버전으로 볼 수 있어요.</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="whitespace-pre-wrap text-[#4f4852] leading-7">
-                  {aiReading?.reading || 'AI 해석이 아직 없습니다.'}
+                <div className="whitespace-pre-wrap break-words">
+                  {readingText}
                 </div>
               </CardContent>
             </Card>

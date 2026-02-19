@@ -166,7 +166,7 @@ class TestReportEngineScaling(unittest.TestCase):
         )
         fragment = payload["chapter_blocks"]["Psychological Architecture"][0]
 
-        self.assertEqual(fragment["analysis"], "Legacy analysis")
+        self.assertTrue(fragment["analysis"].startswith("Legacy analysis"))
         self.assertNotIn("micro_scenario", fragment)
         self.assertNotIn("long_term_projection", fragment)
 

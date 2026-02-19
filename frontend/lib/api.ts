@@ -105,6 +105,7 @@ export interface ChartRequest {
   include_vargas?: string[]
   gender?: string
   timezone?: number
+  analysis_mode?: 'standard' | 'pro'
 }
 
 function applyVargaParams(params: URLSearchParams, data: ChartRequest): void {
@@ -206,8 +207,10 @@ export async function getAIReading(data: ChartRequest & { language?: string }) {
     house_system: data.house_system || 'W',
     include_nodes: data.include_nodes !== false ? '1' : '0',
     include_d9: data.include_d9 ? '1' : '0',
-    language: data.language || 'ko',
+    language: 'ko',
     gender: data.gender || 'male',
+    analysis_mode: data.analysis_mode || 'pro',
+    detail_level: 'full',
   })
   applyVargaParams(params, data)
   if (Number.isFinite(data.timezone)) {
@@ -232,8 +235,10 @@ export async function getPDF(data: ChartRequest & { language?: string }) {
     house_system: data.house_system || 'W',
     include_nodes: data.include_nodes !== false ? '1' : '0',
     include_d9: data.include_d9 ? '1' : '0',
-    language: data.language || 'ko',
+    language: 'ko',
     gender: data.gender || 'male',
+    analysis_mode: data.analysis_mode || 'pro',
+    detail_level: 'full',
   })
   applyVargaParams(params, data)
   if (Number.isFinite(data.timezone)) {

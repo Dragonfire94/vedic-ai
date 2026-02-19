@@ -179,7 +179,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 35},
             }
         )
-        self.assertNotIn("choice_fork", moderate["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertIn("choice_fork", moderate["chapter_blocks"]["Psychological Architecture"][0])
 
     def test_emotional_escalation_rule(self):
         selected = report_engine.select_template_blocks(

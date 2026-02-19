@@ -9,14 +9,18 @@
 import os
 import json
 import math
+import re
 import base64
+import hashlib
 import logging
 import asyncio
 import subprocess
 import sys
 from pathlib import Path
 from enum import Enum
-from datetime import datetime
+from datetime import datetime, timezone
+from functools import lru_cache
+from uuid import uuid4
 from typing import Optional, Any, Literal, Tuple, Dict, List
 
 # Support both `uvicorn backend.main:app` (repo root) and
@@ -27,8 +31,13 @@ if __package__ is None or __package__ == "":
 # Structural engine import via the backend package to keep resolution stable
 # when running `uvicorn backend.main:app` from any working directory.
 from backend.astro_engine import build_structural_summary
-from backend.report_engine import build_report_payload, REPORT_CHAPTERS, build_gpt_user_content
-from backend.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+from backend.report_engine import (
+    build_report_payload,
+    REPORT_CHAPTERS,
+    build_gpt_user_content,
+    SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
+    _get_atomic_chart_interpretations,
+)
 from backend.cache_manager import cache
 from backend.swe_config import initialize_swe_context
 
@@ -39,8 +48,9 @@ except Exception as e:
 import pytz
 from timezonefinder import TimezoneFinder
 from openai import AsyncOpenAI
+import httpx
 
-from fastapi import FastAPI, Query, Response, HTTPException, Body
+from fastapi import FastAPI, Query, Response, HTTPException, Body, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -64,6 +74,9 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger("vedic_ai")
+llm_audit_logger = logging.getLogger("llm_audit")
+
+TIMEZONE_FINDER = TimezoneFinder() if TimezoneFinder is not None else None
 
 # Load .env files without introducing an extra runtime dependency.
 # Priority: existing process env > backend/.env > repo/.env
@@ -94,6 +107,412 @@ _load_env_file(REPO_ROOT / ".env")
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+READING_PIPELINE_VERSION = "chapter_blocks_v2"
+AI_PROMPT_VERSION = "ko_only_v2"
+STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
+STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
+AI_MAX_TOKENS_AI_READING = 1500
+AI_MAX_TOKENS_PDF = 2000
+AI_MAX_TOKENS_HARD_LIMIT = 3000
+
+
+def _utc_iso_now() -> str:
+    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
+def _canonical_json(value: Any) -> str:
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+
+def _sha256_hex(value: Any) -> str:
+    return hashlib.sha256(_canonical_json(value).encode("utf-8")).hexdigest()
+
+
+def _resolve_request_id(request: Optional[Request], explicit_request_id: Optional[str] = None) -> str:
+    explicit = explicit_request_id.strip() if isinstance(explicit_request_id, str) else ""
+    if explicit:
+        return explicit
+    if request is not None:
+        for header in ("x-request-id", "x-correlation-id"):
+            value = (request.headers.get(header) or "").strip()
+            if value:
+                return value
+    return str(uuid4())
+
+
+def _emit_llm_audit_event(
+    *,
+    request_id: str,
+    chart_hash: str,
+    chapter_blocks_hash: str,
+    model_used: str,
+    endpoint: str,
+) -> dict[str, str]:
+    event = {
+        "request_id": request_id,
+        "chart_hash": chart_hash,
+        "chapter_blocks_hash": chapter_blocks_hash,
+        "timestamp_utc": _utc_iso_now(),
+        "model_used": model_used,
+        "endpoint": endpoint,
+    }
+    llm_audit_logger.info(_canonical_json(event))
+    return event
+
+
+def _resolve_llm_max_tokens(raw_value: Any, default_value: int) -> int:
+    candidate = raw_value
+    if not isinstance(candidate, (int, float, str)):
+        candidate = getattr(raw_value, "default", default_value)
+    try:
+        tokens = int(candidate)
+    except (TypeError, ValueError):
+        tokens = int(default_value)
+    if tokens <= 0:
+        tokens = int(default_value)
+    if tokens > AI_MAX_TOKENS_HARD_LIMIT:
+        raise HTTPException(
+            status_code=400,
+            detail=f"llm_max_tokens must be <= {AI_MAX_TOKENS_HARD_LIMIT}",
+        )
+    return tokens
+
+
+def _build_openai_payload(
+    *,
+    model: str,
+    system_message: str,
+    user_message: str,
+    max_tokens: int,
+) -> dict[str, Any]:
+    return {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
+        ],
+        "temperature": 0.2,
+        "top_p": 1.0,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "max_tokens": int(max_tokens),
+    }
+
+
+def _polished_output_cache_key(chapter_blocks_hash: str, language: str) -> str:
+    return f"llm_polished::{chapter_blocks_hash}::{(language or 'ko').strip().lower()}"
+
+
+def compute_chapter_blocks_hash(chapter_blocks: dict[str, Any]) -> str:
+    validated = _validate_deterministic_llm_blocks(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    return _sha256_hex(validated)
+
+
+def load_polished_reading_from_cache(*, chapter_blocks_hash: str, language: str) -> Optional[str]:
+    key = _polished_output_cache_key(chapter_blocks_hash, language)
+    cached = cache.get(key)
+    if isinstance(cached, str) and cached.strip():
+        logger.info("LLM refinement loaded from cache")
+        return cached
+    return None
+
+
+def save_polished_reading_to_cache(*, chapter_blocks_hash: str, language: str, polished_reading: str) -> None:
+    if not isinstance(polished_reading, str) or not polished_reading.strip():
+        return
+    key = _polished_output_cache_key(chapter_blocks_hash, language)
+    cache.set(key, polished_reading, ttl=AI_CACHE_TTL)
+
+
+async def refine_reading_with_llm(
+    *,
+    chapter_blocks: dict[str, Any],
+    structural_summary: dict[str, Any],
+    language: str,
+    request_id: str,
+    chart_hash: str,
+    endpoint: str,
+    max_tokens: int,
+    model: str = "gpt-5",
+    temperature: float = 0.2,
+) -> str:
+    if async_client is None:
+        raise RuntimeError("OpenAI client not initialized")
+
+    validated = _validate_deterministic_llm_blocks(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    structural_payload = build_ai_psychological_input({"structural_summary": structural_summary})
+    atomic_interpretations = _get_atomic_chart_interpretations(structural_summary if isinstance(structural_summary, dict) else {})
+    system_message = "Follow the user prompt exactly."
+    user_message = build_llm_structural_prompt(
+        structural_payload,
+        language=language,
+        atomic_interpretations=atomic_interpretations,
+    )
+    chapter_blocks_hash = compute_chapter_blocks_hash(validated)
+    selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
+
+    payload = _build_openai_payload(
+        model=selected_model,
+        system_message=system_message,
+        user_message=user_message,
+        max_tokens=max_tokens,
+    )
+    payload["temperature"] = float(temperature)
+
+    _emit_llm_audit_event(
+        request_id=request_id,
+        chart_hash=chart_hash,
+        chapter_blocks_hash=chapter_blocks_hash,
+        model_used=f"openai/{selected_model}",
+        endpoint=endpoint,
+    )
+    response = await async_client.chat.completions.create(**payload)
+    text = response.choices[0].message.content if response and response.choices else ""
+    polished_text = text if isinstance(text, str) else ""
+    if not polished_text or not polished_text.strip():
+        raise RuntimeError("LLM returned empty refinement")
+    logger.info("LLM refinement executed for chapter_blocks_hash=%s", chapter_blocks_hash)
+    return polished_text
+
+
+def build_llm_structural_prompt(structural_summary: dict, language: str, atomic_interpretations: dict[str, str] | None = None) -> str:
+    import json
+
+    lang_instruction = (
+        "Write the output in Korean."
+        if language == "ko"
+        else "Write the output in English."
+    )
+
+    atomic = atomic_interpretations if isinstance(atomic_interpretations, dict) else {}
+    asc_text = str(atomic.get("asc", "")).strip()
+    sun_text = str(atomic.get("sun", "")).strip()
+    moon_text = str(atomic.get("moon", "")).strip()
+
+    return f"""
+You are a high-precision Vedic astrology structural interpreter.
+
+Your task is NOT to summarize.
+Your task is to derive deep psychological, behavioral, and life-pattern interpretation from deterministic structural signals.
+Your task is also to perform multi-signal cross-interpretation, not single-signal commentary.
+
+You MUST follow this reasoning sequence internally before producing output:
+
+STEP 1  Identify dominant forces
+- dominant_planet
+- life_purpose_vector.primary_axis
+- stability_metrics.stability_grade
+- dominant planetary clusters or strength patterns
+
+STEP 2  Identify internal tensions and imbalances
+- personality_vector asymmetries
+- stability_metrics.stability_index weaknesses
+- behavioral_risk_profile primary and secondary risks
+- psychological_tension_axis indicators
+- influence_matrix conflict patterns
+
+STEP 3  Identify execution and behavioral architecture
+- aggression_drive vs discipline_index relationship
+- ego_power vs emotional_regulation relationship
+- risk_appetite vs stability_index interaction
+- dominant planet behavioral expression patterns
+
+STEP 4  Identify structural trajectory and life-pattern tendencies
+- probability_forecast indicators
+- varga_alignment patterns
+- structural stability vs volatility interaction
+
+STEP 5  Synthesize unified interpretation
+
+Your output MUST obey these rules:
+
+- Every statement MUST be logically grounded in provided structural signals
+- DO NOT produce generic personality descriptions
+- DO NOT produce vague motivational advice
+- DO NOT invent planetary positions, houses, or chart data
+- DO NOT summarize mechanically  interpret structurally
+- DO NOT reference JSON or numeric values explicitly in output
+- Convert structural signals into natural psychological and life-pattern interpretation
+- Treat these as mandatory synthesis inputs and cross-interpret them together:
+  ascendant_sign, sun_sign, moon_sign, personality_vector, stability_metrics, varga_alignment, dominant planets, house strengths
+- For each major paragraph, explicitly explain interaction effects between at least two signal groups.
+- Explain psychological patterns that emerge from signal combinations, not isolated traits.
+- Explain life-direction implications (career path, relationship pattern, decision style, long-term trajectory) from combined structure.
+- If a required signal group is missing, state neutral uncertainty and continue using only available deterministic signals.
+- You must only refine and improve readability of the provided deterministic astrology report. Do not add, infer, or invent new astrological interpretation.
+
+This is a structural synthesis task, not a summary task.
+
+{lang_instruction}
+
+Atomic interpretations:
+Ascendant: {asc_text}
+Sun: {sun_text}
+Moon: {moon_text}
+
+Structural signals:
+{json.dumps(structural_summary, indent=2, ensure_ascii=False)}
+
+Produce a complete, coherent, professional interpretation.
+"""
+
+
+def _candidate_openai_models(primary_model: str) -> list[str]:
+    """Return de-duplicated model fallback order for chat completions."""
+    candidates = [primary_model, "gpt-4o-mini", "gpt-4o"]
+    out: list[str] = []
+    for model in candidates:
+        normalized = (model or "").strip()
+        if normalized and normalized not in out:
+            out.append(normalized)
+    return out
+
+
+def _normalize_analysis_mode(raw_mode: str) -> str:
+    """Normalize analysis_mode and accept common typo aliases."""
+    mode = str(raw_mode or "").strip().lower()
+    if mode in {"standard", "standarad"}:
+        return "standard"
+    if mode == "pro":
+        return "pro"
+    raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+
+
+def _score_band_100(value: Any) -> str:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return "insufficient"
+    if score >= 80:
+        return "very_high"
+    if score >= 60:
+        return "high"
+    if score >= 40:
+        return "medium"
+    if score >= 20:
+        return "low"
+    return "very_low"
+
+
+def _score_band_10(value: Any) -> str:
+    try:
+        score = float(value)
+    except (TypeError, ValueError):
+        return "insufficient"
+    if score >= 8:
+        return "very_high"
+    if score >= 6:
+        return "high"
+    if score >= 4:
+        return "medium"
+    if score >= 2:
+        return "low"
+    return "very_low"
+
+
+def _build_readability_snapshot(structured_summary: dict[str, Any]) -> dict[str, str]:
+    vector = structured_summary.get("personality_vector", {}) if isinstance(structured_summary, dict) else {}
+    stability = structured_summary.get("stability_metrics", {}) if isinstance(structured_summary, dict) else {}
+    risks = structured_summary.get("behavioral_risk_profile", {}) if isinstance(structured_summary, dict) else {}
+    return {
+        "ego_power": _score_band_100(vector.get("ego_power")),
+        "emotional_regulation": _score_band_100(vector.get("emotional_regulation")),
+        "stability_index": _score_band_100(stability.get("stability_index")),
+        "self_sabotage_risk": _score_band_10(risks.get("self_sabotage_risk")),
+    }
+
+
+def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any]) -> str:
+    chapter_name_ko = {
+        "Executive Summary": "Executive Summary",
+        "Purushartha Profile": "Purushartha Profile",
+        "Psychological Architecture": "Psychological Architecture",
+        "Behavioral Risks": "Behavioral Risks",
+        "Karmic Patterns": "Karmic Patterns",
+        "Stability Metrics": "Stability Metrics",
+        "Personality Vector": "Personality Vector",
+        "Life Timeline Interpretation": "Life Timeline Interpretation",
+        "Career & Success": "Career & Success",
+        "Love & Relationships": "Love & Relationships",
+        "Health & Body Patterns": "Health & Body Patterns",
+        "Confidence & Forecast": "Confidence & Forecast",
+        "Remedies & Program": "Remedies & Program",
+        "Final Summary": "Final Summary",
+        "Appendix (Optional)": "Appendix (Optional)",
+    }
+    ordered_fields = [
+        "title",
+        "summary",
+        "analysis",
+        "implication",
+        "examples",
+        "shadow_pattern",
+        "defense_mechanism",
+        "emotional_trigger",
+        "repetition_cycle",
+        "integration_path",
+        "micro_scenario",
+        "long_term_projection",
+    ]
+    out: list[str] = []
+    for idx, chapter in enumerate(REPORT_CHAPTERS, start=1):
+        title = chapter_name_ko.get(chapter, chapter)
+        out.append(f"# {idx}. {title}")
+        blocks = chapter_blocks.get(chapter, []) if isinstance(chapter_blocks, dict) else []
+        if not blocks:
+            out.append("Insufficient chapter fragments were available for this section.")
+            out.append("")
+            continue
+
+        for block_idx, block in enumerate(blocks, start=1):
+            if not isinstance(block, dict):
+                continue
+            if "spike_text" in block:
+                spike_text = str(block.get("spike_text", "")).strip()
+                if spike_text:
+                    out.append(f"[Insight Spike {block_idx}] {spike_text}")
+                continue
+
+            out.append(f"## Fragment {block_idx}")
+            for field in ordered_fields:
+                raw = block.get(field)
+                if not isinstance(raw, str):
+                    continue
+                value = raw.strip()
+                if not value:
+                    continue
+                out.append(f"{field.replace('_', ' ').title()}:")
+                out.append(value)
+                out.append("")
+
+            choice_fork = block.get("choice_fork")
+            if isinstance(choice_fork, dict):
+                out.append("Choice Fork:")
+                out.append(json.dumps(choice_fork, ensure_ascii=False, indent=2))
+                out.append("")
+
+            predictive = block.get("predictive_compression")
+            if isinstance(predictive, dict):
+                out.append("Predictive Compression:")
+                out.append(json.dumps(predictive, ensure_ascii=False, indent=2))
+                out.append("")
+        out.append("")
+    return "\n".join(out).strip()
+
+
+def _is_low_quality_reading(text: str) -> bool:
+    normalized = (text or "").strip()
+    if len(normalized) < 4500:
+        return True
+    numbered_hits = len(re.findall(r"^#\s*\d+\.", normalized, flags=re.MULTILINE))
+    if numbered_hits >= len(REPORT_CHAPTERS):
+        return False
+    named_hits = 0
+    lowered = normalized.lower()
+    for chapter in REPORT_CHAPTERS:
+        if chapter.lower() in lowered:
+            named_hits += 1
+    return named_hits < max(8, len(REPORT_CHAPTERS) // 2)
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # Pretendard ?????????????????
@@ -256,11 +675,69 @@ app.add_middleware(
 # OpenAI ?????????????
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 async_client = None
-if OPENAI_API_KEY:
+OPENAI_HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+
+def _first_nonempty_env(*keys: str) -> Optional[str]:
+    for key in keys:
+        value = os.getenv(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _resolve_openai_base_url() -> Optional[str]:
+    configured = _first_nonempty_env("OPENAI_BASE_URL", "OPENAI_API_BASE")
+    if not configured:
+        return None
+    lowered = configured.lower()
+    if "localhost" in lowered or "127.0.0.1" in lowered:
+        logger.error("Invalid OPENAI base URL '%s' detected; falling back to default OpenAI endpoint", configured)
+        return None
+    return configured
+
+
+def _build_openai_client() -> tuple[Optional[AsyncOpenAI], Optional[httpx.AsyncClient]]:
+    if not OPENAI_API_KEY:
+        return None, None
+
+    base_url = _resolve_openai_base_url()
+    proxy_url = _first_nonempty_env("OPENAI_PROXY_URL", "HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy")
+    timeout = httpx.Timeout(connect=10.0, read=120.0, write=120.0, pool=120.0)
+
     try:
-        async_client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+        if proxy_url:
+            http_client = httpx.AsyncClient(
+                timeout=timeout,
+                trust_env=True,
+                proxy=proxy_url,
+            )
+        else:
+            http_client = httpx.AsyncClient(
+                timeout=timeout,
+                trust_env=True,
+            )
+        logger.info(
+            "OpenAI transport configured: proxy=%s trust_env=%s",
+            proxy_url if proxy_url else "NONE",
+            True,
+        )
+        client_kwargs: dict[str, Any] = {"api_key": OPENAI_API_KEY, "http_client": http_client}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+        client = AsyncOpenAI(**client_kwargs)
+        logger.info(
+            "OpenAI client initialized base_url=%s proxy_configured=%s",
+            str(getattr(client, "base_url", "default")),
+            "True" if bool(proxy_url) else "False",
+        )
+        return client, http_client
     except Exception as e:
         logger.warning(f"OpenAI client initialization failed: {e}")
+        return None, None
+
+
+async_client, OPENAI_HTTP_CLIENT = _build_openai_client()
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # AI ?????
@@ -448,6 +925,32 @@ def validate_btr_events(events: List[BTREvent]) -> None:
     if len(events) == 0 or all(e.precision_level == "unknown" for e in events):
         raise HTTPException(status_code=400, detail="Please choose a timing for at least one event.")
 
+
+def validate_btr_event_temporal_consistency(events: List[BTREvent], birth_year: int) -> None:
+    """Reject future-only BTR events for both analyze and refine endpoints."""
+    current_year = datetime.utcnow().year
+    for ev in events:
+        if ev.precision_level == "exact":
+            if ev.year is not None and ev.year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Future events are not allowed: {ev.year}",
+                )
+        elif ev.precision_level == "range":
+            if ev.age_range is None:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Range events require age_range.",
+                )
+            start_year, _ = convert_age_range_to_year_range(birth_year, ev.age_range)
+            if start_year > current_year:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Age range results in a future event. Please adjust the range.",
+                )
+        elif ev.precision_level == "unknown":
+            continue
+
 class BTRAnalyzeRequest(BaseModel):
     year: int = Field(..., description="Birth year")
     month: int = Field(..., ge=1, le=12, description="Birth month")
@@ -570,6 +1073,21 @@ def is_combust(planet_name: str, planet_lon: float, sun_lon: float) -> bool:
         diff = 360 - diff
     return diff < threshold
 
+
+@lru_cache(maxsize=4096)
+def _timezone_name_for_coordinates(lat: float, lon: float) -> Optional[str]:
+    if TIMEZONE_FINDER is None:
+        return None
+    return TIMEZONE_FINDER.timezone_at(lat=lat, lng=lon)
+
+
+@lru_cache(maxsize=4096)
+def _timezone_utc_offset_hours(tz_name: str, year: int, month: int, day: int) -> float:
+    tz = pytz.timezone(tz_name)
+    sample_dt = datetime(year, month, day)
+    return float(tz.utcoffset(sample_dt).total_seconds() / 3600.0)
+
+
 def resolve_timezone_offset(
     year: int,
     month: int,
@@ -591,8 +1109,7 @@ def resolve_timezone_offset(
             ),
         )
 
-    tf = TimezoneFinder()
-    tz_name = tf.timezone_at(lat=lat, lng=lon)
+    tz_name = _timezone_name_for_coordinates(float(lat), float(lon))
     if not tz_name:
         raise HTTPException(
             status_code=400,
@@ -603,9 +1120,7 @@ def resolve_timezone_offset(
         )
 
     try:
-        tz = pytz.timezone(tz_name)
-        sample_dt = datetime(year, month, day)
-        tz_offset = tz.utcoffset(sample_dt).total_seconds() / 3600.0
+        tz_offset = _timezone_utc_offset_hours(str(tz_name), int(year), int(month), int(day))
     except Exception as exc:
         raise HTTPException(
             status_code=400,
@@ -1035,9 +1550,7 @@ async def get_chart_endpoint(
     include_structural_summary: int = Query(0),
 ):
     del include_interpretation
-    analysis_mode_norm = str(analysis_mode).strip().lower()
-    if analysis_mode_norm not in {"standard", "pro"}:
-        raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+    analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
 
     # Bound heavy Swiss Ephemeris work under explicit concurrency control.
     async with CHART_CALC_SEMAPHORE:
@@ -1181,6 +1694,7 @@ def build_ai_psychological_input(
 
     source = rectified_structural_summary.get("structural_summary", {}) or {}
     allowed_keys = [
+        "life_purpose_vector",
         "planet_power_ranking",
         "psychological_tension_axis",
         "purushartha_profile",
@@ -1193,15 +1707,143 @@ def build_ai_psychological_input(
         "shadbala_summary",
         "interaction_risks",
         "enhanced_behavioral_risks",
+        "dominant_house_cluster",
+        "dominant_purushartha",
     ]
-    return {k: _json_safe(source.get(k, {})) for k in allowed_keys}
+    out = {k: _json_safe(source.get(k, {})) for k in allowed_keys}
+
+    ranking = source.get("planet_power_ranking")
+    if isinstance(ranking, list):
+        out["dominant_planets"] = _json_safe(ranking[:3])
+    else:
+        out["dominant_planets"] = []
+
+    engine = source.get("engine") if isinstance(source.get("engine"), dict) else {}
+    influence = engine.get("influence_matrix") if isinstance(engine.get("influence_matrix"), dict) else {}
+    house_clusters = engine.get("house_clusters") if isinstance(engine.get("house_clusters"), dict) else {}
+    out["influence_matrix"] = _json_safe(influence)
+    out["house_strengths"] = _json_safe(house_clusters.get("cluster_scores", {}))
+
+    # Ensure no raw chart positional data leaks into LLM prompt.
+    banned_keys = {"longitude", "latitude", "ascendant", "planets", "houses", "julian_day"}
+    for banned in banned_keys:
+        out.pop(banned, None)
+    return out
 
 
 
-def _build_ai_input(context_data: str):
-    system_message = SYSTEM_PROMPT
-    user_message = USER_PROMPT_TEMPLATE.format(context_data=context_data)
+def _extract_structured_blocks(context_data: str) -> dict[str, Any]:
+    if not isinstance(context_data, str):
+        raise ValueError("LLM context must be a string payload.")
+    begin_idx = context_data.find(STRUCTURED_BLOCKS_BEGIN_TAG)
+    end_idx = context_data.find(STRUCTURED_BLOCKS_END_TAG)
+    if begin_idx < 0 or end_idx < 0 or end_idx <= begin_idx:
+        raise ValueError("LLM context must include structured block boundary markers.")
+    raw_json = context_data[begin_idx + len(STRUCTURED_BLOCKS_BEGIN_TAG):end_idx].strip()
+    if not raw_json:
+        raise ValueError("Structured block payload is empty.")
+    parsed = json.loads(raw_json)
+    if not isinstance(parsed, dict):
+        raise ValueError("Structured block payload must be a JSON object.")
+    return parsed
+
+
+def _validate_deterministic_llm_blocks(chapter_blocks: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
+    if not isinstance(chapter_blocks, dict):
+        raise ValueError("chapter_blocks must be an object.")
+    if set(chapter_blocks.keys()) != set(REPORT_CHAPTERS):
+        raise ValueError("chapter_blocks must contain exactly the deterministic report chapters.")
+
+    allowed_fragment_keys = {
+        "spike_text",
+        "title",
+        "summary",
+        "analysis",
+        "implication",
+        "examples",
+        "shadow_pattern",
+        "defense_mechanism",
+        "emotional_trigger",
+        "repetition_cycle",
+        "integration_path",
+        "micro_scenario",
+        "long_term_projection",
+        "choice_fork",
+        "predictive_compression",
+    }
+    forbidden_keys = {
+        "engine",
+        "structural_summary",
+        "planet_power_ranking",
+        "planets",
+        "houses",
+        "longitude",
+        "latitude",
+        "ascendant",
+        "julian_day",
+    }
+
+    normalized: dict[str, list[dict[str, Any]]] = {}
+    for chapter in REPORT_CHAPTERS:
+        fragments = chapter_blocks.get(chapter)
+        if not isinstance(fragments, list):
+            raise ValueError(f"chapter_blocks['{chapter}'] must be a list.")
+        normalized_fragments: list[dict[str, Any]] = []
+        for idx, fragment in enumerate(fragments):
+            if not isinstance(fragment, dict):
+                raise ValueError(f"chapter_blocks['{chapter}'][{idx}] must be an object.")
+            unknown_keys = set(fragment.keys()) - allowed_fragment_keys
+            if unknown_keys:
+                raise ValueError(
+                    f"chapter_blocks['{chapter}'][{idx}] includes non-deterministic keys: {sorted(unknown_keys)}"
+                )
+            bad_keys = set(fragment.keys()) & forbidden_keys
+            if bad_keys:
+                raise ValueError(
+                    f"chapter_blocks['{chapter}'][{idx}] includes forbidden structural keys: {sorted(bad_keys)}"
+                )
+            normalized_fragments.append(fragment)
+        normalized[chapter] = normalized_fragments
+    return normalized
+
+
+def _build_llm_structured_context(report_payload: dict[str, Any]) -> tuple[str, str]:
+    chapter_blocks = report_payload.get("chapter_blocks") if isinstance(report_payload, dict) else None
+    validated = _validate_deterministic_llm_blocks(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    chapter_blocks_hash = _sha256_hex(validated)
+    return build_gpt_user_content({"chapter_blocks": validated}), chapter_blocks_hash
+
+
+def _build_ai_input(context_data: str, language: str = "ko"):
+    parsed_blocks = _extract_structured_blocks(context_data)
+    _validate_deterministic_llm_blocks(parsed_blocks)
+    canonical_context = build_gpt_user_content({"chapter_blocks": parsed_blocks})
+    lang = (language or "ko").strip().lower()
+    korean_only_suffix = (
+        "\n\nLanguage requirement:\n"
+        "- You must only refine and improve readability of the provided deterministic astrology report. Do not add, infer, or invent new astrological interpretation.\n"
+        "- Write the full report in Korean (Hangul) only.\n"
+        "- Do not output English sentences except unavoidable technical labels.\n"
+        "- Keep chapter boundaries and ordering exactly as provided.\n"
+        "- Improve readability only; preserve deterministic meaning.\n"
+    )
+    system_message = REPORT_SYSTEM_PROMPT
+    user_message = canonical_context
+    if lang.startswith("ko"):
+        user_message = f"{user_message}{korean_only_suffix}"
     return system_message, user_message
+
+
+def _normalize_json_for_cache(raw_json: str) -> str:
+    """Normalize JSON text to reduce cache-key misses from formatting noise."""
+    raw = (raw_json or "").strip()
+    if not raw:
+        return "[]"
+    try:
+        parsed = json.loads(raw)
+        return json.dumps(parsed, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    except Exception:
+        return raw
 
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -1209,6 +1851,7 @@ def _build_ai_input(context_data: str):
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 @app.get("/ai_reading")
 async def get_ai_reading(
+    request: Request,
     year: int = Query(...),
     month: int = Query(...),
     day: int = Query(...),
@@ -1226,15 +1869,32 @@ async def get_ai_reading(
     events_json: str = Query("[]"),
     timezone: Optional[float] = Query(None),
     analysis_mode: str = Query("standard"),
+    detail_level: str = Query("full"),
+    llm_max_tokens: int = Query(AI_MAX_TOKENS_AI_READING, include_in_schema=False),
+    audit_debug: int = Query(0),
+    request_id: Optional[str] = Query(None, include_in_schema=False),
+    audit_endpoint: str = Query("/ai_reading", include_in_schema=False),
 ):
     """Generate AI reading."""
-    analysis_mode_norm = str(analysis_mode).strip().lower()
-    if analysis_mode_norm not in {"standard", "pro"}:
-        raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+    analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
+    detail_level_norm = str(detail_level or "full").strip().lower()
+    if detail_level_norm != "full":
+        raise HTTPException(status_code=400, detail="detail_level must be 'full'")
+    llm_max_tokens_resolved = _resolve_llm_max_tokens(llm_max_tokens, AI_MAX_TOKENS_AI_READING)
+    endpoint_name = audit_endpoint.strip() if isinstance(audit_endpoint, str) and audit_endpoint.strip() else "/ai_reading"
+    request_id_value = _resolve_request_id(request, request_id)
+    if isinstance(audit_debug, bool):
+        include_audit_debug = audit_debug
+    elif isinstance(audit_debug, (int, float)):
+        include_audit_debug = bool(audit_debug)
+    else:
+        include_audit_debug = False
+    events_json_norm = _normalize_json_for_cache(events_json)
 
     cache_key = (
         f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{include_d9}_{include_vargas}_"
-        f"{language}_{gender}_{production_mode}_{events_json}_{timezone}_{analysis_mode_norm}"
+        f"{language}_{gender}_{production_mode}_{events_json_norm}_{timezone}_{analysis_mode_norm}_{detail_level_norm}_{llm_max_tokens_resolved}_"
+        f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}"
     )
 
     if use_cache:
@@ -1243,20 +1903,46 @@ async def get_ai_reading(
             logger.info(f"Cache hit: {cache_key}")
             if production_mode:
                 return cached
-            return {
+            cached_response = {
                 "cached": True,
                 "ai_cache_key": cache_key,
                 **cached,
             }
+            if include_audit_debug and isinstance(cached, dict):
+                audit_payload = {
+                    "request_id": request_id_value,
+                    "chart_hash": cached.get("chart_hash"),
+                    "chapter_blocks_hash": cached.get("chapter_blocks_hash"),
+                    "endpoint": endpoint_name,
+                }
+                cached_response["audit"] = audit_payload
+            return cached_response
 
     if production_mode:
         if not BTR_ENGINE_AVAILABLE:
             raise HTTPException(status_code=500, detail="BTR engine is not available.")
 
         try:
-            events = json.loads(events_json) if events_json else []
+            events = json.loads(events_json_norm) if events_json_norm else []
             if not isinstance(events, list) or not events:
                 raise ValueError("production_mode=1 requires non-empty events_json list")
+            chart_hash = _sha256_hex(
+                {
+                    "year": year,
+                    "month": month,
+                    "day": day,
+                    "lat": lat,
+                    "lon": lon,
+                    "timezone": timezone,
+                    "house_system": house_system,
+                    "include_nodes": include_nodes,
+                    "include_d9": include_d9,
+                    "include_vargas": include_vargas,
+                    "analysis_mode": analysis_mode_norm,
+                    "detail_level": detail_level_norm,
+                    "events": events,
+                }
+            )
 
             birth_date = {"year": year, "month": month, "day": day}
             tz_offset = resolve_timezone_offset(year, month, day, lat, lon, timezone=timezone)
@@ -1282,30 +1968,56 @@ async def get_ai_reading(
                 include_vargas=include_vargas,
                 analysis_mode=analysis_mode_norm,
             )
-            report_payload = build_report_payload(rectified_summary)
-            user_content = build_gpt_user_content(report_payload)
+            report_payload = build_report_payload({**rectified_summary, "language": language})
+            chapter_blocks = report_payload.get("chapter_blocks", {})
+            chapter_blocks_hash = compute_chapter_blocks_hash(chapter_blocks)
+            polished_reading = load_polished_reading_from_cache(
+                chapter_blocks_hash=chapter_blocks_hash,
+                language=language,
+            ) if use_cache else None
 
-            if not async_client:
-                final_text = json.dumps(report_payload["chapter_blocks"], ensure_ascii=False, sort_keys=True)
-            else:
-                response = await async_client.chat.completions.create(
-                    model="gpt-4o",
-                    temperature=0.3,
-                    max_tokens=6000,
-                    messages=[
-                        {"role": "system", "content": SYSTEM_PROMPT},
-                        {"role": "user", "content": user_content},
-                    ],
+            if polished_reading is None and async_client:
+                polished_reading = await refine_reading_with_llm(
+                    chapter_blocks=chapter_blocks,
+                    structural_summary=rectified_summary.get("structural_summary", {}),
+                    language=language,
+                    request_id=request_id_value,
+                    chart_hash=chart_hash,
+                    endpoint=endpoint_name,
+                    max_tokens=llm_max_tokens_resolved,
                 )
-                final_text = response.choices[0].message.content
+                if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
+                    save_polished_reading_to_cache(
+                        chapter_blocks_hash=chapter_blocks_hash,
+                        language=language,
+                        polished_reading=polished_reading,
+                    )
+
+            final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks)
+            final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
 
             production_result = {
                 "report_text": final_text,
+                "reading": final_text,
+                "polished_reading": final_polished,
                 "chapter_count": len(REPORT_CHAPTERS),
                 "analysis_mode": analysis_mode_norm,
+                "detail_level": detail_level_norm,
+                "llm_input_source": "report_engine.chapter_blocks",
+                "request_id": request_id_value,
+                "chart_hash": chart_hash,
+                "chapter_blocks_hash": chapter_blocks_hash,
+                "chapter_blocks": chapter_blocks,
             }
+            if include_audit_debug:
+                production_result["audit"] = {
+                    "request_id": request_id_value,
+                    "chart_hash": chart_hash,
+                    "chapter_blocks_hash": chapter_blocks_hash,
+                    "endpoint": endpoint_name,
+                }
             if use_cache:
-                cache.set(cache_key, production_result)
+                cache.set(cache_key, production_result, ttl=AI_CACHE_TTL)
             return production_result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -1333,106 +2045,160 @@ async def get_ai_reading(
         chart,
         analysis_mode_norm,
     )
-    ai_payload = {"structural_summary": structured_summary}
+    report_payload = build_report_payload({"structural_summary": structured_summary, "language": language})
+    chapter_blocks = report_payload.get("chapter_blocks", {})
+    chapter_blocks_hash = compute_chapter_blocks_hash(chapter_blocks)
+    chart_hash = _sha256_hex(
+        {
+            "year": year,
+            "month": month,
+            "day": day,
+            "hour": hour,
+            "lat": lat,
+            "lon": lon,
+            "timezone": timezone,
+            "house_system": house_system,
+            "include_nodes": include_nodes,
+            "include_d9": include_d9,
+            "include_vargas": include_vargas,
+            "analysis_mode": analysis_mode_norm,
+            "detail_level": detail_level_norm,
+            "gender": gender,
+        }
+    )
 
     summary = {
         "language": language,
         "analysis_mode": resolved_analysis_mode,
+        "readability_mode": "banded_explanation",
+        "readability_snapshot": _build_readability_snapshot(structured_summary),
         "structured_summary": structured_summary,
     }
 
     if not async_client:
-        reading_text = "[OpenAI not configured]"
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        final_reading = deterministic_reading
+        final_polished = None
         result = {
             "cached": False,
             "fallback": True,
             "model": OPENAI_MODEL,
             "summary": summary,
             "structured_summary": structured_summary,
-            "reading": reading_text,
+            "reading": final_reading,
+            "polished_reading": final_polished,
+            "detail_level": detail_level_norm,
             "ai_cache_key": cache_key,
+            "request_id": request_id_value,
+            "chart_hash": chart_hash,
+            "chapter_blocks_hash": chapter_blocks_hash,
+            "chapter_blocks": chapter_blocks,
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
                 "model_used": OPENAI_MODEL,
                 "client_initialized": False,
-                "reason": "OpenAI client not initialized",
+                "reason": "OpenAI client not initialized; deterministic full report generated",
                 "analysis_mode_requested": analysis_mode_norm,
                 "analysis_mode_resolved": resolved_analysis_mode,
                 "analysis_mode_fallback": analysis_fallback,
+                "llm_input_source": "report_engine.chapter_blocks",
             },
         }
+        if include_audit_debug:
+            result["audit"] = {
+                "request_id": request_id_value,
+                "chart_hash": chart_hash,
+                "chapter_blocks_hash": chapter_blocks_hash,
+                "endpoint": endpoint_name,
+            }
         if use_cache:
-            cache.set(cache_key, result)
+            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
         return result
 
     try:
-        mapped_keys: list[str] = []
-        mapped_texts: list[str] = []
-        mapped_section_counts = {"atomic": 0, "lagna_lord": 0, "yogas": 0, "patterns": 0}
-        static_context_used = False
-        context_data = ""
+        polished_reading = load_polished_reading_from_cache(
+            chapter_blocks_hash=chapter_blocks_hash,
+            language=language,
+        ) if use_cache else None
+        model_used = "cache/polished_reuse" if polished_reading else OPENAI_MODEL
 
-        context_data = json.dumps(ai_payload, ensure_ascii=False, indent=2)
-        system_message, user_message = _build_ai_input(context_data)
+        if polished_reading is None:
+            polished_reading = await refine_reading_with_llm(
+                chapter_blocks=chapter_blocks,
+                structural_summary=structured_summary,
+                language=language,
+                request_id=request_id_value,
+                chart_hash=chart_hash,
+                endpoint=endpoint_name,
+                max_tokens=llm_max_tokens_resolved,
+            )
+            model_used = "gpt-5"
+            if _is_low_quality_reading(polished_reading):
+                polished_reading = ""
 
-        openai_payload = {
-            "model": OPENAI_MODEL,
-            "messages": [
-                {"role": "system", "content": system_message},
-                {"role": "user", "content": user_message},
-            ],
-            "temperature": 0.6,
-            "max_tokens": 8000,
-        }
-        try:
-            response = await async_client.chat.completions.create(**openai_payload)
-        except Exception as e:
-            logger.error(f"OpenAI call failed: {e}")
-            raise HTTPException(status_code=500, detail="AI generation error") from e
+            if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
+                save_polished_reading_to_cache(
+                    chapter_blocks_hash=chapter_blocks_hash,
+                    language=language,
+                    polished_reading=polished_reading,
+                )
 
-        logger.info("OpenAI response generated")
-        reading_text = response.choices[0].message.content
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
+        final_reading = final_polished if final_polished else deterministic_reading
+        fallback_used = final_polished is None
 
         result = {
             "cached": False,
-            "fallback": False,
-            "model": OPENAI_MODEL,
+            "fallback": fallback_used,
+            "model": model_used,
             "summary": summary,
             "structured_summary": structured_summary,
-            "reading": reading_text,
+            "reading": final_reading,
+            "polished_reading": final_polished,
+            "detail_level": detail_level_norm,
             "ai_cache_key": cache_key,
+            "request_id": request_id_value,
+            "chart_hash": chart_hash,
+            "chapter_blocks_hash": chapter_blocks_hash,
+            "chapter_blocks": chapter_blocks,
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
-                "model_used": OPENAI_MODEL,
-                "system_prompt_length": len(system_message),
-                "user_prompt_length": len(user_message),
-                "context_length": len(context_data),
-                "response_tokens": response.usage.total_tokens if hasattr(response, "usage") else 0,
+                "model_requested": OPENAI_MODEL,
+                "model_used": model_used,
                 "client_initialized": async_client is not None,
-                "static_context_used": static_context_used,
-                "mapped_key_count": len(mapped_keys),
-                "mapped_text_count": len(mapped_texts),
-                "mapped_keys": mapped_keys,
-                "mapped_section_counts": mapped_section_counts,
+                "pipeline_version": READING_PIPELINE_VERSION,
+                "retry_used": False,
+                "fallback_used": fallback_used,
                 "interpretations_loaded": bool(INTERPRETATIONS_KO),
                 "interpretations_load_error": INTERPRETATIONS_LOAD_ERROR,
                 "analysis_mode_requested": analysis_mode_norm,
                 "analysis_mode_resolved": resolved_analysis_mode,
                 "analysis_mode_fallback": analysis_fallback,
+                "llm_input_source": "report_engine.chapter_blocks",
             },
         }
+        if include_audit_debug:
+            result["audit"] = {
+                "request_id": request_id_value,
+                "chart_hash": chart_hash,
+                "chapter_blocks_hash": chapter_blocks_hash,
+                "endpoint": endpoint_name,
+            }
 
         if use_cache:
-            cache.set(cache_key, result)
+            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
 
         return result
 
     except HTTPException:
         raise
     except Exception as e:
-        reading_text = f"[AI Error: {str(e)}]"
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        final_reading = deterministic_reading
+        final_polished = None
         result = {
             "cached": False,
             "fallback": True,
@@ -1440,8 +2206,14 @@ async def get_ai_reading(
             "model": OPENAI_MODEL,
             "summary": summary,
             "structured_summary": structured_summary,
-            "reading": reading_text,
+            "reading": final_reading,
+            "polished_reading": final_polished,
+            "detail_level": detail_level_norm,
             "ai_cache_key": cache_key,
+            "request_id": request_id_value,
+            "chart_hash": chart_hash,
+            "chapter_blocks_hash": chapter_blocks_hash,
+            "chapter_blocks": chapter_blocks,
             "debug_info": {
                 "api_key_configured": bool(OPENAI_API_KEY),
                 "api_key_length": len(OPENAI_API_KEY) if OPENAI_API_KEY else 0,
@@ -1452,8 +2224,16 @@ async def get_ai_reading(
                 "analysis_mode_requested": analysis_mode_norm,
                 "analysis_mode_resolved": resolved_analysis_mode,
                 "analysis_mode_fallback": analysis_fallback,
+                "llm_input_source": "report_engine.chapter_blocks",
             },
         }
+        if include_audit_debug:
+            result["audit"] = {
+                "request_id": request_id_value,
+                "chart_hash": chart_hash,
+                "chapter_blocks_hash": chapter_blocks_hash,
+                "endpoint": endpoint_name,
+            }
         return result
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
@@ -1908,6 +2688,41 @@ def parse_markdown_to_flowables(text: str, styles):
     
     return flowables
 
+
+def _extract_chapter_blocks_from_ai_reading(ai_reading: Any) -> dict[str, Any]:
+    if not isinstance(ai_reading, dict):
+        return {}
+    blocks = ai_reading.get("chapter_blocks")
+    if isinstance(blocks, dict):
+        return blocks
+    report_payload = ai_reading.get("report_payload")
+    if isinstance(report_payload, dict):
+        chapter_blocks = report_payload.get("chapter_blocks")
+        if isinstance(chapter_blocks, dict):
+            return chapter_blocks
+    return {}
+
+
+def _resolve_pdf_narrative_content(ai_reading: Any, language: str) -> dict[str, Any]:
+    if not isinstance(ai_reading, dict):
+        return {"source": "none", "polished_text": None, "report_payload": None}
+
+    chapter_blocks = _extract_chapter_blocks_from_ai_reading(ai_reading)
+    report_payload = {"chapter_blocks": chapter_blocks} if chapter_blocks else None
+
+    chapter_blocks_hash = ai_reading.get("chapter_blocks_hash")
+    polished_text = ai_reading.get("polished_reading") if isinstance(ai_reading.get("polished_reading"), str) else None
+    if (not isinstance(polished_text, str) or not polished_text.strip()) and isinstance(chapter_blocks_hash, str) and chapter_blocks_hash.strip():
+        polished_cached = load_polished_reading_from_cache(chapter_blocks_hash=chapter_blocks_hash, language=language)
+        if isinstance(polished_cached, str) and polished_cached.strip():
+            polished_text = polished_cached
+
+    if isinstance(polished_text, str) and polished_text.strip():
+        return {"source": "polished", "polished_text": polished_text, "report_payload": report_payload}
+    if report_payload:
+        return {"source": "deterministic", "polished_text": None, "report_payload": report_payload}
+    return {"source": "none", "polished_text": None, "report_payload": None}
+
 def convert_markdown_bold(text: str) -> str:
     """Convert **bold** to <b>bold</b> safely"""
     import re
@@ -1921,6 +2736,7 @@ def convert_markdown_bold(text: str) -> str:
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 @app.get("/pdf")
 async def generate_pdf(
+    request: Request,
     year: int = Query(...),
     month: int = Query(...),
     day: int = Query(...),
@@ -1935,10 +2751,18 @@ async def generate_pdf(
     language: str = Query("ko"),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
+    analysis_mode: str = Query("standard"),
+    detail_level: str = Query("full"),
+    audit_debug: int = Query(0),
     ai_cache_key: str = Query(None),
     cache_only: int = Query(0)
 ):
     """Generate PDF report."""
+    analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
+    detail_level_norm = str(detail_level or "full").strip().lower()
+    if detail_level_norm != "full":
+        raise HTTPException(status_code=400, detail="detail_level must be 'full'")
+
     if not PDF_FEATURE_AVAILABLE:
         raise HTTPException(
             status_code=503,
@@ -1970,10 +2794,12 @@ async def generate_pdf(
     # AI ???????
     ai_reading = None
     if include_ai:
-        if cache_only and ai_cache_key and cache.get(ai_cache_key):
-            ai_reading = cache.get(ai_cache_key)
+        cached_ai_reading = cache.get(ai_cache_key) if (cache_only and ai_cache_key) else None
+        if cached_ai_reading:
+            ai_reading = cached_ai_reading
         else:
             ai_reading = await get_ai_reading(
+                request=request,
                 year=year,
                 month=month,
                 day=day,
@@ -1987,7 +2813,14 @@ async def generate_pdf(
                 language=language,
                 gender=gender,
                 use_cache=1,
+                production_mode=0,
+                events_json="[]",
                 timezone=timezone,
+                analysis_mode=analysis_mode_norm,
+                detail_level=detail_level_norm,
+                llm_max_tokens=AI_MAX_TOKENS_PDF,
+                audit_debug=audit_debug,
+                audit_endpoint="/pdf",
             )
     
     layout_config = load_pdf_layout_config()
@@ -2072,11 +2905,29 @@ async def generate_pdf(
         story.append(planet_table)
         story.append(Spacer(1, 0.5*cm))
 
-        report_payload = build_report_payload({"structural_summary": build_structural_summary(chart)})
-        deterministic_elements = render_report_payload_to_pdf(report_payload, styles, layout_config)
-        if deterministic_elements:
-            story.append(PageBreak())
-            story.extend(deterministic_elements)
+        narrative_content = _resolve_pdf_narrative_content(ai_reading, language)
+        narrative_source = str(narrative_content.get("source", "none"))
+        polished_reading_text = narrative_content.get("polished_text")
+        narrative_report_payload = narrative_content.get("report_payload")
+
+        # Fallback only when no reusable narrative payload was provided by /ai_reading.
+        if not narrative_report_payload and not polished_reading_text:
+            fallback_structural_summary = (
+                ai_reading.get("structured_summary")
+                if isinstance(ai_reading, dict) and isinstance(ai_reading.get("structured_summary"), dict)
+                else None
+            )
+            if isinstance(fallback_structural_summary, dict):
+                narrative_report_payload = build_report_payload({"structural_summary": fallback_structural_summary, "language": language})
+            else:
+                narrative_report_payload = build_report_payload({"structural_summary": build_structural_summary(chart), "language": language})
+
+        deterministic_elements: list[Any] = []
+        if narrative_source != "polished" and isinstance(narrative_report_payload, dict):
+            deterministic_elements = render_report_payload_to_pdf(narrative_report_payload, styles, layout_config)
+            if deterministic_elements:
+                story.append(PageBreak())
+                story.extend(deterministic_elements)
 
         # D9 chart (optional)
         if include_d9 and "d9" in chart:
@@ -2116,8 +2967,13 @@ async def generate_pdf(
             story.append(varga_table)
             story.append(Spacer(1, 0.5*cm))
 
-        # ???????????????AI ???????fallback
-        if (not deterministic_elements) and ai_reading and ai_reading.get("reading"):
+        # If polished reading is available for the same chapter_blocks hash/language, use it as the primary narrative section.
+        if isinstance(polished_reading_text, str) and polished_reading_text.strip():
+            story.append(PageBreak())
+            story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
+            story.append(Spacer(1, 0.3*cm))
+            story.extend(parse_markdown_to_flowables(polished_reading_text, styles))
+        elif (not deterministic_elements) and ai_reading and ai_reading.get("reading"):
             story.append(PageBreak())
             story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
             story.append(Spacer(1, 0.3*cm))
@@ -2281,31 +3137,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
         raise HTTPException(status_code=500, detail="BTR engine is not available.")
 
     validate_btr_events(request.events)
-
-    # ??????????????????????(precision_level ??
-    current_year = datetime.utcnow().year
-    for ev in request.events:
-        if ev.precision_level == "exact":
-            if ev.year is not None and ev.year > current_year:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Future events are not allowed: {ev.year}"
-                )
-        elif ev.precision_level == "range":
-            if ev.age_range is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Range events require age_range."
-                )
-            start_year, _ = convert_age_range_to_year_range(request.year, ev.age_range)
-            if start_year > current_year:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Age range results in a future event. Please adjust the range."
-                )
-        elif ev.precision_level == "unknown":
-            # unknown?? ??????????????????????????????
-            continue
+    validate_btr_event_temporal_consistency(request.events, request.year)
 
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
@@ -2354,30 +3186,7 @@ def refine_btr(request: BTRRefineRequest):
         raise HTTPException(status_code=500, detail="BTR engine is not available.")
 
     validate_btr_events(request.events)
-
-    # ??????????????????????(precision_level ??
-    current_year = datetime.utcnow().year
-    for ev in request.events:
-        if ev.precision_level == "exact":
-            if ev.year is not None and ev.year > current_year:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Future events are not allowed: {ev.year}"
-                )
-        elif ev.precision_level == "range":
-            if ev.age_range is None:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Range events require age_range."
-                )
-            start_year, _ = convert_age_range_to_year_range(request.year, ev.age_range)
-            if start_year > current_year:
-                raise HTTPException(
-                    status_code=400,
-                    detail="Age range results in a future event. Please adjust the range."
-                )
-        elif ev.precision_level == "unknown":
-            continue
+    validate_btr_event_temporal_consistency(request.events, request.year)
 
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
@@ -2468,4 +3277,6 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
 

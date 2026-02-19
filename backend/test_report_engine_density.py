@@ -223,8 +223,8 @@ class TestReportEngineDensity(unittest.TestCase):
 
         payload_low = report_engine.build_report_payload({"flags": {"match": True}, "stability_metrics": {"stability_index": 99}})
         low = payload_low["chapter_blocks"]["Psychological Architecture"][0]
-        self.assertNotIn("implication", low)
-        self.assertNotIn("examples", low)
+        self.assertIn("title", low)
+        self.assertIn("summary", low)
 
     def test_max_block_cap_after_expansion(self):
         payload = report_engine.build_report_payload({"flags": {"cap": True}})

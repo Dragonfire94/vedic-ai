@@ -138,6 +138,46 @@ class TestInteractionAmplifier(unittest.TestCase):
         self.assertEqual(out_std["engine"]["analysis_mode"], "standard")
         self.assertEqual(out_pro["engine"]["analysis_mode"], "pro")
 
+    def test_structural_summary_exposes_template_compat_aliases(self):
+        chart_data = {
+            "planets": {
+                "Sun": {"house": 1, "rasi": {"name": "Aries"}, "features": {"retrograde": False, "combust": False}},
+                "Moon": {"house": 2, "rasi": {"name": "Taurus"}, "features": {"retrograde": False, "combust": False}},
+                "Mars": {"house": 7, "rasi": {"name": "Scorpio"}, "features": {"retrograde": False, "combust": False}},
+                "Saturn": {"house": 10, "rasi": {"name": "Capricorn"}, "features": {"retrograde": False, "combust": False}},
+                "Rahu": {"house": 8, "rasi": {"name": "Gemini"}, "features": {"retrograde": True, "combust": False}},
+                "Ketu": {"house": 2, "rasi": {"name": "Sagittarius"}, "features": {"retrograde": True, "combust": False}},
+            },
+            "houses": {"ascendant": {"rasi": {"name": "Aries"}}},
+        }
+        out = build_structural_summary(chart_data, analysis_mode="pro")
+
+        self.assertIn("dominant_purushartha", out)
+        self.assertIn("grade", out["stability_metrics"])
+        self.assertIn("primary_pattern", out["karmic_pattern_profile"])
+        self.assertIn("primary_risk", out["behavioral_risk_profile"])
+        self.assertIn("impulsivity_risk", out["behavioral_risk_profile"])
+        self.assertIn("overcontrol_risk", out["behavioral_risk_profile"])
+        self.assertIn(out["behavioral_risk_profile"]["primary_risk"], {"impulsivity", "overcontrol"})
+        self.assertGreaterEqual(float(out["behavioral_risk_profile"]["impulsivity_risk"]), 0.0)
+        self.assertLessEqual(float(out["behavioral_risk_profile"]["impulsivity_risk"]), 100.0)
+        self.assertGreaterEqual(float(out["behavioral_risk_profile"]["overcontrol_risk"]), 0.0)
+        self.assertLessEqual(float(out["behavioral_risk_profile"]["overcontrol_risk"]), 100.0)
+
+    def test_stability_index_ignores_behavioral_alias_string_fields(self):
+        chart_data = {
+            "planets": {
+                "Sun": {"house": 1, "rasi": {"name": "Aries"}, "features": {}},
+                "Moon": {"house": 4, "rasi": {"name": "Cancer"}, "features": {}},
+                "Mars": {"house": 7, "rasi": {"name": "Scorpio"}, "features": {}},
+                "Saturn": {"house": 10, "rasi": {"name": "Capricorn"}, "features": {}},
+            },
+            "houses": {"ascendant": {"rasi": {"name": "Aries"}}},
+        }
+        out = build_structural_summary(chart_data, analysis_mode="standard")
+        self.assertIsInstance(out["stability_metrics"]["risk_index"], float)
+        self.assertIn("primary_risk", out["behavioral_risk_profile"])
+
 
 if __name__ == "__main__":
     unittest.main()

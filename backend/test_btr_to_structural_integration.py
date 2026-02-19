@@ -2,6 +2,7 @@ import json
 import asyncio
 import unittest
 from unittest.mock import patch
+from starlette.requests import Request
 
 from backend import main
 
@@ -84,6 +85,7 @@ class TestBTRStructuralIntegration(unittest.TestCase):
             "interaction_risks": {},
             "enhanced_behavioral_risks": {},
         }
+        request = Request({"type": "http", "headers": []})
 
         with patch("backend.main.BTR_ENGINE_AVAILABLE", True), patch(
             "backend.main.analyze_birth_time", return_value=fake_candidates
@@ -91,25 +93,45 @@ class TestBTRStructuralIntegration(unittest.TestCase):
             "backend.main.build_structural_summary", return_value=fake_structural
         ), patch("backend.main.async_client", None):
             result_1 = asyncio.run(main.get_ai_reading(
+                request=request,
                 year=1990,
                 month=1,
                 day=1,
                 hour=12.0,
                 lat=37.5,
                 lon=126.9,
+                house_system="W",
+                include_nodes=1,
+                include_d9=1,
+                include_vargas="",
+                language="ko",
+                gender="male",
                 timezone=9.0,
+                analysis_mode="standard",
+                detail_level="full",
+                audit_debug=0,
                 production_mode=1,
                 events_json=json.dumps([{"event_type": "career", "precision_level": "exact", "year": 2015}]),
                 use_cache=0,
             ))
             result_2 = asyncio.run(main.get_ai_reading(
+                request=request,
                 year=1990,
                 month=1,
                 day=1,
                 hour=12.0,
                 lat=37.5,
                 lon=126.9,
+                house_system="W",
+                include_nodes=1,
+                include_d9=1,
+                include_vargas="",
+                language="ko",
+                gender="male",
                 timezone=9.0,
+                analysis_mode="standard",
+                detail_level="full",
+                audit_debug=0,
                 production_mode=1,
                 events_json=json.dumps([{"event_type": "career", "precision_level": "exact", "year": 2015}]),
                 use_cache=0,
@@ -117,11 +139,14 @@ class TestBTRStructuralIntegration(unittest.TestCase):
 
         self.assertEqual(analyze_mock.call_count, 2)
         self.assertEqual(get_chart_mock.call_count, 2)
-        self.assertEqual(result_1, result_2)
-        self.assertEqual(
-            sorted(result_1.keys()),
-            ["chapter_count", "report_text"],
-        )
+        comparable_1 = dict(result_1)
+        comparable_2 = dict(result_2)
+        comparable_1.pop("request_id", None)
+        comparable_2.pop("request_id", None)
+        self.assertEqual(comparable_1, comparable_2)
+        self.assertEqual(result_1["chapter_count"], 15)
+        self.assertIn("report_text", result_1)
+        self.assertEqual(result_1["llm_input_source"], "report_engine.chapter_blocks")
 
 
 if __name__ == "__main__":
