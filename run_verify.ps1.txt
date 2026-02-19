@@ -1,0 +1,6 @@
+Set-Location $PSScriptRoot
+cd frontend
+
+npm run lint > ..\logs\test_result.txt
+npm run type-check >> ..\logs\test_result.txt
+npm run build >> ..\logs\test_result.txt
