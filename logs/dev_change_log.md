@@ -50,3 +50,4 @@
 - Updated report_engine atomic fallback logic to always include template blocks after fallback.
 - Extended build_llm_structural_prompt with chapter_blocks input and draft block section; updated call site.
 - Removed include_d9/include_vargas from ai_reading cache_key.
+- Restored AI_CACHE_TTL to 1800, enabled PDF cache hit logging, and replaced LLM structural prompt per new commercial guidelines.

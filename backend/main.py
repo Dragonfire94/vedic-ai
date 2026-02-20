@@ -296,7 +296,7 @@ def build_llm_structural_prompt(
     import json
 
     lang_instruction = (
-        "MUST be written in highly natural, fluent, and empathetic Korean (Hangul)."
+        "MUST be written in highly natural, empathetic, and professional Korean (Hangul)."
         if language == "ko"
         else "MUST be written in fluent English."
     )
@@ -312,38 +312,35 @@ You are a warm, highly intuitive, and world-class expert Vedic astrologer.
 Your task is to synthesize the provided structural data into a beautifully written, easy-to-understand, and deeply
 personal multidimensional narrative report.
 
-Constraints & Guidelines:
-1. TONE & LANGUAGE: {lang_instruction} Speak directly to the user (e.g., "당신은...", "당신의 차트는..."). Be
-empathetic but objective.
-2. NO TECHNICAL JARGON: Absolutely DO NOT use technical Vedic/system terms like 'varga_alignment', 'shadbala',
-'purushartha', 'lagna_lord', 'stability_index', 'score', or 'axis'. Translate these into everyday psychological
-concepts (e.g., "내면의 안정감", "사회적 성취력", "스트레스 저항력").
-3. NO RAW FORMATTING: DO NOT output JSON keys, labels like "Fragment", "Title:", "Summary:", "Analysis:", or bulleted
-lists of metrics. Write in flowing, natural paragraphs.
-4. ORGANIC SYNTHESIS (CRITICAL): Do not just list isolated facts. Weave the atomic traits (Ascendant, Sun, Moon)
-together with their specific tensions, stability metrics, and risks. Tell a cohesive story about how their core nature
- interacts with their life patterns and challenges.
-5. COMPLETE OUTPUT: Generate full-length, publication-grade detail for exactly the 15 requested chapters.
-5. EXTENSIVE DETAIL: You MUST write AT LEAST 3 full paragraphs (500+ characters) per chapter. Do not output brief
-summaries. Expand deeply on the psychological and practical implications.
-6. USE DRAFT BLOCKS: I have provided 'Draft Narrative Blocks' below. You MUST incorporate their meanings and expand
-upon them.
+CRITICAL COMMERCIAL GUIDELINES (STRICTLY ENFORCED):
+1. NO JARGON & NO RAW METRICS: Do NOT use terms like 'varga_alignment', 'shadbala', 'lagna_lord'. Do NOT output raw
+grades, letters, or scores (NEVER write "안정성 등급 D", "점수 45"). Translate into descriptive states (e.g., "내면의
+안정감이 요동칠 수 있는 시기").
+2. STRUCTURAL GROUNDING: Use framing phrases that imply a systematic foundation without jargon (e.g., "차트 구조상",
+"기본 성향을 형성하는 축에서", "사회적 성취와 연결되는 흐름상").
+3. PREDICTIVE FOCUS: Use probabilistic language ("~가능성이 높아집니다", "~기회가 열립니다", "~조심이 필요한
+구간입니다"). NEVER use deterministic doom (NEVER "번아웃 옵니다", instead "에너지 소모가 커질 수 있으니 휴식 설계가
+필요합니다").
+4. IDEAL CONTENT RATIO: 30% Core Nature, 40% Future Flow (Career/Finance/Relationship), 20% Strategy, 10% Risk
+Management.
+5. ABSOLUTELY NO CHATBOT WRAP-UPS: This is a static professional PDF report. NEVER add conversational closings like
+"필요하면 함께 세부화해 드리겠습니다", "도움이 되길 바랍니다", "질문이 있으시면". End each chapter and the report
+definitively and professionally.
+6. EXTENSIVE DETAIL: Each chapter MUST be at least 3-4 substantial paragraphs.
+
+Draft Narrative Blocks (Expand and synthesize these):
+{blocks_json}
 
 Atomic Interpretations (Core Identity Base):
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
 
-Draft Narrative Blocks (Expand and synthesize these into flowing text):
-{blocks_json}
-
-Structural Signals (Underlying Data to Synthesize):
+Structural Signals (Underlying Data):
 {json.dumps(structural_summary, indent=2, ensure_ascii=False)}
 
-Now, deeply reflect on these combined signals and generate the 15-chapter organic narrative report.
+Now generate the complete 15-chapter organic narrative report.
 """
-
-
 def _candidate_openai_models(primary_model: str) -> list[str]:
     """Return de-duplicated model fallback order for chat completions."""
     candidates = [primary_model, "gpt-4o-mini", "gpt-4o"]
@@ -726,7 +723,7 @@ if async_client is None:
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # AI ?????
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
-AI_CACHE_TTL = 1  # 30??
+AI_CACHE_TTL = 1800  # 30 minutes
 DEFAULT_CHART_MAX_CONCURRENCY = max(4, min(16, (os.cpu_count() or 4) * 2))
 CHART_MAX_CONCURRENCY = max(
     1, int(os.getenv("CHART_MAX_CONCURRENCY", str(DEFAULT_CHART_MAX_CONCURRENCY)))
@@ -2780,9 +2777,10 @@ async def generate_pdf(
     # AI ???????
     ai_reading = None
     if include_ai:
-        cached_ai_reading = cache.get(ai_cache_key) if (cache_only and ai_cache_key) else None
+        cached_ai_reading = cache.get(ai_cache_key) if ai_cache_key else None
         if cached_ai_reading:
             ai_reading = cached_ai_reading
+            logger.info(f"PDF cache hit: {ai_cache_key}")
         else:
             ai_reading = await get_ai_reading(
                 request=request,
