@@ -120,3 +120,334 @@
   - python -m py_compile backend/report_engine.py
   - python -c "from backend.main import app; print('OK')"
   - sanity prints for _planet_meaning_text / _integrate_atomic_with_signals / _high_signal_forecast_line
+- 2026-02-21: Simplified build_llm_structural_prompt() language policy in backend/llm_service.py.
+- Removed lang_instruction declaration block.
+- Replaced dynamic language requirement line with fixed Korean-only instruction:
+  "반드시 한국어(Hangul)로만 작성할 것. 영어 문장 출력 금지. (language 파라미터가 'ko'가 아닌 경우에도 현재는 한국어 전용으로 운영)"
+- Validation passed: python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"
+- 2026-02-21: Generated fresh sample AI reading/PDF and verified actual PDF text content.
+- Output files:
+  - logs/sample_ai_reading_20260221_020039.json
+  - logs/sample_report_20260221_020039.pdf
+- Runtime summary: fallback=False, model=gpt-5-mini, ai_text_len=4659, pdf_bytes=90199.
+- Extracted PDF text with pypdf (venv) from logs/sample_report_20260221_020039.pdf:
+  - pages=6, extract_len=4047
+  - contains 'AI Detailed Reading' = True
+  - contains warm style markers (e.g., '당신', '엔진은 좋은데 핸들이 없는 차') = True
+- 2026-02-21: Updated build_llm_structural_prompt() in backend/llm_service.py per length/style enhancement request.
+- Added STRUCTURE expansion constraints:
+  - minimum 3 paragraphs per chapter
+  - 4~6 sentences per paragraph
+  - total >= 4,000 Korean characters
+  - life timeline/career/love each >= 600 characters
+  - explicit no-compression rule
+- Added VOICE & TONE Vedic expression guidance with good/bad examples and reader resonance directive.
+- Confirmed lang_instruction block remains removed.
+- Validation passed: python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"
+## 2026-02-21 - llm_service 프롬프트 한글 깨짐 복구
+- 파일: backend/llm_service.py
+- 변경: build_llm_structural_prompt() 프롬프트 본문의 깨진 한글(mojibake) 문구를 정상 한국어 문구로 교체
+- 유지: 함수 시그니처/로직/변수(asc_text, sun_text, moon_text, blocks_json, structural_summary) 유지
+- 검증: python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')" 통과
+- 추가 검증: python -c "from backend.main import app; print('OK')" 통과
+## 2026-02-21 - 샘플 리포트 재생성 및 PDF 텍스트 추출 확인
+- 실행: TestClient로 /ai_reading, /pdf 호출하여 최신 샘플 재생성
+- 생성 파일:
+  - logs/sample_ai_reading_20260221_022642.json
+  - logs/sample_report_20260221_022642.pdf
+  - logs/sample_report_20260221_022642.txt
+- 확인 결과:
+  - fallback=false, model=gpt-5-mini
+  - PDF 9페이지 생성
+  - 추출 텍스트에 "AI Detailed Reading" 및 한국어 본문 정상 포함 확인
+- 참고: 콘솔(cp949) 출력 인코딩 이슈로 em dash(?) 문자를 출력 전 안전 치환하여 확인
+## 2026-02-21 - LLM 프롬프트 강화(베딕 연결/제목 임팩트/재정 독립 챕터)
+- 파일: backend/llm_service.py
+- 변경: build_llm_structural_prompt()에 아래 지시를 추가
+  - 챕터 도입부에 자연스러운 점성술 연결 문장(별자리/행성 기질) 다수 반영
+  - 제목은 설명조보다 임팩트 있는 비유형 표현 우선
+  - 재정/돈 전용 챕터를 커리어와 분리해 독립 챕터로 작성
+- 검증: python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')" 통과
+- 검증: python -c "from backend.main import app; print('OK')" 통과
+
+## 2026-02-21 - 피드백 반영 샘플 재생성
+- 생성 파일:
+  - logs/sample_ai_reading_20260221_023644.json
+  - logs/sample_report_20260221_023644.pdf
+  - logs/sample_report_20260221_023644.txt
+- 결과 요약:
+  - fallback=false, model=gpt-5-mini
+  - 헤딩 15개 확인
+  - 별자리/행성 기질 자연어 연결 문구 반영 확인(예: 물병자리/처녀자리/수성 기질)
+  - 재정 독립 챕터 확인(예: "돈과 지갑: 흘러나가는 구멍과 막는 법")
+## 2026-02-21 - 프롬프트 레벨 추가 개선(구조 언어/주기 전환/단호 경고/성장 비전)
+- 파일: backend/llm_service.py
+- 변경:
+  - 별자리 직언 남용 억제, 구조 중심 표현 우선 지시 추가
+  - 타임라인을 최근->현재->다음 주기 전환 논리로 설명하도록 지시 추가
+  - 단호한 경고 문장 1~2개 필수 지시 추가
+  - 성장 비전 전용 섹션(3년 후 확장/장기 브랜딩/최상위 버전) 필수 지시 추가
+- 검증: python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')" 통과
+- 검증: python -c "from backend.main import app; print('OK')" 통과
+
+## 2026-02-21 - 개선 반영 샘플 재생성
+- 생성 파일:
+  - logs/sample_ai_reading_20260221_024416.json
+  - logs/sample_report_20260221_024416.pdf
+  - logs/sample_report_20260221_024416.txt
+- 확인 포인트:
+  - 15개 챕터 유지
+  - 재정 독립 챕터 유지(지갑/돈 전용)
+  - 주기 전환형 서술(최근-현재-다음) 반영
+  - 단호 경고 섹션(솔직한 경고 두 줄) 반영
+  - 성장 비전 섹션(3년 후 확장 포인트/장기 브랜딩/최상위 버전) 반영
+## 2026-02-21 - Stage 1 영향기반 Drik 2-pass 통합
+- 파일: backend/astro_engine.py
+- 반영 내용:
+  - _aggregate_influence_by_target() 추가: build_influence_matrix()의 {(source,target): weight}를 drik용 {target:{source:weight}}로 변환
+  - calculate_planet_strength()를 2-pass 모델로 확장
+    1) 기존 방식으로 base strength/shadbala 계산 유지
+    2) detect_yogas + build_influence_matrix 결과를 이용해 drik만 재계산 후 shadbala total/band 갱신
+  - drik 하이브리드 모델 적용:
+    - base 0.5 + clamp(aspect_score,-1,1)*0.4
+    - combust -0.2, dusthana -0.1, strong +0.05 / weak -0.05
+    - final clamp 0..1
+  - 기존 스키마 유지(반환 구조 변경 없음)
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - 샘플 planet 데이터로 calculate_planet_strength() 실행
+    - drik 값 모두 float 및 0.0~1.0 범위 확인
+    - NaN/예외 없음
+## 2026-02-21 - Stage 2 하우스 로드 구조 파워 통합
+- 파일: backend/astro_engine.py
+- 변경 내용:
+  - _get_house_lords(houses) 헬퍼 추가 (ascendant 기반 1~12하우스 주인 행성 매핑)
+  - calculate_planet_strength() PASS 3 추가:
+    - house_lords 계산
+    - compute_house_clusters(planets, houses, result, yogas) 재사용
+    - ruled_houses별 structural_power 누적 (cluster_scores/10 * HOUSE_RELEVANCE_WEIGHTS)
+    - structural_power clamp(0.0, 1.5)
+    - shadbala.total 보정: base_total * (1 + structural_power*0.15)
+    - total clamp(0.0, 1.0), band 재계산
+  - score(0..10) 및 반환 스키마는 변경 없음
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - 샘플 데이터로 calculate_planet_strength() 실행
+    - shadbala 키(total/band/components/evidence_tags) 유지 확인
+    - total/drik 값 모두 0.0~1.0 범위 확인
+    - NaN/예외 없음
+## 2026-02-21 - Stage 2 Refinement (Classical Structural Corrections)
+- 파일: backend/astro_engine.py
+- 변경 내용 (PASS 3 내부만 수정):
+  - Dusthana lord moderation 추가
+    - ruled_houses에 6/8/12 포함 시 dusthana_load 기반으로 structural_power 감산
+    - 감산식: structural_power -= dusthana_load * 0.05
+    - 감산 후 clamp(0.0, 1.5)
+  - Lagna lord amplification 추가
+    - lagna_lord = house_lords.get(1)을 루프 밖에서 1회 계산
+    - planet_name == lagna_lord일 때 structural_power *= 1.15
+    - 증폭 후 clamp(0.0, 1.5)
+  - 기존 total 보정식/스키마/score(0..10)/밴드 로직 유지
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - 샘플 데이터 calculate_planet_strength() 실행
+    - shadbala.total/drik 모두 0.0~1.0 범위 확인
+    - NaN/예외 없음
+## 2026-02-21 - Stage 3 Dasha Structural Reweighting 반영
+- 파일: backend/astro_engine.py
+- 변경 내용:
+  - summarize_dasha_timeline() 시그니처 확장
+    - 신규 인자: influence_matrix, house_clusters, houses
+  - 함수 내부 구조 리웨이트 추가:
+    - influence dominance: _influence_derived_metrics(influence_matrix) 기반 dominant_score
+    - house pressure: house_clusters.cluster_scores[house] / 10.0 (안정성 clamp 적용)
+    - lagna coherence: _get_house_lords(houses) 기반 lagna_lord dasha 부스트(1.12)
+    - house pressure modifier (dusthana/비-dusthana 분기 + clamp 0.75~1.25)
+    - influence_score = base_score * dominance_multiplier * lagna_boost * house_pressure_modifier
+    - influence_score clamp 0.0~2.0
+  - risk_factor/opportunity_factor/dominant_axis/theme/return key 구조 유지
+  - 호출부 1곳(build_structural_summary) 시그니처 맞춰 업데이트
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - build_structural_summary(sample) 실행
+    - current_dasha_vector 키(current_theme, dominant_axis, risk_factor, opportunity_factor) 유지 확인
+    - 예외/NaN 없음
+## 2026-02-21 - Stage 3 Stabilization (Statistical Instrumentation Layer)
+- 파일: backend/astro_engine.py
+- 변경 내용:
+  - _init_debug_metrics() 추가
+    - dominant_score, dominance_multiplier, house_pressure, house_pressure_modifier,
+      lagna_boost, influence_score, risk_factor, opportunity_factor 수집용 컨테이너
+  - summarize_debug_metrics(metrics) 추가
+    - 각 메트릭 min/max/mean 집계 유틸
+  - summarize_dasha_timeline()에 optional debug hook 추가
+    - 시그니처: debug_metrics: dict | None = None
+    - 기존 반환 스키마/비즈니스 로직 변경 없이 계산 후 메트릭 append만 수행
+
+- 안정성:
+  - default(None) 기준 기존 동작 불변
+  - return schema 변경 없음
+  - 영향엔진/리스크 공식/샤드발라 로직 변경 없음
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - build_structural_summary(sample)로 current_dasha_vector 스키마 유지 확인
+  - _init_debug_metrics + summarize_dasha_timeline(debug_metrics=...) + summarize_debug_metrics() 스모크 테스트 통과
+## 2026-02-21 - Dasha 분포 측정 진단 스크립트 추가
+- 파일: backend/debug_dasha_distribution.py
+- 목적: Stage 3 계측값 분포(지배도/압력/리스크/기회) 통계 확인용 임시 진단 스크립트
+- 구현 포인트:
+  - astro_engine 로직/엔드포인트 미수정
+  - sample_data 모듈 미존재 대비 deterministic fake chart 생성 fallback 포함
+  - summarize_dasha_timeline 호출 시 influence_data 전체 전달(내부 _influence_derived_metrics 기대 구조 충족)
+  - 직접 실행 경로 지원을 위해 PROJECT_ROOT를 sys.path에 주입
+- 실행: python backend/debug_dasha_distribution.py
+- 출력 예시(실행 결과):
+  - dominance_multiplier min=1.0 max=1.125 mean=1.0329
+  - dominant_score min=0.0 max=2.5 mean=0.6575
+  - house_pressure min=0.0 max=2.3 mean=0.7696
+  - house_pressure_modifier min=0.7582 max=1.184 mean=1.023
+  - influence_score min=0.0 max=1.0354 mean=0.3908
+  - lagna_boost min=1.0 max=1.12 mean=1.0133
+  - opportunity_factor min=0.0 max=1.0 mean=0.3901
+  - risk_factor min=0.0 max=0.95 mean=0.4215
+## 2026-02-21 - Stage 3.1 Risk Baseline Micro Adjustment
+- 파일: backend/astro_engine.py
+- 변경: summarize_dasha_timeline() risk_factor baseline 상수 0.75 -> 0.70
+- 비변경: influence_score/dominance/house_pressure/lagna_boost/opportunity_factor/return schema/debug 계측
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - python backend/debug_dasha_distribution.py 재실행
+
+- 재측정 분포:
+  - dominance_multiplier: min=1.0  max=1.125  mean=1.0329
+  - dominant_score: min=0.0  max=2.5  mean=0.6575
+  - house_pressure: min=0.0  max=2.2  mean=0.7674
+  - house_pressure_modifier: min=0.7582  max=1.176  mean=1.0228
+  - influence_score: min=0.0  max=1.0152  mean=0.3906
+  - lagna_boost: min=1.0  max=1.12  mean=1.0133
+  - opportunity_factor: min=0.0  max=1.0  mean=0.3901
+  - risk_factor: min=0.0  max=0.9  mean=0.3769
+## 2026-02-21 - Stage 4 Global Stability Governor 반영
+- 파일: backend/astro_engine.py
+- 변경 내용:
+  - summarize_dasha_timeline() 시그니처 확장
+    - 신규 optional 인자: stability_index: float | None = None
+    - 위치: current_dasha 뒤, debug_metrics 앞
+  - influence_score clamp(0..2) 직후 안정성 보정 추가
+    - stability_adjustment = ((stability_index - 50) / 50) * 0.05
+    - influence_score *= (1 + stability_adjustment)
+    - 재-clamp(0..2)
+  - build_structural_summary() 호출부 업데이트
+    - stability_index=stability_metrics.get("stability_index", 50) 전달
+    - stability 재계산 없이 기존 stability_metrics 재사용
+
+- 비변경:
+  - risk_factor/opportunity_factor 공식 구조
+  - dominance/house_pressure/lagna_boost 핵심 로직
+  - return schema/debug metrics 구조
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - build_structural_summary(sample) current_dasha_vector 스키마 유지 확인
+  - python backend/debug_dasha_distribution.py 실행 통과 (NaN/스파이크 없음)
+## 2026-02-21 - Stage 4 Stability Governor 적용
+- 파일: backend/astro_engine.py
+- 변경:
+  - summarize_dasha_timeline() 시그니처에 stability_index optional 추가
+  - influence_score 1차 clamp 후 안정성 보정(±5%) 적용 및 재-clamp
+  - build_structural_summary() 호출부에서 stability_index=stability_metrics.get("stability_index", 50) 전달
+- 유지:
+  - return schema 불변
+  - risk/opportunity 공식 구조 불변
+  - debug instrumentation 구조 불변
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - python backend/debug_dasha_distribution.py 통과
+## 2026-02-21 - Stage 5 Functional Benefic/Malefic Layer 반영
+- 파일: backend/astro_engine.py
+- 변경 내용:
+  - _get_house_lords() 아래 compute_functional_nature(houses) 추가
+    - 행성별 nature(benefic/malefic/neutral), yogakaraka(bool) 산출
+  - summarize_dasha_timeline() 통합
+    - strength 계산 직후 functional_map 조회
+    - influence_score 1차 clamp 이후, stability governor 이전에 functional multiplier 적용
+      - yogakaraka +0.08
+      - benefic +0.04
+      - malefic -0.05
+      - 재-clamp(0..2)
+- 비변경:
+  - calculate_planet_strength/shadbala/risk baseline/governor/debug schema/return schema
+
+- 검증:
+  - python -c "from backend.main import app; print('OK')" 통과
+  - python backend/debug_dasha_distribution.py 재실행
+
+- 분포 변화 (Stage 4 대비):
+  - influence_score mean: 0.3906 -> 0.3936 (+0.0030, +0.77%)
+  - risk_factor mean: 0.3769 -> 0.3754 (-0.0015)
+  - dominant_score mean: 0.6575 (변화 없음)
+  - dominance_multiplier mean: 1.0329 (변화 없음)
+## 2026-02-21 - Stress Test v2 하드 검증 게이트 추가
+- 파일: backend/stress_test_engine.py (신규)
+- 목적: v1.0 freeze 전 구조 안정성 하드 게이트
+- 구현:
+  - 100개 deterministic random chart 생성(seed 0~99)
+  - 풀 파이프라인 실행(calculate_planet_strength, detect_yogas, build_influence_matrix, compute_house_clusters, summarize_dasha_timeline)
+  - debug metric 집계 및 요약 출력
+  - validate_distribution()로 임계치 위반 시 SystemExit(1)
+  - 모듈 실행 방식: python -m backend.stress_test_engine
+  - 미세 조정 반영: opportunity_factor 상한 검증 1.0
+
+- 실행 결과:
+  - python -m backend.stress_test_engine => PASS STRESS TEST (exit code 0)
+  - influence_score mean=0.3573 (0.30~0.60 범위 내)
+  - risk_factor mean=0.4046 (0.30~0.60 범위 내)
+  - NaN/예외/구조 누락 없음
+## Engine Freeze v1.0.0
+
+- Deterministic structural engine stabilized
+- Aspect-integrated Drik Bala (Stage 1)
+- Structural House Power (Stage 2)
+- Dasha Structural Reweighting (Stage 3)
+- Stability Governor ±5% bounded correction
+- Functional Benefic/Malefic layer (Stage 4)
+- Stress test validation gate (100 deterministic charts)
+- Distribution validated (bounded, no runaway behavior)
+- PASS STRESS TEST
+
+Engine marked production-safe.
+## v1.0.1-pre - Structural Dampening Layer
+
+- Introduced progressive compression above `influence_score > 1.1`
+- Intentional logic refinement post v1.0.0 freeze
+- Upper-tail stabilization only
+- Stress test PASS required
+- Verified: `python -m backend.stress_test_engine` PASS
+## Engine Promotion v1.0.1
+
+- Structural Dampening Layer finalized
+- Tail runaway compression stabilized
+- Stress test passed
+- Engine re-frozen
+## Freeze Policy (v1.0.1)
+
+- summarize_dasha_timeline 공식 변경 금지
+- risk baseline 변경 금지
+- governor 변경 금지
+- dampening 계수 변경 금지
+- shadbala 구조 변경 금지
+- 신규 기능은 v1.1.0 브랜치에서만 진행
+## Engine Integrity Lock (v1.0.1)
+
+- Added `ENGINE_SIGNATURE = "STRUCTURAL_CORE_V1"` to `backend/astro_engine.py`
+- Added `backend/engine_integrity.py` with hard-locked EXPECTED version/signature
+- Enforced integrity check at start of `run_stress_test()` in `backend/stress_test_engine.py`
+- Validation A: `python -m backend.stress_test_engine` PASS
+- Validation B (forced): temporary `ENGINE_VERSION = "9.9.9"` produced `ENGINE INTEGRITY FAILURE` as expected
+- Validation C (rollback): restored `ENGINE_VERSION = "1.0.1"`, stress test PASS

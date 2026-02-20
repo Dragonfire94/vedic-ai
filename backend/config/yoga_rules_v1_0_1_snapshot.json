@@ -1,0 +1,92 @@
+{
+  "raja_yoga": {
+    "enabled": true,
+    "strength": 0.75,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": [
+      {
+        "field": "hit_count",
+        "operator": "<",
+        "value": 2,
+        "reason_tag": "insufficient_lord_alignment"
+      }
+    ]
+  },
+  "dhana_yoga": {
+    "enabled": true,
+    "strength": 0.72,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": []
+  },
+  "parivartana_yoga": {
+    "enabled": true,
+    "strength": 0.7,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": []
+  },
+  "vipareeta_raja_yoga": {
+    "enabled": true,
+    "min_hits": 2,
+    "base_strength": 0.68,
+    "extra_per_hit": 0.08,
+    "max_extra": 0.2,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": [
+      {
+        "field": "hits_count",
+        "operator": "<",
+        "value": 2,
+        "reason_tag": "insufficient_dusthana_hits"
+      }
+    ]
+  },
+  "gaja_kesari_yoga": {
+    "enabled": true,
+    "strength": 0.8,
+    "allowed_relative_houses": [1, 4, 7, 10],
+    "apply_if": [],
+    "weaken_if": [
+      {
+        "field": "moon_combust",
+        "operator": "==",
+        "value": true,
+        "strength_multiplier": 0.6,
+        "reason_tag": "moon_combust"
+      }
+    ],
+    "cancel_if": [
+      {
+        "field": "jupiter_combust",
+        "operator": "==",
+        "value": true,
+        "reason_tag": "jupiter_combust"
+      }
+    ]
+  },
+  "neecha_bhanga": {
+    "enabled": true,
+    "strength": 0.65,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": []
+  },
+  "kemadruma": {
+    "enabled": true,
+    "strength": 0.85,
+    "flank_planets": ["Sun", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"],
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": []
+  },
+  "daridra_yoga": {
+    "enabled": true,
+    "strength": 0.7,
+    "apply_if": [],
+    "weaken_if": [],
+    "cancel_if": []
+  }
+}

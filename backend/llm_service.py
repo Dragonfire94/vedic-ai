@@ -1,4 +1,4 @@
-import os
+﻿import os
 import logging
 from typing import Any, Optional
 
@@ -123,12 +123,6 @@ def build_llm_structural_prompt(
 ) -> str:
     import json
 
-    lang_instruction = (
-        "MUST be written in highly natural, professional, and empathetic Korean (Hangul)."
-        if language == "ko"
-        else "MUST be written in fluent English."
-    )
-
     atomic = atomic_interpretations if isinstance(atomic_interpretations, dict) else {}
     asc_text = str(atomic.get("asc", "")).strip()
     sun_text = str(atomic.get("sun", "")).strip()
@@ -149,15 +143,49 @@ VOICE & TONE (CRITICAL):
 - Be honest about weaknesses, but always with warmth and a realistic path forward.
 - Predictions must be strong and specific: include timeframes (e.g., "앞으로 1~2년"), concrete patterns, and what to watch.
 - Never use empty lines like "기회와 위험이 공존합니다".
+- In chapter openings, naturally weave astrology-linked identity cues in plain Korean.
+  Example style: "전갈자리 기질이 강한 당신은...", "달의 결이 예민한 당신은..."
+  Do this naturally in multiple chapters so the text clearly feels like an astrology report.
+- Prefer structure-first language over direct zodiac marketing tone.
+  Use direct zodiac labels sparingly, and only when they clearly match the chart logic.
+  Better style: "전통에 반응하는 사고 구조", "기존 질서에 질문을 던지는 경향".
+- You MAY reference chart placements, but ONLY as everyday
+  language - never as jargon.
+  Good: "전갈자리 기질이 강한 당신은 본능적으로 상대의 숨겨진 면을 감지한다"
+  Good: "태양이 감수성 강한 자리에 있어서, 당신은 칭찬보다 인정에 더 목말라 있다"
+  Good: "달의 위치가 말과 정보 쪽이라 감정을 글이나 대화로 풀어야 편안해진다"
+  Bad:  "태양이 게자리 9하우스에 위치하여 종교적 성향이 강합니다" (jargon)
+  Bad:  "라후가 전갈자리 1하우스에 있어 정체성 혼란이 있습니다" (jargon)
+- Use chart signals to make the reader feel "이게 나 얘기잖아"
+  - not to educate them about astrology.
 
 STRUCTURE:
 - Write exactly 15 chapters.
+- Each chapter must be substantial: minimum 3 paragraphs,
+  each paragraph minimum 4~6 sentences.
+- Total report length must be at least 4,000 Korean characters.
+  The life timeline, career, and love chapters must each be
+  at least 600 characters on their own.
+- Do NOT compress or summarize. Expand every point fully.
 - Each chapter must start with a creative Korean markdown heading using `##`.
+- Chapter titles must feel bold and memorable, not plain explanatory labels.
+  Prefer evocative title styles like "겉은 말랑, 속은 강철" over textbook-style headings.
 - Do NOT use English chapter titles.
 - Do NOT use [KEY], [WARNING], [STRATEGY] tags; weave emphasis naturally into narrative flow.
 - Paragraph length should feel natural, not mechanical.
 - End chapters naturally; avoid formulaic closings.
-- Output language requirement: {lang_instruction}
+- Include one dedicated money/finance chapter as its own chapter
+  (do not absorb it into career). Focus on earning/spending/leakage/risk habits and practical controls.
+- In timeline chapters, explain cycle transitions clearly:
+  recent phase -> current phase -> next phase.
+  Do not only list years; explain why the phase is shifting in structural terms.
+- Include 1-2 firm, non-vague warning lines where needed.
+  Example style: "이 패턴을 고치지 않으면 3년 내 현실 비용을 치를 가능성이 높다."
+  Keep it honest, specific, and still constructive.
+- Include one explicit growth-vision section that balances risk management:
+  "3년 후 확장 포인트", "장기 브랜딩 방향", "최상위 버전의 당신" 같은 미래 확장 청사진을 제시할 것.
+- 반드시 한글(Hangul)로만 작성할 것. 영어 문장 출력 금지.
+  (language 파라미터가 'ko'가 아닌 경우에도 현재는 한국어 전용으로 운영)
 
 CONTENT PRIORITIES:
 - 심리와 성격 (30%): 핵심 본성, 내면 갈등, 행동 패턴
@@ -192,3 +220,4 @@ Structural signals:
 
 Now write the complete 15-chapter report. Make it feel like it was written just for this person.
 """
+

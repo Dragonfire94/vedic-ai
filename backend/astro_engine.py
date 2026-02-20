@@ -11,6 +11,9 @@ from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any
 
+ENGINE_VERSION = "1.0.1"
+ENGINE_SIGNATURE = "STRUCTURAL_CORE_V1"
+
 PLANET_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
 
 SIGN_NAMES = [
@@ -163,6 +166,33 @@ def _safe_int(value: Any, default: int) -> int:
         return int(value)
     except (TypeError, ValueError):
         return default
+
+
+def _init_debug_metrics() -> dict[str, list[float]]:
+    return {
+        "dominant_score": [],
+        "dominance_multiplier": [],
+        "house_pressure": [],
+        "house_pressure_modifier": [],
+        "lagna_boost": [],
+        "influence_score": [],
+        "risk_factor": [],
+        "opportunity_factor": [],
+    }
+
+
+def summarize_debug_metrics(metrics: dict[str, list[float]]) -> dict[str, dict[str, float]]:
+    summary: dict[str, dict[str, float]] = {}
+    for key, values in metrics.items():
+        if not values:
+            continue
+        vals = [float(v) for v in values]
+        summary[key] = {
+            "min": round(min(vals), 4),
+            "max": round(max(vals), 4),
+            "mean": round(sum(vals) / len(vals), 4),
+        }
+    return summary
 
 
 def _normalize_yoga_rules(raw: dict[str, Any]) -> dict[str, dict[str, Any]]:
@@ -357,6 +387,65 @@ def _estimate_sun_chart_phase(planets: dict[str, Any]) -> str:
     return "unknown"
 
 
+def _get_house_lords(houses: dict[str, Any]) -> dict[int, str]:
+    """Return {house_number: lord_planet} based on ascendant sign."""
+    asc_sign = ((houses.get("ascendant") or {}).get("rasi") or {}).get("name")
+    if asc_sign not in SIGN_NAMES:
+        return {}
+
+    asc_index = SIGN_NAMES.index(asc_sign)
+    house_lords: dict[int, str] = {}
+    for h in range(1, 13):
+        sign = SIGN_NAMES[(asc_index + h - 1) % 12]
+        lord = SIGN_LORDS.get(sign)
+        if isinstance(lord, str):
+            house_lords[h] = lord
+    return house_lords
+
+
+def compute_functional_nature(houses: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """
+    Determine functional benefic/malefic status based on ascendant.
+
+    Returns:
+        {
+            planet: {
+                "nature": "benefic" | "malefic" | "neutral",
+                "yogakaraka": bool
+            }
+        }
+    """
+    house_lords = _get_house_lords(houses)
+    if not house_lords:
+        return {}
+
+    asc_lord = house_lords.get(1)
+    result: dict[str, dict[str, Any]] = {}
+
+    for planet in PLANET_ORDER:
+        ruled = [h for h, lord in house_lords.items() if lord == planet]
+        is_trine = any(h in TRINE_HOUSES for h in ruled)
+        is_kendra = any(h in KENDRA_HOUSES for h in ruled)
+        is_dusthana = any(h in DUSTHANA_HOUSES for h in ruled)
+
+        yogakaraka = is_trine and is_kendra and planet != asc_lord
+        if yogakaraka:
+            nature = "benefic"
+        elif is_dusthana and not is_trine:
+            nature = "malefic"
+        elif is_trine:
+            nature = "benefic"
+        else:
+            nature = "neutral"
+
+        result[planet] = {
+            "nature": nature,
+            "yogakaraka": yogakaraka,
+        }
+
+    return result
+
+
 def _compute_shadbala_components(
     *,
     planet: str,
@@ -429,6 +518,20 @@ def _compute_shadbala_components(
         "naisargika": round(_clamp(naisargika, 0.0, 1.0), 4),
         "drik": round(_clamp(drik, 0.0, 1.0), 4),
     }
+
+
+def _aggregate_influence_by_target(influence_matrix: dict[tuple[str, str], float]) -> dict[str, dict[str, float]]:
+    """Convert {(source, target): weight} into {target: {source: weight}}."""
+    result: defaultdict[str, dict[str, float]] = defaultdict(dict)
+
+    for (source, target), weight in influence_matrix.items():
+        if not isinstance(source, str) or not isinstance(target, str):
+            continue
+        if not isinstance(weight, (int, float)):
+            continue
+        result[target][source] = float(weight)
+
+    return dict(result)
 
 
 def _classify_avastha(planet: str, sign: str | None, feats: dict[str, Any], score: float) -> tuple[str, list[str]]:
@@ -532,6 +635,112 @@ def calculate_planet_strength(planets: dict[str, Any], houses: dict[str, Any]) -
                 "evidence_tags": avastha_tags,
             },
         }
+
+    # PASS 2: integrate influence-aware drik after base strengths are complete.
+    yogas = detect_yogas(planets, houses, include_cancelled=False)
+    influence_data = build_influence_matrix(planets, result, yogas)
+    raw_matrix = influence_data.get("matrix", {})
+    if isinstance(raw_matrix, dict):
+        aspect_matrix = _aggregate_influence_by_target(raw_matrix)
+    else:
+        aspect_matrix = {}
+
+    for name in list(result.keys()):
+        row = result.get(name, {})
+        if not isinstance(row, dict):
+            continue
+        shadbala = row.get("shadbala")
+        if not isinstance(shadbala, dict):
+            continue
+        components = shadbala.get("components")
+        if not isinstance(components, dict):
+            continue
+
+        score_val = row.get("score", 5.0)
+        try:
+            score_num = float(score_val)
+        except (TypeError, ValueError):
+            score_num = 5.0
+
+        house = _planet_house(planets, name)
+        feats = _planet_features(planets, name)
+        combust = bool(feats.get("combust", False))
+
+        aspect_score = 0.0
+        if isinstance(aspect_matrix, dict) and name in aspect_matrix:
+            incoming = aspect_matrix.get(name, {})
+            if isinstance(incoming, dict):
+                aspect_score = sum(float(v) for v in incoming.values() if isinstance(v, (int, float)))
+        aspect_score = _clamp(aspect_score, -1.0, 1.0)
+
+        drik = 0.5 + (aspect_score * 0.4)
+        if combust:
+            drik -= 0.2
+        if house in DUSTHANA_HOUSES:
+            drik -= 0.1
+        if score_num >= 7.5:
+            drik += 0.05
+        elif score_num <= 3.0:
+            drik -= 0.05
+        drik = _clamp(drik, 0.0, 1.0)
+
+        components["drik"] = round(drik, 4)
+        total = sum(float(v) for v in components.values() if isinstance(v, (int, float))) / 6.0
+        shadbala["total"] = round(total, 4)
+        shadbala["band"] = _strength_band(total)
+
+        evidence_tags = shadbala.get("evidence_tags")
+        if isinstance(evidence_tags, list):
+            filtered = [tag for tag in evidence_tags if tag != "Aspect Support"]
+            if components["drik"] >= 0.70:
+                filtered.append("Aspect Support")
+            shadbala["evidence_tags"] = filtered
+
+    # PASS 3: house-lord structural power integration.
+    house_lords = _get_house_lords(houses)
+    house_clusters = compute_house_clusters(planets, houses, result, yogas)
+    cluster_scores = house_clusters.get("cluster_scores", {}) if isinstance(house_clusters, dict) else {}
+    lagna_lord = house_lords.get(1) if isinstance(house_lords, dict) else None
+
+    if isinstance(cluster_scores, dict) and isinstance(house_lords, dict):
+        for planet_name, row in result.items():
+            if not isinstance(row, dict):
+                continue
+            shadbala = row.get("shadbala")
+            if not isinstance(shadbala, dict):
+                continue
+            base_total_val = shadbala.get("total", 0.0)
+            try:
+                base_total = float(base_total_val)
+            except (TypeError, ValueError):
+                base_total = 0.0
+
+            ruled_houses = [h for h, lord in house_lords.items() if lord == planet_name]
+            structural_power = 0.0
+            for h in ruled_houses:
+                raw_cluster = cluster_scores.get(h, 0.0)
+                try:
+                    cluster_weight = float(raw_cluster) / 10.0
+                except (TypeError, ValueError):
+                    cluster_weight = 0.0
+                house_importance = float(HOUSE_RELEVANCE_WEIGHTS.get(h, 1.0))
+                structural_power += cluster_weight * house_importance
+
+            if any(h in DUSTHANA_HOUSES for h in ruled_houses):
+                dusthana_load = sum(
+                    (float(cluster_scores.get(h, 0.0)) / 10.0)
+                    for h in ruled_houses
+                    if h in DUSTHANA_HOUSES
+                )
+                structural_power -= dusthana_load * 0.05
+            structural_power = _clamp(structural_power, 0.0, 1.5)
+            if isinstance(lagna_lord, str) and planet_name == lagna_lord:
+                structural_power *= 1.15
+            structural_power = _clamp(structural_power, 0.0, 1.5)
+            adjusted_total = base_total * (1.0 + structural_power * 0.15)
+            adjusted_total = _clamp(adjusted_total, 0.0, 1.0)
+            shadbala["total"] = round(adjusted_total, 4)
+            shadbala["band"] = _strength_band(adjusted_total)
 
     return result
 
@@ -836,15 +1045,82 @@ def summarize_dasha_timeline(
     planets: dict[str, Any],
     strength_data: dict[str, dict[str, Any]],
     yogas: list[dict[str, Any]],
+    influence_matrix: dict[str, Any],
+    house_clusters: dict[str, Any],
+    houses: dict[str, Any],
     current_dasha: str,
+    stability_index: float | None = None,
+    debug_metrics: dict | None = None,
 ) -> dict[str, Any]:
     """Summarize dasha period impact from structural factors."""
     house_weights = {1: 1.0, 2: 0.95, 3: 0.8, 4: 0.9, 5: 1.05, 6: 0.7, 7: 1.0, 8: 0.6, 9: 1.1, 10: 1.15, 11: 1.0, 12: 0.65}
     yoga_weight = 1.0 + sum(y["strength"] * 0.08 for y in yogas if current_dasha in y.get("planets_involved", []))
 
     strength = (strength_data.get(current_dasha, {}) or {}).get("score", 5.0) / 10.0
+    functional_map = compute_functional_nature(houses)
+    functional_data = functional_map.get(current_dasha, {})
+    nature = functional_data.get("nature")
+    is_yogakaraka = bool(functional_data.get("yogakaraka", False))
     house = _planet_house(planets, current_dasha) or 1
-    influence_score = strength * yoga_weight * house_weights.get(house, 1.0)
+
+    # --- Structural Metrics ---
+    influence_metrics = _influence_derived_metrics(influence_matrix)
+    dominant_score = float(influence_metrics.get("dominant_planet_score", 0.0))
+
+    cluster_scores = house_clusters.get("cluster_scores", {}) if isinstance(house_clusters, dict) else {}
+    house_pressure = float(cluster_scores.get(house, 0.0)) / 10.0
+    house_pressure = _clamp(house_pressure, 0.0, 3.0)
+
+    house_lords = _get_house_lords(houses)
+    lagna_lord = house_lords.get(1) if isinstance(house_lords, dict) else None
+
+    lagna_boost = 1.0
+    if isinstance(lagna_lord, str) and current_dasha == lagna_lord:
+        lagna_boost = 1.12
+
+    dominance_multiplier = 1.0 + (dominant_score * 0.05)
+
+    if house in DUSTHANA_HOUSES:
+        house_pressure_modifier = 1.0 - (house_pressure * 0.12)
+    else:
+        house_pressure_modifier = 1.0 + (house_pressure * 0.08)
+    house_pressure_modifier = _clamp(house_pressure_modifier, 0.75, 1.25)
+
+    base_score = strength * yoga_weight * house_weights.get(house, 1.0)
+    influence_score = (
+        base_score
+        * dominance_multiplier
+        * lagna_boost
+        * house_pressure_modifier
+    )
+    influence_score = _clamp(influence_score, 0.0, 2.0)
+
+    # --- Functional Nature Modifier (bounded, structural-safe) ---
+    functional_multiplier = 1.0
+    if is_yogakaraka:
+        functional_multiplier += 0.08
+    elif nature == "benefic":
+        functional_multiplier += 0.04
+    elif nature == "malefic":
+        functional_multiplier -= 0.05
+    influence_score *= functional_multiplier
+    influence_score = _clamp(influence_score, 0.0, 2.0)
+
+    # --- Global Stability Governor (±5% bounded correction) ---
+    if isinstance(stability_index, (int, float)):
+        stability_adjustment = ((float(stability_index) - 50.0) / 50.0) * 0.05
+        influence_score *= (1.0 + stability_adjustment)
+        influence_score = _clamp(influence_score, 0.0, 2.0)
+
+    # Structural Dampening Layer introduced in v1.0.1-pre
+    # --- Structural Dampening Layer (v1.0.1-pre) ---
+    # Soft progressive compression for extreme stacking only
+    if influence_score > 1.1:
+        excess = influence_score - 1.1
+        compression = 1.0 - (excess * 0.35)
+        compression = _clamp(compression, 0.80, 1.0)
+        influence_score *= compression
+        influence_score = _clamp(influence_score, 0.0, 2.0)
 
     axis_map = {
         1: "self_identity_axis",
@@ -857,8 +1133,18 @@ def summarize_dasha_timeline(
     }
     dominant_axis = axis_map.get(house, "growth_execution_axis")
 
-    risk_factor = round(max(0.0, min(1.0, 0.75 - influence_score + (0.2 if house in DUSTHANA_HOUSES else 0.0))), 2)
+    risk_factor = round(max(0.0, min(1.0, 0.70 - influence_score + (0.2 if house in DUSTHANA_HOUSES else 0.0))), 2)
     opportunity_factor = round(max(0.0, min(1.0, influence_score)), 2)
+
+    if isinstance(debug_metrics, dict):
+        debug_metrics.setdefault("dominant_score", []).append(dominant_score)
+        debug_metrics.setdefault("dominance_multiplier", []).append(dominance_multiplier)
+        debug_metrics.setdefault("house_pressure", []).append(house_pressure)
+        debug_metrics.setdefault("house_pressure_modifier", []).append(house_pressure_modifier)
+        debug_metrics.setdefault("lagna_boost", []).append(lagna_boost)
+        debug_metrics.setdefault("influence_score", []).append(influence_score)
+        debug_metrics.setdefault("risk_factor", []).append(risk_factor)
+        debug_metrics.setdefault("opportunity_factor", []).append(opportunity_factor)
 
     themes = {
         "Sun": "leadership calibration and purpose consolidation",
@@ -1577,7 +1863,16 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
             default="Moon",
         )
 
-    dasha_summary = summarize_dasha_timeline(planets, strength, yogas, current_dasha)
+    dasha_summary = summarize_dasha_timeline(
+        planets,
+        strength,
+        yogas,
+        influence_matrix,
+        house_clusters,
+        houses,
+        current_dasha,
+        stability_index=stability_metrics.get("stability_index", 50),
+    )
     probability_forecast = calculate_probability_forecast(strength, house_clusters, dasha_summary, behavioral_risks)
     varga_alignment = compute_varga_alignment(chart_data)
     shadbala_summary = build_shadbala_summary(strength)
