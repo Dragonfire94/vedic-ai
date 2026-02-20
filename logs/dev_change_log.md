@@ -37,3 +37,10 @@
 - Cache variables/functions involved: cache, cache_key, load_polished_reading_from_cache, save_polished_reading_to_cache.
 - Added load_dotenv() after import os in backend/main.py; added python-dotenv to requirements.
 - Import check: python -c "import main; print('OK')" succeeded; OpenAI client initialized log present.
+- Restart attempted via uvicorn; process timed out before bind output, then import main confirmed OpenAI client initialized log present.
+- Swapped refine_reading_with_llm calls back to max_tokens and added [AI_READING ERROR] log in get_ai_reading fallback.
+- Server restart attempt timed out; /ai_reading request failed to connect, so [LLM] log not observed.
+- Removed temperature from OpenAI payload builder and request override.
+- /ai_reading request sent with -UseBasicParsing; no [LLM] response log captured (server output not observed).
+- Removed top_p/frequency_penalty/presence_penalty from OpenAI payload and dropped temperature param from refine_reading_with_llm signature.
+- /ai_reading request sent; no [LLM] response log captured (server output not observed).

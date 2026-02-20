@@ -7,9 +7,12 @@
 """
 
 import os
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+# Force override so blank terminal variables don't block the .env file
+env_path = Path(__file__).resolve().parent / ".env"
+load_dotenv(dotenv_path=env_path, override=True)
 import json
 import math
 import re
@@ -94,7 +97,7 @@ def _load_env_file(path: Path) -> None:
             key, value = line.split("=", 1)
             key = key.strip()
             value = value.strip().strip("'").strip('"')
-            if key and os.getenv(key) is None:
+            if key and not os.getenv(key):
                 os.environ[key] = value
     except Exception as e:
         logger.warning("Failed to load env file %s: %s", path, e)
@@ -194,10 +197,6 @@ def _build_openai_payload(
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
         ],
-        "temperature": 0.2,
-        "top_p": 1.0,
-        "frequency_penalty": 0,
-        "presence_penalty": 0,
         "max_completion_tokens": int(max_completion_tokens),
     }
 
@@ -238,7 +237,6 @@ async def refine_reading_with_llm(
     endpoint: str,
     max_tokens: int,
     model: str = "gpt-5",
-    temperature: float = 0.2,
 ) -> str:
     if async_client is None:
         raise RuntimeError("OpenAI client not initialized")
@@ -261,8 +259,6 @@ async def refine_reading_with_llm(
         user_message=user_message,
         max_completion_tokens=max_tokens,
     )
-    payload["temperature"] = float(temperature)
-
     _emit_llm_audit_event(
         request_id=request_id,
         chart_hash=chart_hash,
@@ -1966,7 +1962,7 @@ async def get_ai_reading(
                     request_id=request_id_value,
                     chart_hash=chart_hash,
                     endpoint=endpoint_name,
-                    max_completion_tokens=llm_max_tokens_resolved,
+                    max_tokens=llm_max_tokens_resolved,
                 )
                 # DISABLED FOR DEBUGGING
                 # if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
@@ -2118,7 +2114,7 @@ async def get_ai_reading(
                 request_id=request_id_value,
                 chart_hash=chart_hash,
                 endpoint=endpoint_name,
-                max_completion_tokens=llm_max_tokens_resolved,
+                max_tokens=llm_max_tokens_resolved,
             )
             model_used = "gpt-5"
             if _is_low_quality_reading(polished_reading):
@@ -2185,6 +2181,7 @@ async def get_ai_reading(
     except HTTPException:
         raise
     except Exception as e:
+        print(f"[AI_READING ERROR] {type(e).__name__}: {e}")
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
         final_reading = deterministic_reading
         final_polished = None
