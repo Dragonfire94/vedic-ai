@@ -2,6 +2,7 @@ import os
 import sys
 import types
 import unittest
+import importlib.util
 from io import BytesIO
 
 from reportlab.lib.pagesizes import A4
@@ -9,13 +10,25 @@ from reportlab.platypus import SimpleDocTemplate
 
 
 os.environ.setdefault("SWE_ENFORCE_EPHE", "0")
-if "dotenv" not in sys.modules:
+def _missing(module_name: str) -> bool:
+    return importlib.util.find_spec(module_name) is None
+
+
+if _missing("dotenv"):
     sys.modules["dotenv"] = types.SimpleNamespace(load_dotenv=lambda *args, **kwargs: None)
 
-if "httpx" not in sys.modules:
-    sys.modules["httpx"] = types.SimpleNamespace(AsyncClient=object)
+if _missing("httpx"):
+    class _Timeout:
+        def __init__(self, *args, **kwargs):
+            pass
 
-if "fastapi" not in sys.modules:
+    class _AsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    sys.modules["httpx"] = types.SimpleNamespace(AsyncClient=_AsyncClient, Timeout=_Timeout)
+
+if _missing("fastapi"):
     fastapi_mod = types.ModuleType("fastapi")
 
     class _FastAPI:
@@ -44,7 +57,7 @@ if "fastapi" not in sys.modules:
     cors_mod.CORSMiddleware = object
     sys.modules["fastapi.middleware.cors"] = cors_mod
 
-if "pydantic" not in sys.modules:
+if _missing("pydantic"):
     pydantic_mod = types.ModuleType("pydantic")
     pydantic_mod.AliasChoices = lambda *args, **kwargs: None
     pydantic_mod.BaseModel = object
@@ -53,7 +66,7 @@ if "pydantic" not in sys.modules:
     pydantic_mod.model_validator = lambda *args, **kwargs: (lambda fn: fn)
     sys.modules["pydantic"] = pydantic_mod
 
-if "timezonefinder" not in sys.modules:
+if _missing("timezonefinder"):
     tz_mod = types.ModuleType("timezonefinder")
 
     class TimezoneFinder:  # pragma: no cover - startup shim only

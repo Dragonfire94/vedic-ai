@@ -6,16 +6,29 @@ import os
 import sys
 import types
 import unittest
+import importlib.util
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-if "dotenv" not in sys.modules:
+def _missing(module_name: str) -> bool:
+    return importlib.util.find_spec(module_name) is None
+
+
+if _missing("dotenv"):
     sys.modules["dotenv"] = types.SimpleNamespace(load_dotenv=lambda *args, **kwargs: None)
 
-if "httpx" not in sys.modules:
-    sys.modules["httpx"] = types.SimpleNamespace(AsyncClient=object)
+if _missing("httpx"):
+    class _Timeout:
+        def __init__(self, *args, **kwargs):
+            pass
 
-if "swisseph" not in sys.modules:
+    class _AsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+    sys.modules["httpx"] = types.SimpleNamespace(AsyncClient=_AsyncClient, Timeout=_Timeout)
+
+if _missing("swisseph"):
     swe_stub = types.SimpleNamespace(
         SUN=0,
         MOON=1,
@@ -29,7 +42,7 @@ if "swisseph" not in sys.modules:
     )
     sys.modules["swisseph"] = swe_stub
 
-if "pytz" not in sys.modules:
+if _missing("pytz"):
     class _TZ:
         def utcoffset(self, dt):
             class _Offset:
@@ -39,7 +52,7 @@ if "pytz" not in sys.modules:
 
     sys.modules["pytz"] = types.SimpleNamespace(timezone=lambda name: _TZ(), utc=None)
 
-if "fastapi" not in sys.modules:
+if _missing("fastapi"):
     fastapi_mod = types.ModuleType("fastapi")
 
     class _FastAPI:
@@ -68,7 +81,7 @@ if "fastapi" not in sys.modules:
     cors_mod.CORSMiddleware = object
     sys.modules["fastapi.middleware.cors"] = cors_mod
 
-if "pydantic" not in sys.modules:
+if _missing("pydantic"):
     pydantic_mod = types.ModuleType("pydantic")
     pydantic_mod.AliasChoices = lambda *args, **kwargs: None
     pydantic_mod.BaseModel = object
@@ -77,7 +90,7 @@ if "pydantic" not in sys.modules:
     pydantic_mod.model_validator = lambda *args, **kwargs: (lambda fn: fn)
     sys.modules["pydantic"] = pydantic_mod
 
-if "reportlab" not in sys.modules:
+if _missing("reportlab"):
     sys.modules["reportlab"] = types.ModuleType("reportlab")
     sys.modules["reportlab.lib"] = types.ModuleType("reportlab.lib")
     sys.modules["reportlab.lib.colors"] = types.SimpleNamespace(black=None)
@@ -90,14 +103,14 @@ if "reportlab" not in sys.modules:
     sys.modules["reportlab.pdfbase.pdfmetrics"] = types.SimpleNamespace(registerFont=lambda *args, **kwargs: None)
     sys.modules["reportlab.pdfbase.ttfonts"] = types.SimpleNamespace(TTFont=object)
 
-if "timezonefinder" not in sys.modules:
+if _missing("timezonefinder"):
     class _TimezoneFinder:
         def timezone_at(self, **kwargs):
             return "UTC"
 
     sys.modules["timezonefinder"] = types.SimpleNamespace(TimezoneFinder=_TimezoneFinder)
 
-if "openai" not in sys.modules:
+if _missing("openai"):
     sys.modules["openai"] = types.SimpleNamespace(AsyncOpenAI=lambda *args, **kwargs: object())
 
 from backend import main
