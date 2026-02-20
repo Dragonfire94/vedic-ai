@@ -63,6 +63,31 @@ class TestReportEngine(unittest.TestCase):
         self.assertNotIn("longitude", content)
         self.assertNotIn("aspects", content)
 
+
+    def test_probability_forecast_produces_key_forecast_fragments(self):
+        payload = build_report_payload(
+            {
+                "structural_summary": {
+                    "language": "en",
+                    "probability_forecast": {
+                        "career_shift_3yr": 0.72,
+                        "burnout_2yr": 0.69,
+                        "marriage_5yr": 0.40,
+                    },
+                    "stability_metrics": {"stability_index": 45},
+                }
+            }
+        )
+
+        chapter_blocks = payload["chapter_blocks"]
+        key_forecast_values = [
+            fragment.get("key_forecast")
+            for fragments in chapter_blocks.values()
+            for fragment in fragments
+            if isinstance(fragment, dict) and isinstance(fragment.get("key_forecast"), str)
+        ]
+        self.assertTrue(any("high-signal likelihood" in value for value in key_forecast_values))
+
     def test_prompt_format_generation(self):
         payload = build_report_payload({"structural_summary": {"dominant_purushartha": "Dharma"}})
         user_content = build_gpt_user_content(payload)

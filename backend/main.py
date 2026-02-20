@@ -1793,6 +1793,7 @@ def _validate_deterministic_llm_blocks(chapter_blocks: dict[str, Any]) -> dict[s
         "spike_text",
         "title",
         "summary",
+        "key_forecast",
         "analysis",
         "implication",
         "examples",
@@ -2560,6 +2561,20 @@ def _extract_summary_text(summary_value: Any) -> str:
     return ""
 
 
+def _extract_key_forecast_text(forecast_value: Any) -> str:
+    if isinstance(forecast_value, str):
+        return forecast_value.strip()
+    if isinstance(forecast_value, dict):
+        for key in ("headline", "summary", "forecast", "text"):
+            candidate = forecast_value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    if isinstance(forecast_value, list):
+        parts = [str(item).strip() for item in forecast_value if isinstance(item, str) and item.strip()]
+        return "\n".join(parts).strip()
+    return ""
+
+
 def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any]) -> list:
     """Deterministic report payload??chapter-aware layout?????????????????????"""
     chapter_blocks = report_payload.get("chapter_blocks", {}) if isinstance(report_payload, dict) else {}
@@ -2573,6 +2588,7 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
     separator_color = colors.HexColor(color_cfg.get("separator", "#CCCCCC"))
     choice_color = colors.HexColor(color_cfg.get("choice_fork", "#0033AA"))
     predictive_color = colors.HexColor(color_cfg.get("predictive", "#006633"))
+    forecast_color = colors.HexColor(color_cfg.get("forecast", "#7C3AED"))
     panel_bg = colors.HexColor(color_cfg.get("panel_bg", "#F8FAFC"))
     table_alt = colors.HexColor(color_cfg.get("table_alt", "#F1F5F9"))
     page_width = float(A4[0])
@@ -2613,6 +2629,8 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
         if not isinstance(fragments, list) or not fragments:
             continue
 
+        chapter_forecast_lines: list[str] = []
+
         if elements and chapter_config.get(chapter, {}).get("break_before"):
             elements.append(PageBreak())
 
@@ -2632,6 +2650,36 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
                 elements.append(Paragraph(_sanitize_pdf_text(fragment.get("spike_text", "")), styles["InsightSpike"]))
                 elements.append(Spacer(1, 8))
                 continue
+
+            key_forecast = _extract_key_forecast_text(fragment.get("key_forecast"))
+            if key_forecast:
+                chapter_forecast_lines.extend(
+                    line.strip(" -•")
+                    for line in key_forecast.splitlines()
+                    if isinstance(line, str) and line.strip()
+                )
+                forecast_table = Table(
+                    [[
+                        _to_pdf_paragraph("Forecast", styles["TableHeaderCell"]),
+                        Paragraph(convert_markdown_bold(_sanitize_pdf_text(key_forecast)), styles["Body"]),
+                    ]],
+                    colWidths=[table_label_col, table_value_col],
+                )
+                forecast_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, 0), forecast_color),
+                    ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#F5F3FF")),
+                    ('FONTNAME', (0, 0), (0, 0), PDF_FONT_BOLD),
+                    ('FONTNAME', (1, 0), (1, 0), PDF_FONT_REG),
+                    ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 0.45, colors.HexColor("#C4B5FD")),
+                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                    ('TOPPADDING', (0, 0), (-1, -1), 5),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                ]))
+                elements.append(forecast_table)
+                elements.append(Spacer(1, 7))
 
             for field in ("title", "summary", "analysis", "implication", "examples", "micro_scenario", "long_term_projection"):
                 value = fragment.get(field)
@@ -2725,6 +2773,13 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
                 ]))
                 elements.append(predictive_table)
                 elements.append(Spacer(1, 12))
+
+        compact_forecasts = [line for line in dict.fromkeys(chapter_forecast_lines) if line]
+        if compact_forecasts:
+            elements.append(Paragraph("Forecast Snapshot", styles["Subtitle"]))
+            for line in compact_forecasts[:3]:
+                elements.append(_to_pdf_paragraph(f"• {line}", styles["Small"]))
+            elements.append(Spacer(1, 10))
 
     return elements
 
@@ -3395,7 +3450,6 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
 
 

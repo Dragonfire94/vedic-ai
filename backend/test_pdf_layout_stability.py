@@ -9,6 +9,50 @@ from reportlab.platypus import SimpleDocTemplate
 
 
 os.environ.setdefault("SWE_ENFORCE_EPHE", "0")
+if "dotenv" not in sys.modules:
+    sys.modules["dotenv"] = types.SimpleNamespace(load_dotenv=lambda *args, **kwargs: None)
+
+if "httpx" not in sys.modules:
+    sys.modules["httpx"] = types.SimpleNamespace(AsyncClient=object)
+
+if "fastapi" not in sys.modules:
+    fastapi_mod = types.ModuleType("fastapi")
+
+    class _FastAPI:
+        def __init__(self, *args, **kwargs):
+            pass
+        def add_middleware(self, *args, **kwargs):
+            return None
+        def get(self, *args, **kwargs):
+            return lambda fn: fn
+        def post(self, *args, **kwargs):
+            return lambda fn: fn
+
+    def _identity(default=None, **kwargs):
+        return default
+
+    fastapi_mod.FastAPI = _FastAPI
+    fastapi_mod.Query = _identity
+    fastapi_mod.Response = object
+    fastapi_mod.HTTPException = Exception
+    fastapi_mod.Body = _identity
+    fastapi_mod.Request = object
+    fastapi_mod.Header = _identity
+    sys.modules["fastapi"] = fastapi_mod
+    sys.modules["fastapi.middleware"] = types.ModuleType("fastapi.middleware")
+    cors_mod = types.ModuleType("fastapi.middleware.cors")
+    cors_mod.CORSMiddleware = object
+    sys.modules["fastapi.middleware.cors"] = cors_mod
+
+if "pydantic" not in sys.modules:
+    pydantic_mod = types.ModuleType("pydantic")
+    pydantic_mod.AliasChoices = lambda *args, **kwargs: None
+    pydantic_mod.BaseModel = object
+    pydantic_mod.ConfigDict = dict
+    pydantic_mod.Field = lambda *args, **kwargs: None
+    pydantic_mod.model_validator = lambda *args, **kwargs: (lambda fn: fn)
+    sys.modules["pydantic"] = pydantic_mod
+
 if "timezonefinder" not in sys.modules:
     tz_mod = types.ModuleType("timezonefinder")
 
@@ -28,6 +72,33 @@ class TestPdfLayoutStability(unittest.TestCase):
         clipped = _clip_pdf_cell_text(text, max_chars=120)
         self.assertLessEqual(len(clipped), 140)
         self.assertIn("[truncated]", clipped)
+
+
+    def test_render_report_payload_renders_key_forecast_blocks_and_chapter_snapshot(self):
+        payload = {
+            "chapter_blocks": {
+                "Confidence & Forecast": [
+                    {
+                        "title": "Forecast focus",
+                        "summary": "Directional confidence",
+                        "key_forecast": "career shift: high-signal likelihood 78%",
+                        "analysis": "Signal blend suggests pivot window.",
+                    },
+                    {
+                        "title": "Backup signal",
+                        "key_forecast": ["burnout risk: high-signal likelihood 70%"],
+                    },
+                ]
+            }
+        }
+        styles = create_pdf_styles()
+        config = load_pdf_layout_config()
+        story = render_report_payload_to_pdf(payload, styles, config)
+
+        paragraph_texts = [f.getPlainText() for f in story if hasattr(f, "getPlainText")]
+        self.assertTrue(any("Forecast Snapshot" in t for t in paragraph_texts))
+        self.assertTrue(any("career shift: high-signal likelihood 78%" in t for t in paragraph_texts))
+        self.assertTrue(any("burnout risk: high-signal likelihood 70%" in t for t in paragraph_texts))
 
     def test_render_report_payload_handles_very_long_table_cells(self):
         long_text = " ".join(["Long content for wrapping"] * 200)
