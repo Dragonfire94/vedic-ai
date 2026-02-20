@@ -16,3 +16,8 @@
 - Updated city timezone offset parsing to handle GMT/UTC shortOffset formats and use functional state update.
 - Switched timezone detection to numeric UTC/local comparison and added debug display for detected offset.
 - Removed frontend timezone handling and URL params to rely on backend auto-detection from lat/lon.
+- Set minimum depth thresholds to zero and disabled atomic dominance lock in report engine.
+- Replaced SYSTEM_PROMPT with detailed Korean Vedic astrologer instructions.
+- Attempted import check: python -c "from report_engine import generate_report; print('OK')" failed (ImportError: generate_report not found).
+- Import report_engine succeeded (python -c "import report_engine; print('OK')").
+- Boilerplate strings confirmed absent in report_engine.py.

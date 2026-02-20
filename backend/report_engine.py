@@ -104,8 +104,8 @@ ATOMIC_RUNTIME_AUDIT = {
     "atomic_text_applied_count": 0,
 }
 
-MIN_DEPTH_KO_CHARS = 1200
-MIN_DEPTH_EN_WORDS = 600
+MIN_DEPTH_KO_CHARS = 0
+MIN_DEPTH_EN_WORDS = 0
 BASE_CHAPTER_LIMIT = 5
 MAX_DYNAMIC_CHAPTER_LIMIT = 12
 
@@ -2106,24 +2106,24 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
     _inject_scenario_compression(structural, chapter_blocks, chapter_meta, chapter_limits)
 
     # Atomic dominance lock: where atomic fragment exists, remove non-atomic fragments.
-    for chapter in REPORT_CHAPTERS:
-        frags = chapter_blocks.get(chapter, [])
-        metas = chapter_meta.get(chapter, [])
-        if not isinstance(frags, list) or not isinstance(metas, list):
-            continue
-        if not any(isinstance(f, dict) and f.get("_source") == "atomic" for f in frags):
-            continue
-        filtered_frags: list[dict[str, Any]] = []
-        filtered_meta: list[dict[str, Any]] = []
-        for idx, frag in enumerate(frags):
-            if not isinstance(frag, dict):
-                continue
-            if frag.get("_source") != "atomic":
-                continue
-            filtered_frags.append(frag)
-            filtered_meta.append(metas[idx] if idx < len(metas) else {})
-        chapter_blocks[chapter] = filtered_frags
-        chapter_meta[chapter] = filtered_meta
+    # for chapter in REPORT_CHAPTERS:
+    #     frags = chapter_blocks.get(chapter, [])
+    #     metas = chapter_meta.get(chapter, [])
+    #     if not isinstance(frags, list) or not isinstance(metas, list):
+    #         continue
+    #     if not any(isinstance(f, dict) and f.get("_source") == "atomic" for f in frags):
+    #         continue
+    #     filtered_frags: list[dict[str, Any]] = []
+    #     filtered_meta: list[dict[str, Any]] = []
+    #     for idx, frag in enumerate(frags):
+    #         if not isinstance(frag, dict):
+    #             continue
+    #         if frag.get("_source") != "atomic":
+    #             continue
+    #         filtered_frags.append(frag)
+    #         filtered_meta.append(metas[idx] if idx < len(metas) else {})
+    #     chapter_blocks[chapter] = filtered_frags
+    #     chapter_meta[chapter] = filtered_meta
 
     for chapter in REPORT_CHAPTERS:
         _expand_chapter_depth(
