@@ -10,7 +10,6 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sparkles, Calendar, Clock, MapPin } from 'lucide-react'
 import { CitySearch } from '@/components/CitySearch'
-import tzlookup from 'tz-lookup'
 
 type TimeKnown = 'exact' | 'approximate' | 'unknown'
 
@@ -31,7 +30,6 @@ export default function HomePage() {
     minute: 0,
     ampm: 'PM' as 'AM' | 'PM',
     timeBracket: '',
-    timezone: 0,
   })
 
   const handleNext = () => {
@@ -44,7 +42,6 @@ export default function HomePage() {
       return
     }
 
-    const safeTimezone = Number.isFinite(formData.timezone) ? formData.timezone : 0
     const params = new URLSearchParams({
       year: String(formData.year),
       month: String(formData.month),
@@ -52,7 +49,6 @@ export default function HomePage() {
       lat: String(formData.lat),
       lon: String(formData.lon),
       gender: formData.gender,
-      timezone: String(safeTimezone),
     })
 
     if (formData.timeKnown === 'exact') {
@@ -143,38 +139,11 @@ export default function HomePage() {
                 <CitySearch
                   defaultValue={formData.city}
                   onCitySelect={(data) => {
-                    let timezoneOffset = 0
-                    try {
-                      const ianaZone = tzlookup(data.lat, data.lon)
-                      const now = new Date()
-
-                      // shortOffset returns "GMT+9" or "GMT+5:30" -- NOT "UTC+..."
-                      // Parse both "GMT+9" and "GMT+5:30" formats
-                      const formatter = new Intl.DateTimeFormat('en-US', {
-                        timeZone: ianaZone,
-                        timeZoneName: 'shortOffset',
-                      })
-                      const tzString = formatter
-                        .formatToParts(now)
-                        .find((p) => p.type === 'timeZoneName')?.value ?? ''
-
-                      const match = tzString.match(/(?:UTC|GMT)([+-])(\d+)(?::(\d+))?/)
-                      if (match) {
-                        const sign = match[1] === '+' ? 1 : -1
-                        const hours = Number(match[2])
-                        const minutes = Number(match[3] ?? '0')
-                        timezoneOffset = sign * (hours + minutes / 60)
-                      }
-                    } catch {
-                      timezoneOffset = 0
-                    }
-
                     setFormData((prev) => ({
                       ...prev,
                       city: data.city,
                       lat: data.lat,
                       lon: data.lon,
-                      timezone: timezoneOffset,
                     }))
                   }}
                 />

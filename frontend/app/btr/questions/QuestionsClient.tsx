@@ -51,7 +51,6 @@ export default function BTRQuestionsPage() {
     hour: toNum(searchParams.get('hour'), 12),
     lat: toNum(searchParams.get('lat'), 37.5665),
     lon: toNum(searchParams.get('lon'), 126.978),
-    timezone: toNum(searchParams.get('timezone'), 9),
   }
 
   const [questions, setQuestions] = useState<BTRQuestion[]>([])
@@ -179,7 +178,6 @@ export default function BTRQuestionsPage() {
         hour: birthData.hour,
         lat: birthData.lat,
         lon: birthData.lon,
-        timezone: birthData.timezone,
         events: payloadEvents,
         personality_answers: Object.fromEntries(
           Object.entries(answers)
@@ -193,7 +191,6 @@ export default function BTRQuestionsPage() {
         day: String(birthData.day),
         lat: String(birthData.lat),
         lon: String(birthData.lon),
-        timezone: String(birthData.timezone),
         gender: searchParams.get('gender') || 'female',
       })
       setResult(result)

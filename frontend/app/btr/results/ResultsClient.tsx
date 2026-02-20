@@ -53,9 +53,9 @@ export default function BTRResultsPage() {
   const topPct = formatConfidencePercent(top?.confidence)
 
   const handleSelectCandidate = (candidate: BTRCandidate) => {
-  const hour = parseMidHour(candidate)
-  const fallbackHour = searchParams.get('hour') || '12'
-  const params = new URLSearchParams({
+    const hour = parseMidHour(candidate)
+    const fallbackHour = searchParams.get('hour') || '12'
+    const params = new URLSearchParams({
       year: searchParams.get('year') || '',
       month: searchParams.get('month') || '',
       day: searchParams.get('day') || '',
@@ -64,7 +64,6 @@ export default function BTRResultsPage() {
       hour: hour || fallbackHour,
       gender: searchParams.get('gender') || 'female',
       house_system: 'W',
-      timezone: searchParams.get('timezone') || '9',
     })
     router.push(`/chart?${params}`)
   }

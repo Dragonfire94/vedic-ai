@@ -83,7 +83,6 @@ export default function ChartPage() {
     hour: toNum(searchParams.get('hour'), 23.75),
     lat: toNum(searchParams.get('lat'), 37.5665),
     lon: toNum(searchParams.get('lon'), 126.978),
-    timezone: toNum(searchParams.get('timezone'), 9),
     gender: searchParams.get('gender') || 'female',
     house_system: searchParams.get('house_system') || 'W',
   }
