@@ -1,5 +1,6 @@
 import unittest
 
+from backend.prompts import SYSTEM_PROMPT as API_SYSTEM_PROMPT
 from backend.report_engine import (
     REPORT_CHAPTERS,
     SYSTEM_PROMPT,
@@ -70,6 +71,19 @@ class TestReportEngine(unittest.TestCase):
         self.assertIn("<END STRUCTURED BLOCKS>", user_content)
         self.assertIn("Purushartha Profile", user_content)
         self.assertIn("Chapters to include in exact order", SYSTEM_PROMPT)
+
+    def test_system_prompts_require_markdown_chapter_contract(self):
+        expected_contract_lines = [
+            "Output format contract (deterministic):",
+            "Output must be Markdown text (no JSON).",
+            "level-2 markdown headings exactly as `## <Chapter Name>`",
+            "include semantic emphasis markers",
+            "Chapters to include in exact order:",
+        ]
+
+        for expected in expected_contract_lines:
+            self.assertIn(expected, SYSTEM_PROMPT)
+            self.assertIn(expected, API_SYSTEM_PROMPT)
 
     def test_injects_shadbala_avastha_blocks_into_core_chapters(self):
         payload = build_report_payload(

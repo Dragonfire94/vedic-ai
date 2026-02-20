@@ -1,4 +1,4 @@
-﻿"""Deterministic report block selector and GPT payload builder."""
+"""Deterministic report block selector and GPT payload builder."""
 
 from __future__ import annotations
 
@@ -46,7 +46,11 @@ Constraints:
     Practical implications and application guidance
     A concluding sentence tying it to the person's journey.
 
-Output must be plain text (no JSON) with explicit chapter boundaries marked.
+Output format contract (deterministic):
+- Output must be Markdown text (no JSON).
+- Preserve deterministic chapter boundaries using level-2 markdown headings exactly as `## <Chapter Name>`.
+- Use the chapter heading list below in exact order with no omissions or renaming.
+- Within each chapter, include semantic emphasis markers where appropriate (e.g., `**Key Insight**`, `*Caution*`, `**Action**`) while keeping claims grounded only in provided blocks.
 
 Chapters to include in exact order:
 Executive Summary
