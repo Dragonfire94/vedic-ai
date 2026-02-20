@@ -10,12 +10,12 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Sparkles, Calendar, Clock, MapPin } from 'lucide-react'
 import { CitySearch } from '@/components/CitySearch'
+import tzlookup from 'tz-lookup'
 
 type TimeKnown = 'exact' | 'approximate' | 'unknown'
 
 export default function HomePage() {
   const router = useRouter()
-  const defaultTimezone = -new Date().getTimezoneOffset() / 60
 
   const [step, setStep] = useState(1)
   const [formData, setFormData] = useState({
@@ -29,8 +29,9 @@ export default function HomePage() {
     timeKnown: 'unknown' as TimeKnown,
     hour: 12,
     minute: 0,
+    ampm: 'AM' as 'AM' | 'PM',
     timeBracket: '',
-    timezone: defaultTimezone,
+    timezone: 0,
   })
 
   const handleNext = () => {
@@ -39,15 +40,11 @@ export default function HomePage() {
         alert('출생 도시를 먼저 선택해 주세요.')
         return
       }
-      if (!Number.isFinite(formData.timezone)) {
-        alert('타임존을 확인해 주세요.')
-        return
-      }
       setStep(2)
       return
     }
 
-    const safeTimezone = Number.isFinite(formData.timezone) ? formData.timezone : defaultTimezone
+    const safeTimezone = Number.isFinite(formData.timezone) ? formData.timezone : 0
     const params = new URLSearchParams({
       year: String(formData.year),
       month: String(formData.month),
@@ -59,7 +56,11 @@ export default function HomePage() {
     })
 
     if (formData.timeKnown === 'exact') {
-      const decimalHour = formData.hour + formData.minute / 60
+      const hour24 =
+        formData.ampm === 'AM'
+          ? formData.hour === 12 ? 0 : formData.hour
+          : formData.hour === 12 ? 12 : formData.hour + 12
+      const decimalHour = hour24 + formData.minute / 60
       params.set('hour', String(decimalHour))
       params.set('house_system', 'W')
       router.push(`/chart?${params.toString()}`)
@@ -104,7 +105,7 @@ export default function HomePage() {
                 <Calendar className="w-5 h-5 text-[#8d3d56]" />
                 출생 기본 정보
               </CardTitle>
-              <CardDescription>정확한 도시와 타임존이 중요합니다.</CardDescription>
+              <CardDescription>정확한 출생 도시를 선택하면 타임존이 자동 설정됩니다.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-3 gap-3">
@@ -139,14 +140,28 @@ export default function HomePage() {
               <div>
                 <CitySearch
                   defaultValue={formData.city}
-                  onCitySelect={(data) =>
+                  onCitySelect={(data) => {
+                    let timezoneOffset = 0
+                    try {
+                      const ianaZone = tzlookup(data.lat, data.lon)
+                      const now = new Date()
+                      const utcOffset = new Intl.DateTimeFormat('en-US', {
+                        timeZone: ianaZone,
+                        timeZoneName: 'shortOffset',
+                      }).formatToParts(now).find((p) => p.type === 'timeZoneName')?.value ?? 'UTC+0'
+                      const match = utcOffset.match(/UTC([+-]\d+(?:\.\d+)?)/)
+                      timezoneOffset = match ? Number(match[1]) : 0
+                    } catch {
+                      timezoneOffset = 0
+                    }
                     setFormData({
                       ...formData,
                       city: data.city,
                       lat: data.lat,
                       lon: data.lon,
+                      timezone: timezoneOffset,
                     })
-                  }
+                  }}
                 />
                 {formData.city && (
                   <p className="text-sm text-[#726a75] mt-2 flex items-center gap-1">
@@ -161,19 +176,7 @@ export default function HomePage() {
                 <RadioGroup value={formData.gender} onValueChange={(v) => setFormData({ ...formData, gender: v })}>
                   <div className="flex items-center space-x-2"><RadioGroupItem value="female" id="female" /><Label htmlFor="female">여성</Label></div>
                   <div className="flex items-center space-x-2"><RadioGroupItem value="male" id="male" /><Label htmlFor="male">남성</Label></div>
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="other" id="other" /><Label htmlFor="other">기타</Label></div>
                 </RadioGroup>
-              </div>
-
-              <div>
-                <Label htmlFor="timezone">타임존 (UTC 기준, 예: 한국 +9)</Label>
-                <Input
-                  id="timezone"
-                  type="number"
-                  step="0.5"
-                  value={formData.timezone}
-                  onChange={(e) => setFormData({ ...formData, timezone: Number(e.target.value) })}
-                />
               </div>
 
               <Button onClick={handleNext} className="w-full bg-[#8d3d56] hover:bg-[#7a344a]">다음</Button>
@@ -188,7 +191,7 @@ export default function HomePage() {
                 <Clock className="w-5 h-5 text-[#8d3d56]" />
                 출생 시간 정보
               </CardTitle>
-              <CardDescription>정확하면 바로 차트, 아니면 BTR 질문으로 진행합니다.</CardDescription>
+              <CardDescription>출생 시간을 얼마나 기억하시나요?</CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <RadioGroup value={formData.timeKnown} onValueChange={(v) => setFormData({ ...formData, timeKnown: v as TimeKnown })}>
@@ -198,13 +201,26 @@ export default function HomePage() {
                     <Label htmlFor="exact">정확히 기억함</Label>
                   </div>
                   {formData.timeKnown === 'exact' && (
-                    <div className="grid grid-cols-2 gap-3 mt-3">
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div>
+                        <Label>오전/오후</Label>
+                        <Select
+                          value={formData.ampm}
+                          onValueChange={(v) => setFormData({ ...formData, ampm: v as 'AM' | 'PM' })}
+                        >
+                          <SelectTrigger><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="AM">오전 (AM)</SelectItem>
+                            <SelectItem value="PM">오후 (PM)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
                       <div>
                         <Label>시</Label>
                         <Select value={String(formData.hour)} onValueChange={(v) => setFormData({ ...formData, hour: Number(v) })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: 24 }, (_, i) => i).map((h) => (
+                            {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
                               <SelectItem key={h} value={String(h)}>{h}시</SelectItem>
                             ))}
                           </SelectContent>
@@ -215,7 +231,7 @@ export default function HomePage() {
                         <Select value={String(formData.minute)} onValueChange={(v) => setFormData({ ...formData, minute: Number(v) })}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: 60 }, (_, i) => i).map((m) => (
+                            {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
                               <SelectItem key={m} value={String(m)}>{m}분</SelectItem>
                             ))}
                           </SelectContent>
@@ -253,7 +269,7 @@ export default function HomePage() {
                 <Card className="border"><CardContent className="p-4">
                   <div className="flex items-center gap-2">
                     <RadioGroupItem value="unknown" id="unknown" />
-                    <Label htmlFor="unknown">모름 (BTR 질문으로 진행)</Label>
+                    <Label htmlFor="unknown">잘 모르겠음 (생시보정 필요)</Label>
                   </div>
                 </CardContent></Card>
               </RadioGroup>
@@ -261,7 +277,7 @@ export default function HomePage() {
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>이전</Button>
                 <Button className="flex-1 bg-[#8d3d56] hover:bg-[#7a344a]" onClick={handleNext}>
-                  {formData.timeKnown === 'exact' ? '차트 보기' : 'BTR 시작하기'}
+                  {formData.timeKnown === 'exact' ? '차트 보기' : '생시보정 시작하기'}
                 </Button>
               </div>
             </CardContent>

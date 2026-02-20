@@ -11,3 +11,4 @@
 - Added ErrorBoundary component and wrapped BTR/chart pages.
 - Added Playwright config/scripts and initial E2E tests.
 - Restored Korean UI strings/emojis and error messages in chart client UI.\n- Updated Playwright error-state test to dismiss alert dialogs via page.on and adjusted timeout.\n- Tests: npx playwright test (4 passed).
+- Added tz-lookup-based timezone auto-detect on city select and removed manual timezone input in home form.\n- Added AM/PM time selector and updated step 2 wording, gender options, and navigation labels.\n- Tests: npx tsc --noEmit --strict.
