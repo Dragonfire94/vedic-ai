@@ -21,3 +21,6 @@
 - Attempted import check: python -c "from report_engine import generate_report; print('OK')" failed (ImportError: generate_report not found).
 - Import report_engine succeeded (python -c "import report_engine; print('OK')").
 - Boilerplate strings confirmed absent in report_engine.py.
+- Removed boilerplate from _interpret_signal_sentence, _create_signal_fragment, and _build_atomic_anchor_fragment.
+- Replaced SYSTEM_PROMPT with new narrative synthesis instructions and explicit chapter list.
+- Import check: python -c "import report_engine; print('OK')" succeeded.

@@ -1461,22 +1461,12 @@ def _interpret_signal_sentence(
                             bucket["misses"] = int(bucket.get("misses", 0)) + 1
 
             focus_label = _signal_focus_label_ko(signal_path)
-            return (
-                summary,
-                f"{focus_label} 관점에서 보면 위 해석은 성향, 관계, 성과의 발현 순서를 규정하는 핵심 규칙으로 작동합니다.",
-                f"{focus_label}에서 드러난 강점을 실행 채널로 쓰고 취약 구간을 선제 완충하면 변동 비용을 유의미하게 줄일 수 있습니다.",
-                f"{focus_label}의 리듬에 맞춰 실행 속도와 우선순위를 조정할 때 같은 역량도 더 안정적으로 누적됩니다.",
-            )
+            return (summary, "", "", "")
 
         mapped_text = _interpretation_mapping_text(signal_path, signal_value, structural, mapping_audit=mapping_audit)
         if isinstance(mapped_text, str) and mapped_text.strip():
             focus_label = _signal_focus_label_ko(signal_path)
-            return (
-                mapped_text,
-                f"{focus_label} 관점에서 보면 위 해석은 성향, 관계, 성과의 발현 순서를 규정하는 핵심 규칙으로 작동합니다.",
-                f"{focus_label}에서 드러난 강점을 실행 채널로 쓰고 취약 구간을 선제 완충하면 변동 비용을 유의미하게 줄일 수 있습니다.",
-                f"{focus_label}의 리듬에 맞춰 실행 속도와 우선순위를 조정할 때 같은 역량도 더 안정적으로 누적됩니다.",
-            )
+            return (mapped_text, "", "", "")
 
     if "dominant_planet" in p:
         planet = str(signal_value or "Moon")
@@ -1639,8 +1629,8 @@ def _create_signal_fragment(
     should_use_atomic = ko_mode and atomic_text and str(signal_path).lower().startswith("atomic.")
     if should_use_atomic:
         summary = atomic_text
-        analysis = "이 해석은 개인의 기본 심리 구조와 행동 패턴을 형성하는 핵심 요소로 작용합니다."
-        implication = "이 특성은 삶의 주요 선택과 방향성에서 반복적으로 영향을 미칠 가능성이 큽니다."
+        analysis = ""
+        implication = ""
         source_type = "atomic"
         ATOMIC_RUNTIME_AUDIT["atomic_text_applied_count"] = int(ATOMIC_RUNTIME_AUDIT.get("atomic_text_applied_count", 0)) + 1
         logger.info("atomic_text_applied key=%s length=%d", atomic_key, len(atomic_text))
@@ -1981,9 +1971,9 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
             {
                 "title": f"{chapter_name} - 해석 단락 {index_seed}",
                 "summary": integrated,
-                "analysis": "이 해석은 개인의 기본 심리 구조와 행동 패턴을 형성하는 핵심 요소로 작용합니다.",
-                "implication": "이 특성은 삶의 주요 선택과 방향성에서 반복적으로 영향을 미칠 가능성이 큽니다.",
-                "examples": "이 축은 다른 구조 신호와 결합될 때 반복되는 선택 패턴으로 드러납니다.",
+                "analysis": "",
+                "implication": "",
+                "examples": "",
                 "_source": "atomic",
             },
             {
