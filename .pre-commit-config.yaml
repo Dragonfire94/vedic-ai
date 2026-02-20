@@ -1,0 +1,8 @@
+repos:
+  - repo: local
+    hooks:
+      - id: no-mojibake-korean
+        name: no mojibake korean strings
+        entry: python scripts/check_no_mojibake.py
+        language: system
+        files: ^backend/main\.py$
