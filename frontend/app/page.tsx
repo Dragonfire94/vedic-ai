@@ -147,22 +147,35 @@ export default function HomePage() {
                     try {
                       const ianaZone = tzlookup(data.lat, data.lon)
                       const now = new Date()
-                      const utcOffset = new Intl.DateTimeFormat('en-US', {
+
+                      // shortOffset returns "GMT+9" or "GMT+5:30" -- NOT "UTC+..."
+                      // Parse both "GMT+9" and "GMT+5:30" formats
+                      const formatter = new Intl.DateTimeFormat('en-US', {
                         timeZone: ianaZone,
                         timeZoneName: 'shortOffset',
-                      }).formatToParts(now).find((p) => p.type === 'timeZoneName')?.value ?? 'UTC+0'
-                      const match = utcOffset.match(/UTC([+-]\d+(?:\.\d+)?)/)
-                      timezoneOffset = match ? Number(match[1]) : 0
+                      })
+                      const tzString = formatter
+                        .formatToParts(now)
+                        .find((p) => p.type === 'timeZoneName')?.value ?? ''
+
+                      const match = tzString.match(/(?:UTC|GMT)([+-])(\d+)(?::(\d+))?/)
+                      if (match) {
+                        const sign = match[1] === '+' ? 1 : -1
+                        const hours = Number(match[2])
+                        const minutes = Number(match[3] ?? '0')
+                        timezoneOffset = sign * (hours + minutes / 60)
+                      }
                     } catch {
                       timezoneOffset = 0
                     }
-                    setFormData({
-                      ...formData,
+
+                    setFormData((prev) => ({
+                      ...prev,
                       city: data.city,
                       lat: data.lat,
                       lon: data.lon,
                       timezone: timezoneOffset,
-                    })
+                    }))
                   }}
                 />
                 {formData.city && (

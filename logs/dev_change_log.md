@@ -13,3 +13,4 @@
 - Restored Korean UI strings/emojis and error messages in chart client UI.\n- Updated Playwright error-state test to dismiss alert dialogs via page.on and adjusted timeout.\n- Tests: npx playwright test (4 passed).
 - Added tz-lookup-based timezone auto-detect on city select and removed manual timezone input in home form.\n- Added AM/PM time selector and updated step 2 wording, gender options, and navigation labels.\n- Tests: npx tsc --noEmit --strict.
 - Fixed minute selector to 0-59 and switched AM/PM/hour/minute updates to functional setState.\n- Set default time to 12 PM and corrected AM/PM to 24-hour conversion logic.
+- Updated city timezone offset parsing to handle GMT/UTC shortOffset formats and use functional state update.
