@@ -2788,6 +2788,7 @@ def _build_semantic_highlight_block(tag: str, body: str, styles) -> Table:
         "KEY": colors.HexColor("#FFF6CC"),
         "WARNING": colors.HexColor("#FFE5DB"),
         "STRATEGY": colors.HexColor("#E5F0FF"),
+        "FORECAST": colors.HexColor("#E8F6FF"),
     }
     bg_color = palette.get(tag, colors.HexColor("#F5F5F5"))
     paragraph_text = f"<b>[{tag}]</b> {convert_markdown_bold(body.strip())}"
@@ -2801,6 +2802,21 @@ def _build_semantic_highlight_block(tag: str, body: str, styles) -> Table:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
     ]))
     return block
+
+
+def _build_icon_led_row(icon: str, body: str, styles) -> Table:
+    row = Table(
+        [[Paragraph(icon.strip(), styles["Body"]), Paragraph(convert_markdown_bold(body.strip()), styles["Body"]) ]],
+        colWidths=[0.6 * cm, None],
+    )
+    row.setStyle(TableStyle([
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("LEFTPADDING", (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+        ("TOPPADDING", (0, 0), (-1, -1), 0),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
+    ]))
+    return row
 
 def parse_markdown_to_flowables(text: str, styles):
     """Convert markdown-like text into ReportLab flowables."""
@@ -2824,20 +2840,29 @@ def parse_markdown_to_flowables(text: str, styles):
             clean_line = line[2:].replace('**', '')
             flowables.append(Paragraph(clean_line, styles['ReportTitle']))
         # Semantic blocks
-        elif re.match(r'^\*\*\[(KEY|WARNING|STRATEGY)\]\*\*\s+', line):
-            match = re.match(r'^\*\*\[(KEY|WARNING|STRATEGY)\]\*\*\s+(.*)$', line)
-            if match:
-                tag = match.group(1)
-                body = match.group(2)
+        elif semantic_match := re.match(r'^\*\*\[(!?[A-Z_]+)\]\*\*\s+(.*)$', line):
+            raw_tag = semantic_match.group(1)
+            tag = raw_tag.lstrip('!')
+            body = semantic_match.group(2)
+            if tag in {"KEY", "WARNING", "STRATEGY", "FORECAST"}:
                 flowables.append(_build_semantic_highlight_block(tag, body, styles))
                 flowables.append(Spacer(1, 0.15*cm))
-        elif re.match(r'^\[(KEY|WARNING|STRATEGY)\]\s+', line):
-            match = re.match(r'^\[(KEY|WARNING|STRATEGY)\]\s+(.*)$', line)
-            if match:
-                tag = match.group(1)
-                body = match.group(2)
+            else:
+                flowables.append(Paragraph(convert_markdown_bold(line), styles['Body']))
+        elif semantic_match := re.match(r'^\[(!?[A-Z_]+)\]\s+(.*)$', line):
+            raw_tag = semantic_match.group(1)
+            tag = raw_tag.lstrip('!')
+            body = semantic_match.group(2)
+            if tag in {"KEY", "WARNING", "STRATEGY", "FORECAST"}:
                 flowables.append(_build_semantic_highlight_block(tag, body, styles))
                 flowables.append(Spacer(1, 0.15*cm))
+            else:
+                flowables.append(Paragraph(convert_markdown_bold(line), styles['Body']))
+        elif icon_match := re.match(r'^ICON:\s*(\S+)\s+(.*)$', line):
+            icon = icon_match.group(1)
+            body = icon_match.group(2)
+            flowables.append(_build_icon_led_row(icon, body, styles))
+            flowables.append(Spacer(1, 0.1*cm))
         # Section markers
         elif line.startswith('[') and line.endswith(']'):
             flowables.append(Spacer(1, 0.3*cm))
@@ -3450,7 +3475,6 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
 
 
