@@ -11,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { analyzeBTR, getBTRQuestions, type BTREvent } from '@/lib/api'
+import { useBTRStore } from '@/store/btrStore'
 import {
   AGE_RANGE_OPTIONS,
   buildEventPayload,
@@ -41,6 +42,7 @@ const HELPER_TEXT: Record<string, string> = {
 export default function BTRQuestionsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const setResult = useBTRStore((s) => s.setResult)
   const toNum = (value: string | null, fallback: number): number => {
     const n = Number(value)
     return Number.isFinite(n) ? n : fallback
@@ -50,6 +52,7 @@ export default function BTRQuestionsPage() {
     year: toNum(searchParams.get('year'), 1994),
     month: toNum(searchParams.get('month'), 12),
     day: toNum(searchParams.get('day'), 18),
+    hour: toNum(searchParams.get('hour'), 12),
     lat: toNum(searchParams.get('lat'), 37.5665),
     lon: toNum(searchParams.get('lon'), 126.978),
     timezone: toNum(searchParams.get('timezone'), 9),
@@ -177,14 +180,19 @@ export default function BTRQuestionsPage() {
         year: birthData.year,
         month: birthData.month,
         day: birthData.day,
+        hour: birthData.hour,
         lat: birthData.lat,
         lon: birthData.lon,
         timezone: birthData.timezone,
         events: payloadEvents,
+        personality_answers: Object.fromEntries(
+          Object.entries(answers)
+            .map(([key, value]) => [key, (value as PersonalityAnswer).choice])
+            .filter(([, value]) => Boolean(value))
+        ),
       })
-      const params = new URLSearchParams(searchParams.toString())
-      params.set('result', JSON.stringify(result))
-      router.push(`/btr/results?${params}`)
+      setResult(result)
+      router.push('/btr/results')
     } catch (error) {
       console.error('BTR analysis failed:', error)
       const msg = error instanceof Error ? error.message : 'Unknown error'

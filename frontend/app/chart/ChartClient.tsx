@@ -192,10 +192,7 @@ export default function ChartPage() {
   const top3 = planetRows.slice(0, 3)
   const hourInt = Math.floor(birthData.hour)
   const minInt = Math.round((birthData.hour - hourInt) * 60)
-  const readingText =
-    aiReading?.polished_reading ||
-    aiReading?.reading ||
-    ''
+  const readingText = aiReading?.polished_reading ?? ''
 
   if (loading) {
     return (

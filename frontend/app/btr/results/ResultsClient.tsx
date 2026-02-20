@@ -8,6 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import { ChevronDown, ChevronUp, Compass, Home, Sparkles } from 'lucide-react'
 import { ASCENDANT_TRAITS } from '@/lib/utils'
+import type { BTRCandidate } from '@/lib/api'
+import { useBTRStore } from '@/store/btrStore'
 
 function formatConfidencePercent(value: unknown): number {
   const numeric = typeof value === 'number' ? value : Number(value)
@@ -16,18 +18,10 @@ function formatConfidencePercent(value: unknown): number {
   return Math.max(0, Math.min(100, Math.round(normalized)))
 }
 
-function parseMidHour(candidate: any): string {
-  const direct = Number(candidate?.mid_hour)
-  if (Number.isFinite(direct)) return direct.toFixed(2)
-
-  const range = String(candidate?.time_range || '')
-  const m = range.match(/(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/)
-  if (!m) return ''
-  const start = Number(m[1]) + Number(m[2]) / 60
-  const end = Number(m[3]) + Number(m[4]) / 60
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return ''
-  const mid = (start + end) / 2
-  return mid.toFixed(2)
+function parseMidHour(candidate: BTRCandidate): string {
+  return Number.isFinite(candidate.mid_hour)
+    ? candidate.mid_hour.toFixed(2)
+    : '-'
 }
 
 function confidenceLabel(pct: number): string {
@@ -40,19 +34,15 @@ function confidenceLabel(pct: number): string {
 export default function BTRResultsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const result = useBTRStore((s) => s.result)
 
-  const [result, setResult] = useState<any>(null)
   const [expandedCard, setExpandedCard] = useState<number | null>(0)
 
   useEffect(() => {
-    const resultParam = searchParams.get('result')
-    if (!resultParam) return
-    try {
-      setResult(JSON.parse(resultParam))
-    } catch (error) {
-      console.error('Failed to parse result:', error)
+    if (!result) {
+      router.replace('/btr/questions')
     }
-  }, [searchParams])
+  }, [result, router])
 
   const candidates = useMemo(() => {
     const rows = Array.isArray(result?.candidates) ? result.candidates : []

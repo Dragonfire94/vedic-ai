@@ -85,11 +85,13 @@ export interface BTRAnalyzeRequest {
   year: number
   month: number
   day: number
+  hour?: number
   lat: number
   lon: number
   timezone?: number
   events: BTREvent[]
   tune_mode?: boolean
+  personality_answers?: Record<string, string>
 }
 
 export interface ChartRequest {
