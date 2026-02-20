@@ -214,8 +214,7 @@ def load_polished_reading_from_cache(*, chapter_blocks_hash: str, language: str)
     key = _polished_output_cache_key(chapter_blocks_hash, language)
     cached = cache.get(key)
     if isinstance(cached, str) and cached.strip():
-        print("[CACHE HIT] Returning cached result")
-        logger.info("LLM refinement loaded from cache")
+        logger.info("LLM refinement loaded from cache chapter_blocks_hash=%s", chapter_blocks_hash)
         return cached
     return None
 
@@ -305,23 +304,51 @@ async def refine_reading_with_llm(
         endpoint=endpoint,
     )
     try:
-        print("[LLM] Calling OpenAI API...")
+        logger.info(
+            "LLM API call started request_id=%s selected_model=%s chapter_blocks_hash=%s",
+            request_id,
+            selected_model,
+            chapter_blocks_hash,
+        )
         response = await async_client.chat.completions.create(**payload)
         text = response.choices[0].message.content if response and response.choices else ""
         response_text = text if isinstance(text, str) else ""
-        print(f"[LLM] Response received. Length: {len(response_text)} chars")
+        logger.debug(
+            "LLM API response received request_id=%s selected_model=%s chapter_blocks_hash=%s response_length=%s",
+            request_id,
+            selected_model,
+            chapter_blocks_hash,
+            len(response_text),
+        )
         if not response_text or not response_text.strip():
-            print(f"[LLM DEBUG] Raw response object: {response}")
+            logger.debug(
+                "LLM raw response dump request_id=%s selected_model=%s chapter_blocks_hash=%s response=%r",
+                request_id,
+                selected_model,
+                chapter_blocks_hash,
+                response,
+            )
             raise RuntimeError(
                 "LLM returned empty refinement. Model: "
                 f"{selected_model}, finish_reason: "
                 f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
             )
         response_text = _normalize_long_paragraphs(response_text, max_chars=300)
-        logger.info("LLM refinement executed for chapter_blocks_hash=%s", chapter_blocks_hash)
+        logger.info(
+            "LLM refinement executed request_id=%s selected_model=%s chapter_blocks_hash=%s",
+            request_id,
+            selected_model,
+            chapter_blocks_hash,
+        )
         return response_text
     except Exception as e:
-        print(f"[LLM ERROR] {type(e).__name__}: {e}")
+        logger.exception(
+            "LLM refinement failed request_id=%s selected_model=%s chapter_blocks_hash=%s error_type=%s",
+            request_id,
+            selected_model,
+            chapter_blocks_hash,
+            type(e).__name__,
+        )
         raise
 
 
@@ -766,13 +793,13 @@ def _build_openai_client() -> tuple[Optional[AsyncOpenAI], Optional[httpx.AsyncC
         )
         return client, http_client
     except Exception as e:
-        logger.warning(f"OpenAI client initialization failed: {e}")
+        logger.warning("OpenAI client initialization failed: %s", e)
         return None, None
 
 
 async_client, OPENAI_HTTP_CLIENT = _build_openai_client()
 if async_client is None:
-    print("WARNING: OpenAI client is None. LLM will not be called. Check OPENAI_API_KEY in .env")
+    logger.warning("OpenAI client is None. LLM will not be called. Check OPENAI_API_KEY in .env")
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # AI ?????
@@ -2233,7 +2260,7 @@ async def get_ai_reading(
     except HTTPException:
         raise
     except Exception as e:
-        print(f"[AI_READING ERROR] {type(e).__name__}: {e}")
+        logger.exception("AI reading failed error_type=%s", type(e).__name__)
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
         final_reading = deterministic_reading
         final_polished = None
@@ -3475,6 +3502,5 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
 
