@@ -5,6 +5,11 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+export function toNum(value: string | null, fallback: number): number {
+  const n = Number(value)
+  return Number.isFinite(n) ? n : fallback
+}
+
 // Ascendant traits for each zodiac sign
 export const ASCENDANT_TRAITS: Record<string, {
   name_kr: string

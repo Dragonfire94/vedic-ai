@@ -8,7 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Progress } from '@/components/ui/progress'
 import { ChevronDown, ChevronUp, Compass, Home, Sparkles } from 'lucide-react'
 import { ASCENDANT_TRAITS } from '@/lib/utils'
-import type { BTRCandidate } from '@/lib/api'
+import type { BTRAnalyzeResponse, BTRCandidate } from '@/lib/api'
 import { useBTRStore } from '@/store/btrStore'
 
 function formatConfidencePercent(value: unknown): number {
@@ -34,7 +34,7 @@ function confidenceLabel(pct: number): string {
 export default function BTRResultsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const result = useBTRStore((s) => s.result)
+  const result = useBTRStore((s) => s.result) as BTRAnalyzeResponse | null
 
   const [expandedCard, setExpandedCard] = useState<number | null>(0)
 
@@ -44,15 +44,15 @@ export default function BTRResultsPage() {
     }
   }, [result, router])
 
-  const candidates = useMemo(() => {
-    const rows = Array.isArray(result?.candidates) ? result.candidates : []
+  const candidates = useMemo<BTRCandidate[]>(() => {
+    const rows = result?.candidates ?? []
     return rows.slice(0, 3)
   }, [result])
 
   const top = candidates[0]
   const topPct = formatConfidencePercent(top?.confidence)
 
-  const handleSelectCandidate = (candidate: any) => {
+  const handleSelectCandidate = (candidate: BTRCandidate) => {
   const hour = parseMidHour(candidate)
   const fallbackHour = searchParams.get('hour') || '12'
   const params = new URLSearchParams({
@@ -121,7 +121,7 @@ export default function BTRResultsPage() {
         </Card>
 
         <div className="space-y-4">
-          {candidates.map((candidate: any, index: number) => {
+          {candidates.map((candidate: BTRCandidate, index: number) => {
             const open = expandedCard === index
             const pct = formatConfidencePercent(candidate?.confidence)
             const ascInfo = ASCENDANT_TRAITS[candidate?.ascendant] || {

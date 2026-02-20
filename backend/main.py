@@ -50,7 +50,7 @@ from timezonefinder import TimezoneFinder
 from openai import AsyncOpenAI
 import httpx
 
-from fastapi import FastAPI, Query, Response, HTTPException, Body, Request
+from fastapi import FastAPI, Query, Response, HTTPException, Body, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -663,9 +663,10 @@ init_fonts()
 
 app = FastAPI(title="Vedic AI Backend")
 
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -3218,8 +3219,14 @@ def refine_btr(request: BTRRefineRequest):
 
 
 @app.post("/btr/admin/recalculate-weights")
-def recalculate_btr_weights():
+def recalculate_btr_weights(
+    x_admin_key: str = Header(default="")
+):
     """Admin endpoint for empirical weight adjustment recalculation."""
+    expected = os.getenv("ADMIN_API_KEY", "")
+    if not expected or x_admin_key != expected:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
     if os.getenv("BTR_ENABLE_TUNE_MODE", "0") != "1":
         raise HTTPException(status_code=403, detail="Tune mode is disabled.")
 

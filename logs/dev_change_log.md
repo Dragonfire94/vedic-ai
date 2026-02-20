@@ -4,3 +4,5 @@
 - Added BTR zustand store and routed BTR results via store instead of URL params.
 - Added personality answers and optional hour to BTR analyze payload/type.
 - Removed defensive reading fallback and simplified BTR mid-hour parsing.
+- Updated BTR types, removed any in client pages, and centralized toNum utility.
+- Restricted CORS origins, secured BTR admin endpoint, and added backend env templates.

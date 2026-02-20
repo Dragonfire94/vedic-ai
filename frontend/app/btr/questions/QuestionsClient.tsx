@@ -10,8 +10,9 @@ import { Progress } from '@/components/ui/progress'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
-import { analyzeBTR, getBTRQuestions, type BTREvent } from '@/lib/api'
+import { analyzeBTR, getBTRQuestions, type BTRQuestion, type BTREvent } from '@/lib/api'
 import { useBTRStore } from '@/store/btrStore'
+import { toNum } from '@/lib/utils'
 import {
   AGE_RANGE_OPTIONS,
   buildEventPayload,
@@ -33,21 +34,16 @@ type EventAnswer = {
 type PersonalityAnswer = { choice: string }
 
 const HELPER_TEXT: Record<string, string> = {
-  career_change: '예: 첫 취업, 큰 승진, 이직',
-  relationship: '예: 결혼, 장기 연애 시작/종료',
-  relocation: '예: 이사, 해외 이동',
-  health: '예: 수술, 회복이 필요했던 시기',
+  career_change: '?? �?취업, ???�진, ?�직',
+  relationship: '?? 결혼, ?�기 ?�애 ?�작/종료',
+  relocation: '?? ?�사, ?�외 ?�동',
+  health: '?? ?�술, ?�복???�요?�던 ?�기',
 }
 
 export default function BTRQuestionsPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const setResult = useBTRStore((s) => s.setResult)
-  const toNum = (value: string | null, fallback: number): number => {
-    const n = Number(value)
-    return Number.isFinite(n) ? n : fallback
-  }
-
   const birthData = {
     year: toNum(searchParams.get('year'), 1994),
     month: toNum(searchParams.get('month'), 12),
@@ -58,7 +54,7 @@ export default function BTRQuestionsPage() {
     timezone: toNum(searchParams.get('timezone'), 9),
   }
 
-  const [questions, setQuestions] = useState<any[]>([])
+  const [questions, setQuestions] = useState<BTRQuestion[]>([])
   const [currentStep, setCurrentStep] = useState(0)
   const [answers, setAnswers] = useState<Record<string, EventAnswer | PersonalityAnswer>>({})
   const [eventsByQuestion, setEventsByQuestion] = useState<Record<string, BTREvent>>({})
@@ -159,16 +155,16 @@ export default function BTRQuestionsPage() {
   const handleAnalyze = async (overrideEvents?: BTREvent[]) => {
     const payloadEvents = overrideEvents ?? Object.values(eventsByQuestion)
     if (payloadEvents.length === 0) {
-      setInlineError('최소 1개 이상의 이벤트를 입력해 주세요.')
+      setInlineError('최소 1�??�상???�벤?��? ?�력??주세??')
       return
     }
 
     if (!hasAnyTimedEvent(payloadEvents) && !allowLowPrecisionContinue) {
       if (followUpAttempts < 3) {
         setShowFollowUpPrompt(true)
-        setInlineError('연도/연령 정보가 있는 이벤트가 더 있으면 정확도가 올라가요.')
+        setInlineError('?�도/?�령 ?�보가 ?�는 ?�벤?��? ???�으�??�확?��? ?�라가??')
       } else {
-        setInlineError('시간 정보가 적어 정확도가 낮아질 수 있어요.')
+        setInlineError('?�간 ?�보가 ?�어 ?�확?��? ??���????�어??')
       }
       return
     }
@@ -196,7 +192,7 @@ export default function BTRQuestionsPage() {
     } catch (error) {
       console.error('BTR analysis failed:', error)
       const msg = error instanceof Error ? error.message : 'Unknown error'
-      setInlineError(`분석 중 오류가 발생했습니다: ${msg}`)
+      setInlineError(`분석 �??�류가 발생?�습?�다: ${msg}`)
     } finally {
       setAnalyzing(false)
     }
@@ -230,15 +226,15 @@ export default function BTRQuestionsPage() {
       otherLabel: followUpAnswer.other_label,
     })
     if (!validateOtherLabel(payload)) {
-      setInlineError('추가 이벤트 설명을 입력해 주세요.')
+      setInlineError('추�? ?�벤???�명???�력??주세??')
       return
     }
     if (payload.precision_level === 'exact' && !payload.year) {
-      setInlineError('연도를 입력해 주세요.')
+      setInlineError('?�도�??�력??주세??')
       return
     }
     if (payload.precision_level === 'range' && !payload.age_range) {
-      setInlineError('연령 구간을 선택해 주세요.')
+      setInlineError('?�령 구간???�택??주세??')
       return
     }
     const key = `followup-${followUpAttempts + 1}`
@@ -255,7 +251,7 @@ export default function BTRQuestionsPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
         <div className="text-center">
           <Sparkles className="w-10 h-10 mx-auto mb-3 text-[#8d3d56] animate-pulse" />
-          <p className="text-[#534e57]">{analyzing ? '분석 중입니다...' : '질문을 불러오는 중입니다...'}</p>
+          <p className="text-[#534e57]">{analyzing ? '분석 중입?�다...' : '질문??불러?�는 중입?�다...'}</p>
         </div>
       </div>
     )
@@ -266,11 +262,11 @@ export default function BTRQuestionsPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle>질문이 없습니다</CardTitle>
-            <CardDescription>잠시 후 다시 시도해 주세요.</CardDescription>
+            <CardTitle>질문???�습?�다</CardTitle>
+            <CardDescription>?�시 ???�시 ?�도??주세??</CardDescription>
           </CardHeader>
           <CardContent>
-            <Button onClick={() => router.push('/')} className="w-full">처음으로</Button>
+            <Button onClick={() => router.push('/')} className="w-full">처음?�로</Button>
           </CardContent>
         </Card>
       </div>
@@ -286,8 +282,8 @@ export default function BTRQuestionsPage() {
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <div className="text-center mb-8">
           <p className="text-sm tracking-[0.18em] uppercase text-[#8a808a] mb-3">Birth Time Check</p>
-          <h1 className="text-3xl font-semibold text-[#2b2731]">짧은 질문으로 시간대 찾기</h1>
-          <p className="text-[#5f5a64] mt-3">기억나는 것만 답해도 됩니다. 모르면 “기억 안 남”을 선택하세요.</p>
+          <h1 className="text-3xl font-semibold text-[#2b2731]">짧�? 질문?�로 ?�간?� 찾기</h1>
+          <p className="text-[#5f5a64] mt-3">기억?�는 것만 ?�해???�니?? 모르�??�기?????�”을 ?�택?�세??</p>
         </div>
 
         <Card className="mb-6 border-[#e5d9de]">
@@ -304,7 +300,7 @@ export default function BTRQuestionsPage() {
           <CardHeader>
             <CardTitle className="text-xl text-[#2e2831]">{currentQuestion.text_ko || currentQuestion.text}</CardTitle>
             <CardDescription>
-              {isPersonalityQuestion ? '가장 가까운 답을 골라 주세요.' : '있음/없음과 시기 정보를 알려 주세요.'}
+              {isPersonalityQuestion ? '가??가까운 ?�을 골라 주세??' : '?�음/?�음�??�기 ?�보�??�려 주세??'}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
@@ -313,7 +309,7 @@ export default function BTRQuestionsPage() {
                 value={(answers[currentQuestion.id] as PersonalityAnswer | undefined)?.choice || ''}
                 onValueChange={(v) => handleAnswer(currentQuestion.id, { choice: v })}
               >
-                {Object.entries(currentQuestion.options).map(([key, value]: [string, any]) => (
+                {Object.entries(currentQuestion.options as Record<string, string>).map(([key, value]) => (
                   <div key={key} className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-[#faf7f8]">
                     <RadioGroupItem value={key} id={`${currentQuestion.id}-${key}`} />
                     <Label htmlFor={`${currentQuestion.id}-${key}`} className="flex-1 cursor-pointer">{value}</Label>
@@ -325,25 +321,25 @@ export default function BTRQuestionsPage() {
             {isEventQuestion && (
               <>
                 <div>
-                  <Label className="mb-3 block">이 일이 있었나요?</Label>
+                  <Label className="mb-3 block">???�이 ?�었?�요?</Label>
                   <RadioGroup
                     value={currentEventAnswer.hasEvent ? 'yes' : 'no'}
                     onValueChange={(v) => handleAnswer(currentQuestion.id, { ...currentEventAnswer, hasEvent: v === 'yes' })}
                   >
                     <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-[#faf7f8]">
                       <RadioGroupItem value="yes" id="event-yes" />
-                      <Label htmlFor="event-yes" className="flex-1 cursor-pointer">네</Label>
+                      <Label htmlFor="event-yes" className="flex-1 cursor-pointer">??/Label>
                     </div>
                     <div className="flex items-center space-x-2 rounded-lg border p-3 hover:bg-[#faf7f8]">
                       <RadioGroupItem value="no" id="event-no" />
-                      <Label htmlFor="event-no" className="flex-1 cursor-pointer">아니요</Label>
+                      <Label htmlFor="event-no" className="flex-1 cursor-pointer">?�니??/Label>
                     </div>
                   </RadioGroup>
                 </div>
 
                 {currentEventAnswer.hasEvent && (
                   <div className="space-y-4 rounded-lg border border-[#eadfe4] bg-[#faf5f7] p-4">
-                    <Label>언제를 얼마나 기억하나요?</Label>
+                    <Label>?�제�??�마??기억?�나??</Label>
                     {helperText && <p className="text-xs text-[#736a74]">{helperText}</p>}
 
                     <RadioGroup
@@ -359,21 +355,21 @@ export default function BTRQuestionsPage() {
                     >
                       <div className="flex items-center space-x-2 rounded-lg border bg-white p-3">
                         <RadioGroupItem value="exact" id="precision-exact" />
-                        <Label htmlFor="precision-exact" className="flex-1">정확한 연도 기억</Label>
+                        <Label htmlFor="precision-exact" className="flex-1">?�확???�도 기억</Label>
                       </div>
                       <div className="flex items-center space-x-2 rounded-lg border bg-white p-3">
                         <RadioGroupItem value="range" id="precision-range" />
-                        <Label htmlFor="precision-range" className="flex-1">대략 나이 구간 기억</Label>
+                        <Label htmlFor="precision-range" className="flex-1">?�???�이 구간 기억</Label>
                       </div>
                       <div className="flex items-center space-x-2 rounded-lg border bg-white p-3">
                         <RadioGroupItem value="unknown" id="precision-unknown" />
-                        <Label htmlFor="precision-unknown" className="flex-1">기억이 잘 안 남</Label>
+                        <Label htmlFor="precision-unknown" className="flex-1">기억????????/Label>
                       </div>
                     </RadioGroup>
 
                     {currentEventAnswer.precision_level === 'exact' && (
                       <div>
-                        <Label htmlFor="year">연도</Label>
+                        <Label htmlFor="year">?�도</Label>
                         <Input
                           id="year"
                           type="number"
@@ -381,20 +377,20 @@ export default function BTRQuestionsPage() {
                           max={new Date().getFullYear()}
                           value={currentEventAnswer.year || ''}
                           onChange={(e) => handleAnswer(currentQuestion.id, { ...currentEventAnswer, year: e.target.value })}
-                          placeholder="예: 2018"
+                          placeholder="?? 2018"
                         />
                       </div>
                     )}
 
                     {currentEventAnswer.precision_level === 'range' && (
                       <div>
-                        <Label>나이 구간</Label>
+                        <Label>?�이 구간</Label>
                         <Select
                           value={currentEventAnswer.age_range_label || ''}
                           onValueChange={(v) => handleAnswer(currentQuestion.id, { ...currentEventAnswer, age_range_label: v })}
                         >
                           <SelectTrigger>
-                            <SelectValue placeholder="구간 선택" />
+                            <SelectValue placeholder="구간 ?�택" />
                           </SelectTrigger>
                           <SelectContent>
                             {AGE_RANGE_OPTIONS.map((option) => (
@@ -407,11 +403,11 @@ export default function BTRQuestionsPage() {
 
                     {currentEventType === 'other' && (
                       <div>
-                        <Label>이벤트 내용</Label>
+                        <Label>?�벤???�용</Label>
                         <Input
                           value={currentEventAnswer.other_label || ''}
                           onChange={(e) => handleAnswer(currentQuestion.id, { ...currentEventAnswer, other_label: e.target.value })}
-                          placeholder="예: 유학 시작, 큰 수술"
+                          placeholder="?? ?�학 ?�작, ???�술"
                         />
                       </div>
                     )}
@@ -424,24 +420,24 @@ export default function BTRQuestionsPage() {
 
             {showFollowUpPrompt && !timedEventExists && (
               <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-3">
-                <p className="text-sm font-medium">정확도를 높이려면 추가 이벤트 1개만 더 입력해 주세요.</p>
-                <p className="text-xs text-[#6b6470]">추가 시도: {followUpAttempts}/3</p>
+                <p className="text-sm font-medium">?�확?��? ?�이?�면 추�? ?�벤??1개만 ???�력??주세??</p>
+                <p className="text-xs text-[#6b6470]">추�? ?�도: {followUpAttempts}/3</p>
 
                 <RadioGroup
                   value={followUpAnswer.precision_level || 'unknown'}
                   onValueChange={(v) => setFollowUpAnswer((prev) => ({ ...prev, precision_level: v as PrecisionLevel, year: undefined, age_range_label: undefined }))}
                 >
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="exact" id="f-exact" /><Label htmlFor="f-exact">정확한 연도</Label></div>
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="range" id="f-range" /><Label htmlFor="f-range">나이 구간</Label></div>
-                  <div className="flex items-center space-x-2"><RadioGroupItem value="unknown" id="f-unknown" /><Label htmlFor="f-unknown">기억 안 남</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="exact" id="f-exact" /><Label htmlFor="f-exact">?�확???�도</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="range" id="f-range" /><Label htmlFor="f-range">?�이 구간</Label></div>
+                  <div className="flex items-center space-x-2"><RadioGroupItem value="unknown" id="f-unknown" /><Label htmlFor="f-unknown">기억 ????/Label></div>
                 </RadioGroup>
 
                 {followUpAnswer.precision_level === 'exact' && (
-                  <Input type="number" placeholder="연도" value={followUpAnswer.year || ''} onChange={(e) => setFollowUpAnswer((prev) => ({ ...prev, year: e.target.value }))} />
+                  <Input type="number" placeholder="?�도" value={followUpAnswer.year || ''} onChange={(e) => setFollowUpAnswer((prev) => ({ ...prev, year: e.target.value }))} />
                 )}
                 {followUpAnswer.precision_level === 'range' && (
                   <Select value={followUpAnswer.age_range_label || ''} onValueChange={(v) => setFollowUpAnswer((prev) => ({ ...prev, age_range_label: v }))}>
-                    <SelectTrigger><SelectValue placeholder="나이 구간" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder="?�이 구간" /></SelectTrigger>
                     <SelectContent>
                       {AGE_RANGE_OPTIONS.map((option) => (
                         <SelectItem key={option.label} value={option.label}>{option.label}</SelectItem>
@@ -451,21 +447,21 @@ export default function BTRQuestionsPage() {
                 )}
 
                 <Input
-                  placeholder="이벤트 내용 (예: 이직, 결혼, 이사)"
+                  placeholder="?�벤???�용 (?? ?�직, 결혼, ?�사)"
                   value={followUpAnswer.other_label || ''}
                   onChange={(e) => setFollowUpAnswer((prev) => ({ ...prev, other_label: e.target.value }))}
                 />
 
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={submitFollowUpEvent} disabled={followUpAttempts >= 3}>추가 이벤트 제출</Button>
+                  <Button variant="outline" onClick={submitFollowUpEvent} disabled={followUpAttempts >= 3}>추�? ?�벤???�출</Button>
                   {followUpAttempts >= 3 && (
                     <Button
                       onClick={() => {
                         setAllowLowPrecisionContinue(true)
-                        setInlineError('정확도가 낮을 수 있다는 점을 확인하고 진행합니다.')
+                        setInlineError('?�확?��? ??�� ???�다???�을 ?�인?�고 진행?�니??')
                       }}
                     >
-                      경고 확인 후 진행
+                      경고 ?�인 ??진행
                     </Button>
                   )}
                 </div>
@@ -475,7 +471,7 @@ export default function BTRQuestionsPage() {
             <div className="flex gap-3 pt-2">
               <Button variant="outline" className="flex-1" onClick={() => setCurrentStep((s) => Math.max(0, s - 1))} disabled={currentStep === 0}>
                 <ChevronLeft className="w-4 h-4 mr-1" />
-                이전
+                ?�전
               </Button>
               <Button
                 className="flex-1 bg-[#8d3d56] hover:bg-[#7a344a]"
@@ -485,7 +481,7 @@ export default function BTRQuestionsPage() {
                   (isEventQuestion && !canProceedEventQuestion())
                 }
               >
-                {currentStep === questions.length - 1 ? '분석 시작' : '다음'}
+                {currentStep === questions.length - 1 ? '분석 ?�작' : '?�음'}
                 <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </div>
@@ -493,7 +489,9 @@ export default function BTRQuestionsPage() {
         </Card>
 
         <div className="mt-6 text-center text-sm text-[#726a75]">
-          성향 답변 {(Object.values(answers).filter((a: any) => a?.choice).length)}개 / 이벤트 {eventList.length}개 / 시기 정보 포함 {eventList.filter((e) => e.precision_level !== 'unknown').length}개
+          ?�향 ?��? {Object.values(answers).filter((answer): answer is PersonalityAnswer => {
+            return typeof (answer as PersonalityAnswer).choice === 'string'
+          }).length}�?/ ?�벤??{eventList.length}�?/ ?�기 ?�보 ?�함 {eventList.filter((e) => e.precision_level !== 'unknown').length}�?
         </div>
       </div>
     </div>

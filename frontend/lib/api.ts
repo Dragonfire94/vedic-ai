@@ -94,6 +94,16 @@ export interface BTRAnalyzeRequest {
   personality_answers?: Record<string, string>
 }
 
+export interface BTRQuestion {
+  id: string
+  text: string
+  options?: Record<string, string> | string[]
+  is_personality?: boolean
+  event_type?: string
+  type?: string
+  text_ko?: string
+}
+
 export interface ChartRequest {
   year: number
   month: number
@@ -112,10 +122,14 @@ export interface ChartRequest {
 }
 
 export interface BTRCandidate {
-  time_range: string
   mid_hour: number
+  start_hour: number
+  end_hour: number
   confidence: number
-  ascendant: string
+  event_matches: number
+  event_weights_sum: number
+  time_range?: string
+  ascendant?: string
   score?: number
 }
 

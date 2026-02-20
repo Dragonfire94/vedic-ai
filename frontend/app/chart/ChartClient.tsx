@@ -7,8 +7,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Compass, Download, Home, Sparkles, ChevronDown, ChevronUp, Star } from 'lucide-react'
-import { getAIReading, getChart, getPDF } from '@/lib/api'
-import { ASCENDANT_TRAITS, PLANET_NAMES_KR } from '@/lib/utils'
+import { getAIReading, getChart, getPDF, type AIReadingResponse, type ChartResponse, type PlanetData } from '@/lib/api'
+import { ASCENDANT_TRAITS, PLANET_NAMES_KR, toNum } from '@/lib/utils'
 
 type PlanetRow = {
   name: string
@@ -67,13 +67,8 @@ export default function ChartPage() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const toNum = (value: string | null, fallback: number): number => {
-    const n = Number(value)
-    return Number.isFinite(n) ? n : fallback
-  }
-
-  const [chart, setChart] = useState<any>(null)
-  const [aiReading, setAIReading] = useState<any>(null)
+  const [chart, setChart] = useState<ChartResponse | null>(null)
+  const [aiReading, setAIReading] = useState<AIReadingResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [loadingAI, setLoadingAI] = useState(false)
   const [loadingPDF, setLoadingPDF] = useState(false)
@@ -178,7 +173,7 @@ export default function ChartPage() {
 
   const planetRows: PlanetRow[] = useMemo(() => {
     if (!chart?.planets || typeof chart.planets !== 'object') return []
-    return Object.entries(chart.planets).map(([name, data]: [string, any]) => {
+    return Object.entries(chart.planets).map(([name, data]: [string, PlanetData]) => {
       const houseNum = Number(data?.house || 0)
       return {
         name,
