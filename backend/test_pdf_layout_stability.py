@@ -76,7 +76,7 @@ if _missing("timezonefinder"):
     tz_mod.TimezoneFinder = TimezoneFinder
     sys.modules["timezonefinder"] = tz_mod
 
-from backend.main import _clip_pdf_cell_text, create_pdf_styles, load_pdf_layout_config, render_report_payload_to_pdf
+from backend.pdf_service import _clip_pdf_cell_text, create_pdf_styles, load_pdf_layout_config, render_report_payload_to_pdf
 
 
 class TestPdfLayoutStability(unittest.TestCase):

@@ -1,8 +1,11 @@
+import json
 import re
 import subprocess
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
 
+from backend.report_engine import REPORT_CHAPTERS
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -708,6 +711,12 @@ def _build_icon_led_row(icon: str, body: str, styles) -> Table:
     ]))
     return row
 
+
+def convert_markdown_bold(text: str) -> str:
+    """Convert markdown **bold** markers to ReportLab-compatible <b> tags."""
+    return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
+
+
 def parse_markdown_to_flowables(text: str, styles):
     """Convert markdown-like text into ReportLab flowables."""
     flowables = []
@@ -768,5 +777,202 @@ def parse_markdown_to_flowables(text: str, styles):
             flowables.append(Paragraph(clean_line, styles['Body']))
     
     return flowables
+
+
+def generate_pdf_report(
+    *,
+    chart: dict[str, Any],
+    ai_reading: Any,
+    year: int,
+    month: int,
+    day: int,
+    hour: float,
+    lat: float,
+    lon: float,
+    house_system: str,
+    include_d9: int,
+    language: str,
+    resolve_pdf_narrative_content_fn,
+    build_report_payload_fn,
+    build_structural_summary_fn,
+) -> bytes:
+    layout_config = load_pdf_layout_config()
+    page_cfg = layout_config.get("page", {}) if isinstance(layout_config.get("page"), dict) else {}
+
+    # Render final PDF bytes
+    with BytesIO() as buffer:
+        doc = SimpleDocTemplate(
+            buffer,
+            pagesize=A4,
+            rightMargin=float(page_cfg.get("margin_right", 48)),
+            leftMargin=float(page_cfg.get("margin_left", 48)),
+            topMargin=float(page_cfg.get("margin_top", 36)),
+            bottomMargin=float(page_cfg.get("margin_bottom", 36)),
+        )
+
+        story = []
+        styles = create_pdf_styles()
+        color_cfg = layout_config.get("colors", {}) if isinstance(layout_config.get("colors"), dict) else {}
+        panel_bg = colors.HexColor(color_cfg.get("panel_bg", "#F8FAFC"))
+        separator_color = colors.HexColor(color_cfg.get("separator", "#D1D9E6"))
+        table_alt = colors.HexColor(color_cfg.get("table_alt", "#F1F5F9"))
+
+        # Report title
+        title_text = "Vedic Signature Report"
+        story.append(Paragraph(title_text, styles['ReportTitle']))
+        story.append(Paragraph("A refined narrative of pattern, timing, and personal alignment", styles['ReportSubtitle']))
+        story.append(Spacer(1, 0.2*cm))
+
+        # Birth information card
+        birth_rows = [
+            [Paragraph("Birth Date", styles["MetaLabel"]), Paragraph(f"{year}-{month:02d}-{day:02d}", styles["MetaValue"])],
+            [Paragraph("Birth Time", styles["MetaLabel"]), Paragraph(f"{int(hour)}:{int((hour % 1) * 60):02d}", styles["MetaValue"])],
+            [Paragraph("Coordinates", styles["MetaLabel"]), Paragraph(f"{lat:.4f}, {lon:.4f}", styles["MetaValue"])],
+            [Paragraph("House System", styles["MetaLabel"]), Paragraph("Whole Sign" if house_system == "W" else "Placidus", styles["MetaValue"])],
+        ]
+        birth_table = Table(birth_rows, colWidths=[4.0 * cm, 10.5 * cm])
+        birth_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), panel_bg),
+            ('BOX', (0, 0), (-1, -1), 0.7, separator_color),
+            ('INNERGRID', (0, 0), (-1, -1), 0.3, separator_color),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        story.append(birth_table)
+        story.append(Spacer(1, 0.5*cm))
+
+        # D1 chart
+        story.append(Paragraph("D1 Chart (Rasi)", styles['ChapterTitle']))
+        story.append(SouthIndianChart(chart, width=350, height=350))
+        story.append(Spacer(1, 0.5*cm))
+
+        # Planetary positions
+        story.append(Paragraph("Planetary Positions", styles['ChapterTitle']))
+
+        planet_data = [["Planet", "Sign", "House", "Nakshatra", "Dignity"]]
+
+        for name, data in chart["planets"].items():
+            rasi = data["rasi"]["name_kr" if language == "ko" else "name"]
+            house = str(data.get("house", "-"))
+            nak = data["nakshatra"]["name"]
+            dignity = data["features"]["dignity"]
+            planet_data.append([name, rasi, house, nak, dignity])
+
+        planet_table = Table(planet_data, colWidths=[3*cm, 4*cm, 2*cm, 4*cm, 3*cm])
+        planet_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+            ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, table_alt]),
+            ('LEFTPADDING', (0, 0), (-1, -1), 6),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+        ]))
+        story.append(planet_table)
+        story.append(Spacer(1, 0.5*cm))
+
+        narrative_content = resolve_pdf_narrative_content_fn(ai_reading, language)
+        narrative_source = str(narrative_content.get("source", "none"))
+        polished_reading_text = narrative_content.get("polished_text")
+        narrative_report_payload = narrative_content.get("report_payload")
+
+        # Fallback only when no reusable narrative payload was provided by /ai_reading.
+        if not narrative_report_payload and not polished_reading_text:
+            fallback_structural_summary = (
+                ai_reading.get("structured_summary")
+                if isinstance(ai_reading, dict) and isinstance(ai_reading.get("structured_summary"), dict)
+                else None
+            )
+            if isinstance(fallback_structural_summary, dict):
+                narrative_report_payload = build_report_payload_fn({"structural_summary": fallback_structural_summary, "language": language})
+            else:
+                narrative_report_payload = build_report_payload_fn({"structural_summary": build_structural_summary_fn(chart), "language": language})
+
+        deterministic_elements: list[Any] = []
+        if narrative_source != "polished" and isinstance(narrative_report_payload, dict):
+            deterministic_elements = render_report_payload_to_pdf(narrative_report_payload, styles, layout_config)
+            if deterministic_elements:
+                story.append(PageBreak())
+                story.extend(deterministic_elements)
+
+        # D9 chart (optional)
+        if include_d9 and "d9" in chart:
+            story.append(PageBreak())
+            story.append(Paragraph("D9 Chart (Navamsa)", styles['ChapterTitle']))
+            story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
+            story.append(Spacer(1, 0.5*cm))
+
+        vargas = chart.get("vargas", {}) if isinstance(chart, dict) else {}
+        for varga_key, varga_label in [("d10", "D10 Chart (Dashamsha)"), ("d7", "D7 Chart (Saptamsha)"), ("d12", "D12 Chart (Dvadasamsha)")]:
+            varga_data = vargas.get(varga_key, {}) if isinstance(vargas, dict) else {}
+            varga_planets = varga_data.get("planets", {}) if isinstance(varga_data, dict) else {}
+            if not isinstance(varga_planets, dict) or not varga_planets:
+                continue
+            story.append(PageBreak())
+            story.append(Paragraph(varga_label, styles['ChapterTitle']))
+            varga_rows = [["Planet", "Sign"]]
+            for planet_name in ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"]:
+                pdata = varga_planets.get(planet_name, {})
+                sign_name = "-"
+                if isinstance(pdata, dict):
+                    sign_name = pdata.get("rasi_kr" if language == "ko" else "rasi", "-")
+                varga_rows.append([planet_name, sign_name])
+            varga_table = Table(varga_rows, colWidths=[4 * cm, 8 * cm])
+            varga_table.setStyle(TableStyle([
+                ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                ('FONTSIZE', (0, 0), (-1, -1), 9),
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, table_alt]),
+                ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+            ]))
+            story.append(varga_table)
+            story.append(Spacer(1, 0.5*cm))
+
+        # If polished reading is available for the same chapter_blocks hash/language, use it as the primary narrative section.
+        if isinstance(polished_reading_text, str) and polished_reading_text.strip():
+            story.append(PageBreak())
+            story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
+            story.append(Spacer(1, 0.3*cm))
+            story.extend(parse_markdown_to_flowables(polished_reading_text, styles))
+        elif (not deterministic_elements) and ai_reading and ai_reading.get("reading"):
+            story.append(PageBreak())
+            story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
+            story.append(Spacer(1, 0.3*cm))
+
+            reading_text = ai_reading["reading"]
+            flowables = parse_markdown_to_flowables(reading_text, styles)
+            story.extend(flowables)
+
+        def _draw_page_chrome(canvas, _doc):
+            canvas.saveState()
+            header_color = colors.HexColor(color_cfg.get("chapter", "#1E3A5F"))
+            text_color = colors.HexColor(color_cfg.get("body", "#2D3748"))
+            canvas.setStrokeColor(separator_color)
+            canvas.setLineWidth(0.6)
+            canvas.line(_doc.leftMargin, A4[1] - _doc.topMargin + 10, A4[0] - _doc.rightMargin, A4[1] - _doc.topMargin + 10)
+            canvas.line(_doc.leftMargin, _doc.bottomMargin - 10, A4[0] - _doc.rightMargin, _doc.bottomMargin - 10)
+            canvas.setFont(PDF_FONT_BOLD, 8)
+            canvas.setFillColor(header_color)
+            canvas.drawString(_doc.leftMargin, A4[1] - _doc.topMargin + 14, "Vedic AI Report")
+            canvas.setFont(PDF_FONT_REG, 8)
+            canvas.setFillColor(text_color)
+            canvas.drawRightString(A4[0] - _doc.rightMargin, _doc.bottomMargin - 22, f"Page {canvas.getPageNumber()}")
+            canvas.restoreState()
+
+        # Render final PDF bytes
+        doc.build(story, onFirstPage=_draw_page_chrome, onLaterPages=_draw_page_chrome)
+        return buffer.getvalue()
 
 

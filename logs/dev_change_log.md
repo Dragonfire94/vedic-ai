@@ -57,3 +57,21 @@
 - TASK 2 completed: Extended parse_markdown_to_flowables with semantic block rendering for **[KEY]**, **[WARNING]**, and **[STRATEGY]** using highlighted paragraph boxes.
 - TASK 3 completed: Added promoted Key Takeaway lane in render_report_payload_to_pdf (bordered summary box with larger font before chapter body flow) and wired summary into report_payload for PDF rendering.
 - TASK 4 completed: Added LLM response post-processing to split newline-free paragraphs longer than 300 chars into two paragraphs at the nearest sentence boundary.
+- 2026-02-21: Validated PDF migration instructions as feasible and completed remaining move from backend/main.py to backend/pdf_service.py.
+- Removed all direct ReportLab imports/usages from backend/main.py and replaced endpoint render block with pdf_service.generate_pdf_report(...) call.
+- Added generate_pdf_report(...) in backend/pdf_service.py to encapsulate the previous /pdf route rendering logic without changing output flow.
+- Kept main imports aligned to requested state: from backend import pdf_service and from backend.pdf_service import init_fonts.
+- Ran import verification repeatedly after each step: python -c "from backend.main import app" (pass).
+- Updated backend/test_pdf_layout_stability.py import target from backend.main to backend.pdf_service after migration.
+- Fixed missing dependencies in backend/pdf_service.py discovered by tests: added import json, REPORT_CHAPTERS import from backend.report_engine, and convert_markdown_bold(...).
+- Executed test: python -m pytest backend/test_pdf_layout_stability.py -v -> 3 passed.
+- 2026-02-21: Refactored backend/llm_service.py to remove runtime dependency injection placeholders and deleted configure_llm_service(...).
+- Added direct imports in backend/llm_service.py for _get_atomic_chart_interpretations (backend.report_engine) and remaining LLM helpers from backend.main.
+- Added standard logger initialization in backend/llm_service.py: logger = logging.getLogger("vedic_ai").
+- Changed refine_reading_with_llm signature to require explicit async_client argument and updated main.py call sites accordingly (2 locations).
+- Removed configure_llm_service(...) wiring block from backend/main.py and moved llm_service import to a later point to avoid circular import during module initialization.
+- Validation: python -c "from backend.main import app" passed.
+- Test run (as requested): pytest backend/test_llm_refinement_pipeline.py backend/test_llm_audit.py -v.
+- Initial run failed at collection due to backend module path resolution; rerun with PYTHONPATH set to repo root.
+- Result with PYTHONPATH: 3 passed, 1 failed.
+- Remaining failure: backend/test_llm_refinement_pipeline.py expects exact prompt substring "Structural signals:" but current prompt text is "Structural Signals (Underlying Data):".

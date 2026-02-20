@@ -1,27 +1,24 @@
 import os
-from typing import Any, Optional, Callable
+import logging
+from typing import Any, Optional
+
+from backend.report_engine import _get_atomic_chart_interpretations
+from backend.main import (
+    build_ai_psychological_input,
+    _validate_deterministic_llm_blocks,
+    compute_chapter_blocks_hash,
+    _candidate_openai_models,
+    _build_openai_payload,
+    _emit_llm_audit_event,
+    _normalize_long_paragraphs,
+)
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
-
-# Runtime-injected dependencies from backend.main
-async_client = None
-_validate_deterministic_llm_blocks: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
-build_ai_psychological_input: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
-_get_atomic_chart_interpretations: Optional[Callable[[dict[str, Any]], dict[str, str]]] = None
-compute_chapter_blocks_hash: Optional[Callable[[dict[str, Any]], str]] = None
-_candidate_openai_models: Optional[Callable[[str], list[str]]] = None
-_build_openai_payload: Optional[Callable[..., dict[str, Any]]] = None
-_emit_llm_audit_event: Optional[Callable[..., dict[str, str]]] = None
-_normalize_long_paragraphs: Optional[Callable[[str, int], str]] = None
-logger = None
-
-
-def configure_llm_service(**deps: Any) -> None:
-    globals().update(deps)
-
+logger = logging.getLogger("vedic_ai")
 
 async def refine_reading_with_llm(
     *,
+    async_client: Any,
     chapter_blocks: dict[str, Any],
     structural_summary: dict[str, Any],
     language: str,
