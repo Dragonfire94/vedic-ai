@@ -235,12 +235,15 @@ function buildChartParams(
   return params
 }
 
-export async function getBTRQuestions(age: number, language: string = 'ko') {
+export async function getBTRQuestions(
+  age: number,
+  language: string = 'ko'
+): Promise<{ questions: BTRQuestion[] }> {
   const response = await safeFetch(`/btr/questions?age=${age}&language=${language}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch BTR questions')
   }
-  return response.json()
+  return response.json() as Promise<{ questions: BTRQuestion[] }>
 }
 
 export async function analyzeBTR(

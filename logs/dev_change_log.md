@@ -6,3 +6,4 @@
 - Removed defensive reading fallback and simplified BTR mid-hour parsing.
 - Updated BTR types, removed any in client pages, and centralized toNum utility.
 - Restricted CORS origins, secured BTR admin endpoint, and added backend env templates.
+- Preserved BTR birth params in results URL, typed BTR questions response, and restored Korean UI strings.
