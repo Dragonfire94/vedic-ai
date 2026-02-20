@@ -3358,6 +3358,13 @@ def analyze_btr(request: BTRAnalyzeRequest):
     validate_btr_events(request.events)
     validate_btr_event_temporal_consistency(request.events, request.year)
 
+    env_enabled = os.getenv("BTR_ENABLE_TUNE_MODE", "0") == "1"
+    effective_tune_mode = request.tune_mode and env_enabled
+    if request.tune_mode and not env_enabled:
+        logger.warning(
+            "BTR tune_mode requested but ignored because BTR_ENABLE_TUNE_MODE is disabled"
+        )
+
     try:
         birth_date = {"year": request.year, "month": request.month, "day": request.day}
 
@@ -3379,7 +3386,7 @@ def analyze_btr(request: BTRAnalyzeRequest):
             lon=request.lon,
             num_brackets=8,
             top_n=3,
-            tune_mode=request.tune_mode,
+            tune_mode=effective_tune_mode,
             tz_offset=tz_offset,
         )
 
@@ -3390,6 +3397,10 @@ def analyze_btr(request: BTRAnalyzeRequest):
             "lon": request.lon,
             "total_events": len(request.events),
             "candidates": candidates,
+            "debug_info": {
+                "tune_mode_requested": request.tune_mode,
+                "tune_mode_effective": effective_tune_mode,
+            },
         }
 
     except ValueError as e:
@@ -3502,5 +3513,4 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
 
