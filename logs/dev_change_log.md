@@ -46,3 +46,4 @@
 - /ai_reading request sent; no [LLM] response log captured (server output not observed).
 - Increased AI_MAX_TOKENS_* limits (reading/pdf/hard) and aligned model defaults with OPENAI_MODEL.
 - Added LLM empty-response debug log and restored ai_reading cache get/set and polished read cache usage.
+- Simplified _is_low_quality_reading to 1000-char threshold only.
