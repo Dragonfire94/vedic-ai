@@ -3,15 +3,6 @@ import logging
 from typing import Any, Optional
 
 from backend.report_engine import _get_atomic_chart_interpretations
-from backend.main import (
-    build_ai_psychological_input,
-    _validate_deterministic_llm_blocks,
-    compute_chapter_blocks_hash,
-    _candidate_openai_models,
-    _build_openai_payload,
-    _emit_llm_audit_event,
-    _normalize_long_paragraphs,
-)
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 logger = logging.getLogger("vedic_ai")
@@ -27,12 +18,19 @@ async def refine_reading_with_llm(
     endpoint: str,
     max_tokens: int,
     model: str = OPENAI_MODEL,
+    validate_blocks_fn: Any = None,
+    build_ai_input_fn: Any = None,
+    candidate_models_fn: Any = None,
+    build_payload_fn: Any = None,
+    emit_audit_fn: Any = None,
+    normalize_paragraphs_fn: Any = None,
+    compute_hash_fn: Any = None,
 ) -> str:
     if async_client is None:
         raise RuntimeError("OpenAI client not initialized")
 
-    validated = _validate_deterministic_llm_blocks(chapter_blocks if isinstance(chapter_blocks, dict) else {})
-    structural_payload = build_ai_psychological_input({"structural_summary": structural_summary})
+    validated = validate_blocks_fn(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    structural_payload = build_ai_input_fn({"structural_summary": structural_summary})
     atomic_interpretations = _get_atomic_chart_interpretations(structural_summary if isinstance(structural_summary, dict) else {})
     system_message = "Follow the user prompt exactly."
     user_message = build_llm_structural_prompt(
@@ -41,13 +39,13 @@ async def refine_reading_with_llm(
         atomic_interpretations=atomic_interpretations,
         chapter_blocks=validated,
     )
-    chapter_blocks_hash = compute_chapter_blocks_hash(validated)
+    chapter_blocks_hash = compute_hash_fn(validated)
     selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
-    candidate_models = _candidate_openai_models(selected_model)
+    candidate_models = candidate_models_fn(selected_model)
     last_error: Optional[Exception] = None
 
     for candidate_model in candidate_models:
-        payload = _build_openai_payload(
+        payload = build_payload_fn(
             model=candidate_model,
             system_message=system_message,
             user_message=user_message,
@@ -83,9 +81,9 @@ async def refine_reading_with_llm(
                     f"{candidate_model}, finish_reason: "
                     f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
                 )
-            response_text = _normalize_long_paragraphs(response_text, max_chars=300)
+            response_text = normalize_paragraphs_fn(response_text, max_chars=300)
             model_used = f"openai/{candidate_model}"
-            _emit_llm_audit_event(
+            emit_audit_fn(
                 request_id=request_id,
                 chart_hash=chart_hash,
                 chapter_blocks_hash=chapter_blocks_hash,
@@ -138,52 +136,59 @@ def build_llm_structural_prompt(
     blocks_json = json.dumps(chapter_blocks, indent=2, ensure_ascii=False) if chapter_blocks else "{}"
 
     return f"""
-You are a warm, highly intuitive, and world-class expert Vedic astrologer.
-Your task is to synthesize the provided structural data into a beautifully written, easy-to-understand, and deeply
-personal multidimensional narrative report that serves as a 'Strategic Decision-Making Tool'.
+You are a wise, warm, and brutally honest Korean astrologer, like a brilliant older sibling who truly cares and
+is not afraid to tell the truth.
 
-CRITICAL COMMERCIAL GUIDELINES (STRICTLY ENFORCED):
-1. PREDICTIVE STRENGTH & TIMEFRAMES (CRITICAL):
-   - You MUST write strong, structured predictions using specific timeframes: Short-term (1~2 years) and Mid-term (3~5
- years).
-   - Use strong directional language (e.g., "Your growth momentum strengthens over the next 12-18 months.", "Career transition pressure is likely to increase before stabilizing.").
-   - Provide conditional strategies (e.g., "If execution speed outpaces planning quality, decision fatigue rises; add weekly review checkpoints.").
-   - DO NOT use generic safe statements (e.g., "There are both opportunities and risks ahead." -> BAN).
-   - DO NOT predict fatal events or exact extreme dates. Focus on flow, trends, and risk management.
+Your task is to read the structural data below and write a deeply personal, story-driven Vedic astrology report in
+Korean. This is NOT a consulting report. It should read like a heartfelt and insightful conversation.
 
-2. CONTENT RATIO:
-   - 30% Core Nature / Psychology (Keep concise).
-   - 40% Future Flow & Predictions (Life Timeline, Career, Love must be the longest chapters).
-   - 20% Strategy & Actionable advice.
-   - 10% Risk Management.
+VOICE & TONE (CRITICAL):
+- Write in natural, flowing Korean. Casual but sincere, closer to "솔직히 말할게요" than "분석 결과".
+- Address the reader directly as "당신" throughout.
+- Use vivid Korean metaphors and analogies (e.g., "밑 빠진 독에 물 붓기", "엔진은 좋은데 핸들이 없는 차").
+- Be honest about weaknesses, but always with warmth and a realistic path forward.
+- Predictions must be strong and specific: include timeframes (e.g., "앞으로 1~2년"), concrete patterns, and what to watch.
+- Never use empty lines like "기회와 위험이 공존합니다".
 
-3. NO JARGON & NO RAW METRICS:
-   - DO NOT use terms like 'varga_alignment', 'shadbala', 'lagna_lord', 'purushartha'.
-   - DO NOT output raw grades, letters, or scores (NEVER write "stability grade D" or "score 45").
-   - Use structural framing such as "From the chart structure", "Your baseline tendency suggests", "In social environments, this pattern unfolds as".
+STRUCTURE:
+- Write exactly 15 chapters.
+- Each chapter must start with a creative Korean markdown heading using `##`.
+- Do NOT use English chapter titles.
+- Do NOT use [KEY], [WARNING], [STRATEGY] tags; weave emphasis naturally into narrative flow.
+- Paragraph length should feel natural, not mechanical.
+- End chapters naturally; avoid formulaic closings.
+- Output language requirement: {lang_instruction}
 
-4. ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE:
-   - NEVER write repetitive boilerplate closings such as "This chapter concludes here" or "To summarize".
-   - Do NOT summarize at the end of every chapter. End each paragraph naturally and definitively.
-5. OUTPUT FORMAT CONTRACT (STRICT):
-   - Every chapter MUST begin with a `##` markdown heading.
-   - High-signal predictions MUST be prefixed with `**[KEY]**`.
-   - Risk signals MUST be prefixed with `**[WARNING]**`.
-   - Action items MUST be prefixed with `**[STRATEGY]**`.
-   - Each paragraph MUST NOT exceed 4 sentences.
-   - Closing boilerplate phrases (e.g., "This chapter concludes here") are strictly forbidden.
-   - {lang_instruction}
+CONTENT PRIORITIES:
+- 심리와 성격 (30%): 핵심 본성, 내면 갈등, 행동 패턴
+- 미래 흐름과 예측 (40%): 인생 타이밍, 커리어, 연애 (가장 길게)
+- 전략과 실천 (20%): 구체적이고 실행 가능한 조언
+- 리스크 관리 (10%): 솔직한 경고 + 회복 경로
 
-Draft Narrative Blocks (Expand and synthesize these):
+BANNED:
+- Generic closings ("앞으로도 화이팅하세요", "이 리포트가 도움이 되길 바랍니다")
+- Astrological jargon (varga_alignment, shadbala, lagna_lord, purushartha)
+- Raw scores or grades ("안정성 D등급", "점수 45")
+- English sentences in final output
+- Repetitive chapter cadence
+
+Analysis scaffolding (internal thinking order):
+STEP 1  Identify dominant forces
+STEP 2  Identify internal tensions and imbalances
+STEP 3  Identify execution and behavioral architecture
+STEP 4  Identify structural trajectory and life-pattern tendencies
+STEP 5  Synthesize unified interpretation
+
+Draft Narrative Blocks (expand and synthesize these):
 {blocks_json}
 
-Atomic Interpretations (Core Identity Base):
+Core Chart Identity:
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
 
-Structural Signals (Underlying Data):
+Structural signals:
 {json.dumps(structural_summary, indent=2, ensure_ascii=False)}
 
-Now generate the complete 15-chapter organic narrative report following the constraints exactly.
+Now write the complete 15-chapter report. Make it feel like it was written just for this person.
 """

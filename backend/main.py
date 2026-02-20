@@ -1725,6 +1725,13 @@ async def get_ai_reading(
             if polished_reading is None and async_client:
                 polished_reading = await refine_reading_with_llm(
                     async_client=async_client,
+                    validate_blocks_fn=_validate_deterministic_llm_blocks,
+                    build_ai_input_fn=build_ai_psychological_input,
+                    candidate_models_fn=_candidate_openai_models,
+                    build_payload_fn=_build_openai_payload,
+                    emit_audit_fn=_emit_llm_audit_event,
+                    normalize_paragraphs_fn=_normalize_long_paragraphs,
+                    compute_hash_fn=compute_chapter_blocks_hash,
                     chapter_blocks=chapter_blocks,
                     structural_summary=rectified_summary.get("structural_summary", {}),
                     language=language,
@@ -1874,6 +1881,13 @@ async def get_ai_reading(
         if polished_reading is None:
             polished_reading = await refine_reading_with_llm(
                 async_client=async_client,
+                validate_blocks_fn=_validate_deterministic_llm_blocks,
+                build_ai_input_fn=build_ai_psychological_input,
+                candidate_models_fn=_candidate_openai_models,
+                build_payload_fn=_build_openai_payload,
+                emit_audit_fn=_emit_llm_audit_event,
+                normalize_paragraphs_fn=_normalize_long_paragraphs,
+                compute_hash_fn=compute_chapter_blocks_hash,
                 chapter_blocks=chapter_blocks,
                 structural_summary=structured_summary,
                 language=language,

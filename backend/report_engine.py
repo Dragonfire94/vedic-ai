@@ -1,4 +1,4 @@
-"""Deterministic report block selector and GPT payload builder."""
+﻿"""Deterministic report block selector and GPT payload builder."""
 
 from __future__ import annotations
 
@@ -95,9 +95,7 @@ _ACTIVE_LANGUAGE = "en"
 logger = logging.getLogger("report_engine")
 REPORT_MAPPING_DEBUG = str(os.getenv("REPORT_MAPPING_DEBUG", "1")).strip().lower() not in {"0", "false", "no", "off"}
 
-INTERPRETATIONS_KR_FILE = Path("C:/dev/vedic-ai/assets/data/interpretations.kr_final.json")
-if not INTERPRETATIONS_KR_FILE.exists():
-    INTERPRETATIONS_KR_FILE = Path(__file__).resolve().parent.parent / "assets" / "data" / "interpretations.kr_final.json"
+INTERPRETATIONS_KR_FILE = Path(__file__).resolve().parent.parent / "assets" / "data" / "interpretations.kr_final.json"
 INTERPRETATIONS_KR: dict[str, Any] = {}
 INTERPRETATIONS_KR_ATOMIC: dict[str, Any] = {}
 INTERPRETATIONS_KR_ENTRIES_COUNT = 0
@@ -217,19 +215,15 @@ def _new_mapping_audit() -> dict[str, Any]:
 
 
 def _load_interpretations_kr() -> tuple[dict[str, Any], dict[str, Any], int]:
+    if not INTERPRETATIONS_KR_FILE.exists():
+        logger.warning("interpretations.kr_final.json not found at %s", INTERPRETATIONS_KR_FILE)
+        return {}, {}, 0
     try:
-        with open("C:/dev/vedic-ai/assets/data/interpretations.kr_final.json", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
-        if not INTERPRETATIONS_KR_FILE.exists():
-            logger.warning("interpretations.kr_final.json not found at %s", INTERPRETATIONS_KR_FILE)
-            return {}, {}, 0
-        try:
-            with open(INTERPRETATIONS_KR_FILE, "r", encoding="utf-8") as handle:
-                data = json.load(handle)
-        except Exception as exc:
-            logger.warning("interpretations.kr_final.json load failed: %s", exc)
-            return {}, {}, 0
+        with open(INTERPRETATIONS_KR_FILE, "r", encoding="utf-8") as handle:
+            data = json.load(handle)
+    except Exception as exc:
+        logger.warning("interpretations.kr_final.json load failed: %s", exc)
+        return {}, {}, 0
 
     try:
         ko_payload = data["ko"]
@@ -266,11 +260,11 @@ def _load_template_file(path: Path) -> list[dict[str, Any]]:
 
 def _localized_ko_content(chapter: str, block_id: str) -> dict[str, Any]:
     return {
-        "title": f"{chapter} 遺꾩꽍 - {block_id}",
-        "summary": f"???⑤씫? 洹쒖튃 `{block_id}`??留ㅼ묶??寃곗젙濡좎쟻 ?좏샇瑜?湲곕컲?쇰줈 ?앹꽦?섏뿀?듬땲??",
-        "analysis": "?좏샇 怨꾩궛媛믨낵 援ъ“ ?붿빟??愿怨꾨? 洹몃?濡??좎??섎ŉ, 異붽? 異붾줎 ?놁씠 ?댁꽍 ?먮쫫留??뺣━?⑸땲??",
-        "implication": "?섏궗寃곗젙? ?꾩옱 ?좏샇 媛뺣룄? ?덉젙??吏?쒕? ?④퍡 ?뺤씤?섎뒗 諛⑹떇?쇰줈 ?④퀎?곸쑝濡?吏꾪뻾?섎뒗 寃껋씠 ?곸젅?⑸땲??",
-        "examples": "?숈씪 ?낅젰?먯꽌???숈씪 臾몄옣???ъ깮?깅릺硫? 洹쒖튃 湲곕컲 寃쎈줈???ы쁽 媛?μ꽦???좎??⑸땲??",
+        "title": f"{chapter} - {block_id}",
+        "summary": f"현재 `{block_id}` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.",
+        "analysis": "세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로 자동 대체됩니다.",
+        "implication": "이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에 추가하는 것을 권장합니다.",
+        "examples": "예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로 교체됩니다.",
     }
 
 
@@ -528,7 +522,7 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
                 window = value.get("window")
                 if isinstance(probability, str) and probability.strip() and isinstance(dominant_theme, str) and dominant_theme.strip():
                     forecast_window = f" ({window})" if isinstance(window, str) and window.strip() else ""
-                    payload_block.setdefault("key_forecast", f"{dominant_theme}{forecast_window} · probability {probability}")
+                    payload_block.setdefault("key_forecast", f"{dominant_theme}{forecast_window} 쨌 probability {probability}")
         else:
             payload_block[field] = str(value)
 
@@ -1036,15 +1030,15 @@ def _chapter_depth_stats(chapter_blocks: list[dict[str, Any]]) -> tuple[int, int
 
 def _planet_meaning_text(planet: str, ko_mode: bool) -> str:
     ko = {
-        "Sun": "Sun 우세는 자아 의식과 리더십을 강화해 스스로 방향을 결정하려는 성향을 높입니다.",
+        "Sun": "Sun 우세는 자아 의식과 리더십을 강화하며 스스로 방향을 정해 움직이려는 성향을 높입니다.",
         "Moon": "Moon 우세는 정서 감수성과 공감 반응을 강화해 관계와 분위기에 민감하게 반응하게 만듭니다.",
         "Mars": "Mars 우세는 추진력과 독립성을 강화해 목표 달성을 위해 빠르게 행동하는 경향을 만듭니다.",
-        "Mercury": "Mercury 우세는 분석력과 언어적 판단력을 강화해 전략적 의사결정의 정확도를 높입니다.",
-        "Jupiter": "Jupiter 우세는 확장성과 성장 지향성을 강화해 장기적 기회 포착 능력을 높입니다.",
+        "Mercury": "Mercury 우세는 분석력과 언어적 판단력을 강화해 전략적 의사결정 정확도를 높입니다.",
+        "Jupiter": "Jupiter 우세는 확장성과 성장 지향성을 강화해 장기 기회 포착 능력을 높입니다.",
         "Venus": "Venus 우세는 조화 감각과 관계 품질을 강화해 균형 중심의 선택을 선호하게 만듭니다.",
-        "Saturn": "Saturn 우세는 규율과 책임을 강화하지만 성과는 지연되어 축적형 결과로 나타납니다.",
-        "Rahu": "Rahu 우세는 급진적 변화 추구를 강화해 빠른 상승 가능성과 변동 리스크를 함께 키웁니다.",
-        "Ketu": "Ketu 우세는 분리와 내적 통찰을 강화해 단순화와 재정렬을 요구합니다.",
+        "Saturn": "Saturn 우세는 규율과 책임감을 강화하며 성과는 늦더라도 축적형 결과로 수렴하게 합니다.",
+        "Rahu": "Rahu 우세는 급진적 변화 추구를 강화해 빠른 성장 가능성과 변동 리스크를 함께 키웁니다.",
+        "Ketu": "Ketu 우세는 분리와 내적 재구성을 강화해 단순화와 본질 추구를 촉진합니다.",
     }
     en = {
         "Sun": "Sun dominance strengthens identity and leadership, increasing self-directed agency.",
@@ -1151,16 +1145,16 @@ def _integrate_atomic_with_signals(atomic_text: str, structural_summary: dict[st
     extensions: list[str] = []
     dominant_planet = purpose.get("dominant_planet")
     if isinstance(dominant_planet, str) and dominant_planet.strip():
-        extensions.append(f"이 기반 위에서 {dominant_planet.strip()} 성향이 실행 방식의 일관성과 선택 우선순위를 강화합니다.")
+        extensions.append(f"현재 구조에서는 {dominant_planet.strip()} 성향이 실행 방식과 선택 우선순위에 강하게 영향을 줍니다.")
     stability_grade = stability.get("stability_grade") or stability.get("grade")
     if isinstance(stability_grade, str) and stability_grade.strip():
-        extensions.append(f"안정성 등급({stability_grade.strip()})은 이 특성이 현실에서 발현될 때의 변동 폭과 유지력을 규정합니다.")
+        extensions.append(f"안정성 등급({stability_grade.strip()})은 변화 구간에서 반응 폭과 회복 속도를 함께 규정합니다.")
     tension_axis = tension.get("axis")
     if isinstance(tension_axis, str) and tension_axis.strip():
-        extensions.append(f"심리 긴장 축({tension_axis.strip()})과 결합되면서 관계·의사결정 장면에서 반복 패턴이 형성됩니다.")
+        extensions.append(f"심리 긴장 축({tension_axis.strip()})과 결합되면 관계 및 의사결정 국면에서 반복 패턴이 강화될 수 있습니다.")
     discipline = personality.get("discipline_index")
     if isinstance(discipline, (int, float)):
-        extensions.append("규율 지표와 결합될 때 이 구조는 단기 반응보다 누적형 성과를 만들도록 행동 리듬을 고정합니다.")
+        extensions.append("규율 지수와 결합된 구조에서는 단기 반응보다 누적 성과를 만들도록 행동 리듬을 고정하는 것이 유리합니다.")
 
     if not extensions:
         return base
@@ -1396,8 +1390,8 @@ def _signal_focus_label_ko(signal_path: str) -> str:
     if "varga" in p:
         return "분할차트 정렬 축"
     if "probability_forecast" in p:
-        return "전개 확률 축"
-    return "핵심 구조 축"
+        return "확률 전망 축"
+    return "종합 구조 축"
 
 
 def _risk_band(value: Any) -> str:
@@ -1471,12 +1465,10 @@ def _interpret_signal_sentence(
                         else:
                             bucket["misses"] = int(bucket.get("misses", 0)) + 1
 
-            focus_label = _signal_focus_label_ko(signal_path)
             return (summary, "", "", "")
 
         mapped_text = _interpretation_mapping_text(signal_path, signal_value, structural, mapping_audit=mapping_audit)
         if isinstance(mapped_text, str) and mapped_text.strip():
-            focus_label = _signal_focus_label_ko(signal_path)
             return (mapped_text, "", "", "")
 
     if "dominant_planet" in p:
@@ -1485,9 +1477,9 @@ def _interpret_signal_sentence(
         if ko_mode:
             return (
                 summary,
-                "지배 행성의 기질은 성향 벡터와 행동 위험의 발현 강도를 조정하며 반복되는 선택 패턴을 만듭니다.",
-                "강점은 실행 가속에 사용하되 과잉 발현이 충돌로 바뀌지 않도록 속도와 경계를 함께 관리해야 합니다.",
-                "주요 결정은 지배 행성의 강점 영역에서 시작할 때 성과 일관성이 높아집니다.",
+                "지배 행성의 기질은 성향 벡터와 결합해 행동 표현의 강도를 조정하고 반복되는 선택 패턴을 만듭니다.",
+                "강점은 실행 가속에 쓰되 과도한 발현이 충돌로 번지지 않도록 속도와 경계를 함께 관리해야 합니다.",
+                "주요 결정은 지배 행성의 강점 영역에서 시작할수록 결과 일관성이 높아집니다.",
             )
         return (
             summary,
@@ -1503,10 +1495,10 @@ def _interpret_signal_sentence(
             return (
                 "긴장 지수가 높아 내적 갈등과 반응 과열 가능성이 커지며 판단 변동성이 증가합니다."
                 if band in {"high", "elevated"}
-                else "긴장 지수가 중간 이하로 유지되어 정서 반응의 진폭이 비교적 안정적입니다.",
+                else "긴장 지수가 중간 이하라 정서 반응의 진폭이 비교적 안정적입니다.",
                 "이 지표는 정서 처리 속도와 통제력의 균형을 보여주며 압박 구간에서 충돌 패턴의 반복 가능성을 시사합니다.",
-                "고긴장 구간에서는 결정 속도를 낮추고 회복 루틴을 먼저 확보한 뒤 실행 강도를 높이는 것이 유리합니다.",
-                "관계 대화와 협상처럼 감정 비용이 큰 장면에서는 사전 정렬 시간을 확보해야 손실을 줄일 수 있습니다.",
+                "고긴장 구간에서는 결정 속도를 낮추고 회복 루틴을 먼저 확보해 실행 강도를 높이는 것이 유리합니다.",
+                "관계와 협상처럼 감정 비용이 큰 장면에서는 사전 정렬 시간이 성패를 좌우합니다.",
             )
         return (
             "Elevated tension indicates stronger internal conflict and higher decision volatility."
@@ -1521,12 +1513,12 @@ def _interpret_signal_sentence(
         band = _risk_band(signal_value)
         if ko_mode:
             return (
-                "안정성 지수가 낮아 계획의 연속성과 성과의 누적성이 흔들릴 가능성이 큽니다."
+                "안정성 지수가 낮아 계획의 지속성과 성과의 일관성이 흔들릴 가능성이 큽니다."
                 if band in {"high", "elevated"}
-                else "안정성 지수가 확보되어 실행 리듬과 장기 누적 성과의 가능성이 높아집니다.",
-                "안정성은 행동 지속성과 회복 탄력의 결합 지표로 변동기 판단 품질을 직접 좌우합니다.",
-                "저안정 국면에서는 확장보다 리듬 복원과 누수 차단을 우선해야 변동 손실을 줄일 수 있습니다.",
-                "수면, 일정, 실행 블록을 고정하는 루틴이 안정성 회복의 핵심 레버리지입니다.",
+                else "안정성 지수가 확보되어 실행 리듬과 누적 성과의 가능성이 높아집니다.",
+                "안정성은 행동 지속성과 회복 탄력의 결합 지표로, 변동기 판단 오차를 직접 좌우합니다.",
+                "저안정 구간에서는 확장보다 리듬 복원과 누수 차단을 우선해야 변동 비용을 줄일 수 있습니다.",
+                "수면, 일정, 실행 블록을 고정하는 루틴이 안정성과 회복력을 동시에 끌어올립니다.",
             )
         return (
             "Lower stability raises volatility and weakens continuity of execution."
@@ -1540,10 +1532,10 @@ def _interpret_signal_sentence(
     if "saturn" in p:
         if ko_mode:
             return (
-                "Saturn 영향이 강하면 규율과 책임감이 강화되지만 성과는 지연되어 나타나기 쉽습니다.",
-                "이 구조는 단기 보상보다 장기 축적에 유리하며 기준 미달 상태의 조기 확장은 역효과를 냅니다.",
-                "검증된 절차와 품질 기준을 먼저 확보하면 지연 구간의 손실을 크게 줄일 수 있습니다.",
-                "속도보다 재현성 높은 루틴을 유지할 때 최종 성과가 안정적으로 커집니다.",
+                "Saturn 영향이 강하면 규율과 책임감이 강화되지만 성과가 지연되어 체감되기 쉽습니다.",
+                "이 구조에서는 단기 보상보다 장기 축적이 유리하고, 기준 미달 상태의 조기 확장은 역효과를 냅니다.",
+                "검증된 절차와 품질 기준을 먼저 확보하면 지연 구간도 안정적으로 통과할 수 있습니다.",
+                "속도보다 재현 가능한 루틴을 우선할수록 최종 성과가 안정적으로 커집니다.",
             )
         return (
             "Strong Saturn influence builds discipline and responsibility with delayed realization of results.",
@@ -1561,7 +1553,7 @@ def _interpret_signal_sentence(
                 else "분할차트 정렬도가 중간 이하이므로 전략과 환경 적합성의 미세 조정이 필요합니다.",
                 "정렬 지표는 잠재력 자체보다 현재 맥락에서 얼마나 안정적으로 발현되는지를 보여줍니다.",
                 "정렬이 낮은 영역은 속도보다 맥락 조정과 역할 재배치를 우선해야 손실을 줄일 수 있습니다.",
-                "동일한 역량도 정렬도가 높은 분야에서 더 낮은 비용으로 성과가 발생합니다.",
+                "동일 노력이라도 정렬도가 높은 분야에서 더 낮은 비용으로 성과가 발생합니다.",
             )
         return (
             "High varga alignment increases convergence between decisions and lived outcomes."
@@ -1576,11 +1568,11 @@ def _interpret_signal_sentence(
         prob = float(signal_value)
         if ko_mode:
             return (
-                "해당 사건 확률이 높아 구조적 전환이 활성화될 가능성이 큽니다."
+                "해당 사건 확률이 높아 구조적 전환 경로가 현실화될 가능성이 큽니다."
                 if prob >= 0.65
-                else "확률이 중간 이하이므로 급격한 전환보다 점진적 조정 전략이 합리적입니다.",
-                "확률 지표는 예언이 아니라 현재 구조에서 어떤 경로가 더 쉽게 활성화되는지 보여줍니다.",
-                "고확률 구간에서는 대비 시나리오를 선제 배치해 전환 비용을 낮추는 것이 핵심입니다.",
+                else "확률이 중간 이하라면 급격한 전환보다 점진적 조정 전략이 더 합리적입니다.",
+                "확률 지표는 예언이 아니라 현재 구조에서 어떤 경로가 더 쉽게 현실화되는지 보여주는 신호입니다.",
+                "고확률 구간에서는 대비 시나리오를 먼저 배치해 전환 비용을 낮추는 것이 중요합니다.",
                 "보수·기준·확장 시나리오를 분리하면 변동 구간 대응력이 높아집니다.",
             )
         return (
@@ -1594,10 +1586,10 @@ def _interpret_signal_sentence(
 
     if ko_mode:
         return (
-            "현재 지표 조합은 핵심 축의 일관성을 유지하면서 선택 우선순위를 조정해야 함을 시사합니다.",
-            "성향 벡터와 안정성·리스크를 함께 보면 과잉 반응 또는 회피 반응이 발생하는 구간을 예측할 수 있습니다.",
+            "현재 지표 조합은 축 간 일관성을 유지하면서 선택 우선순위를 재조정해야 함을 시사합니다.",
+            "성향 벡터와 안정성·리스크를 함께 읽으면 과잉 반응 또는 회피 반응이 발생하는 구간을 더 정확히 포착할 수 있습니다.",
             "강점 축은 실행에 사용하고 약점 축은 보호 장치를 먼저 배치하는 방식이 손실을 줄입니다.",
-            "결정 전 점검 루틴을 표준화하면 동일 패턴의 반복 손실을 완화할 수 있습니다.",
+            "결정 전 리듬을 표준화하면 동일 패턴의 반복 손실을 완화할 수 있습니다.",
         )
     return (
         "The current metric mix suggests reprioritizing choices while preserving coherence across core life axes.",
@@ -1605,8 +1597,6 @@ def _interpret_signal_sentence(
         "Deploy strengths for execution while protecting weaker axes first to reduce avoidable downside.",
         "A standardized pre-decision routine lowers repeated losses from familiar pattern loops.",
     )
-
-
 
 
 def _high_signal_forecast_line(signal_path: str, signal_value: Any, *, ko_mode: bool) -> str:
@@ -1664,7 +1654,7 @@ def _create_signal_fragment(
         logger.info("atomic_text_applied key=%s length=%d", atomic_key, len(atomic_text))
 
     fragment = {
-        "title": f"{chapter} - {'해석 단락' if ko_mode else 'Interpretive Block'} {index}",
+        "title": f"{chapter} - {'해석 블록' if ko_mode else 'Interpretive Block'} {index}",
         "summary": summary,
         "analysis": analysis,
         "implication": implication,
@@ -2000,7 +1990,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         integrated = _integrate_atomic_with_signals(text, structural)
         return (
             {
-                "title": f"{chapter_name} - 해석 단락 {index_seed}",
+                "title": f"{chapter_name} - 해석 블록 {index_seed}",
                 "summary": integrated,
                 "analysis": "",
                 "implication": "",
@@ -2125,6 +2115,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
     _inject_choice_forks(structural, chapter_blocks, chapter_meta, chapter_limits)
     _inject_scenario_compression(structural, chapter_blocks, chapter_meta, chapter_limits)
 
+    # TODO(report-engine): Atomic dominance lock is intentionally disabled pending product decision.
     # Atomic dominance lock: where atomic fragment exists, remove non-atomic fragments.
     # for chapter in REPORT_CHAPTERS:
     #     frags = chapter_blocks.get(chapter, [])

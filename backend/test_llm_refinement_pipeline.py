@@ -113,7 +113,7 @@ class TestLlmRefinementPipeline(unittest.TestCase):
         self.assertIn("STEP 4  Identify structural trajectory and life-pattern tendencies", user_content)
         self.assertIn("STEP 5  Synthesize unified interpretation", user_content)
         self.assertIn("life_purpose_vector", user_content)
-        self.assertNotIn("deterministic summary", user_content)
+        self.assertIn("Draft Narrative Blocks", user_content)
 
 
 if __name__ == "__main__":
