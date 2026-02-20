@@ -28,3 +28,12 @@
 - OPENAI_API_KEY MISSING ? add to backend/.env
 - Import check: python -c "import main; print('OK')" succeeded (warning: OpenAI client None).
 - OPENAI_API_KEY present (dotenv check).
+- Added LLM call logs (pre-call, response length, error) and cache hit log; set AI_CACHE_TTL to 1 second.
+- Attempted backend restart and PDF request; server did not expose port 8000 and Invoke-WebRequest failed: 원격 서버에 연결할 수 없습니다.
+- No [LLM]/[CACHE HIT] runtime logs captured from server due to restart/port issue.
+- Replaced OpenAI payload max_tokens with max_completion_tokens throughout main.py.
+- Import check: python -c "import main; print('OK')" succeeded.
+- Disabled ai_reading cache usage: cache.get/cache.set, load_polished_reading_from_cache, save_polished_reading_to_cache (get_ai_reading ~1840-2170).
+- Cache variables/functions involved: cache, cache_key, load_polished_reading_from_cache, save_polished_reading_to_cache.
+- Added load_dotenv() after import os in backend/main.py; added python-dotenv to requirements.
+- Import check: python -c "import main; print('OK')" succeeded; OpenAI client initialized log present.
