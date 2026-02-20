@@ -44,3 +44,5 @@
 - /ai_reading request sent with -UseBasicParsing; no [LLM] response log captured (server output not observed).
 - Removed top_p/frequency_penalty/presence_penalty from OpenAI payload and dropped temperature param from refine_reading_with_llm signature.
 - /ai_reading request sent; no [LLM] response log captured (server output not observed).
+- Increased AI_MAX_TOKENS_* limits (reading/pdf/hard) and aligned model defaults with OPENAI_MODEL.
+- Added LLM empty-response debug log and restored ai_reading cache get/set and polished read cache usage.

@@ -117,9 +117,9 @@ READING_PIPELINE_VERSION = "chapter_blocks_v2"
 AI_PROMPT_VERSION = "ko_only_v2"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
-AI_MAX_TOKENS_AI_READING = 1500
-AI_MAX_TOKENS_PDF = 2000
-AI_MAX_TOKENS_HARD_LIMIT = 3000
+AI_MAX_TOKENS_AI_READING = 8000
+AI_MAX_TOKENS_PDF = 8000
+AI_MAX_TOKENS_HARD_LIMIT = 16000
 
 
 def _utc_iso_now() -> str:
@@ -236,7 +236,7 @@ async def refine_reading_with_llm(
     chart_hash: str,
     endpoint: str,
     max_tokens: int,
-    model: str = "gpt-5",
+    model: str = OPENAI_MODEL,
 ) -> str:
     if async_client is None:
         raise RuntimeError("OpenAI client not initialized")
@@ -273,7 +273,12 @@ async def refine_reading_with_llm(
         response_text = text if isinstance(text, str) else ""
         print(f"[LLM] Response received. Length: {len(response_text)} chars")
         if not response_text or not response_text.strip():
-            raise RuntimeError("LLM returned empty refinement")
+            print(f"[LLM DEBUG] Raw response object: {response}")
+            raise RuntimeError(
+                "LLM returned empty refinement. Model: "
+                f"{selected_model}, finish_reason: "
+                f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
+            )
         logger.info("LLM refinement executed for chapter_blocks_hash=%s", chapter_blocks_hash)
         return response_text
     except Exception as e:
@@ -1872,27 +1877,26 @@ async def get_ai_reading(
         f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}"
     )
 
-    # DISABLED FOR DEBUGGING
-    # if use_cache:
-    #     cached = cache.get(cache_key)
-    #     if cached:
-    #         logger.info(f"Cache hit: {cache_key}")
-    #         if production_mode:
-    #             return cached
-    #         cached_response = {
-    #             "cached": True,
-    #             "ai_cache_key": cache_key,
-    #             **cached,
-    #         }
-    #         if include_audit_debug and isinstance(cached, dict):
-    #             audit_payload = {
-    #                 "request_id": request_id_value,
-    #                 "chart_hash": cached.get("chart_hash"),
-    #                 "chapter_blocks_hash": cached.get("chapter_blocks_hash"),
-    #                 "endpoint": endpoint_name,
-    #             }
-    #             cached_response["audit"] = audit_payload
-    #         return cached_response
+    if use_cache:
+        cached = cache.get(cache_key)
+        if cached:
+            logger.info(f"Cache hit: {cache_key}")
+            if production_mode:
+                return cached
+            cached_response = {
+                "cached": True,
+                "ai_cache_key": cache_key,
+                **cached,
+            }
+            if include_audit_debug and isinstance(cached, dict):
+                audit_payload = {
+                    "request_id": request_id_value,
+                    "chart_hash": cached.get("chart_hash"),
+                    "chapter_blocks_hash": cached.get("chapter_blocks_hash"),
+                    "endpoint": endpoint_name,
+                }
+                cached_response["audit"] = audit_payload
+            return cached_response
 
     if production_mode:
         if not BTR_ENGINE_AVAILABLE:
@@ -1947,12 +1951,10 @@ async def get_ai_reading(
             report_payload = build_report_payload({**rectified_summary, "language": language})
             chapter_blocks = report_payload.get("chapter_blocks", {})
             chapter_blocks_hash = compute_chapter_blocks_hash(chapter_blocks)
-            # DISABLED FOR DEBUGGING
-            # polished_reading = load_polished_reading_from_cache(
-            #     chapter_blocks_hash=chapter_blocks_hash,
-            #     language=language,
-            # ) if use_cache else None
-            polished_reading = None
+            polished_reading = load_polished_reading_from_cache(
+                chapter_blocks_hash=chapter_blocks_hash,
+                language=language,
+            ) if use_cache else None
 
             if polished_reading is None and async_client:
                 polished_reading = await refine_reading_with_llm(
@@ -1964,13 +1966,12 @@ async def get_ai_reading(
                     endpoint=endpoint_name,
                     max_tokens=llm_max_tokens_resolved,
                 )
-                # DISABLED FOR DEBUGGING
-                # if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
-                #     save_polished_reading_to_cache(
-                #         chapter_blocks_hash=chapter_blocks_hash,
-                #         language=language,
-                #         polished_reading=polished_reading,
-                #     )
+                if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
+                    save_polished_reading_to_cache(
+                        chapter_blocks_hash=chapter_blocks_hash,
+                        language=language,
+                        polished_reading=polished_reading,
+                    )
 
             final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks)
             final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
@@ -1995,9 +1996,8 @@ async def get_ai_reading(
                     "chapter_blocks_hash": chapter_blocks_hash,
                     "endpoint": endpoint_name,
                 }
-            # DISABLED FOR DEBUGGING
-            # if use_cache:
-            #     cache.set(cache_key, production_result, ttl=AI_CACHE_TTL)
+            if use_cache:
+                cache.set(cache_key, production_result, ttl=AI_CACHE_TTL)
             return production_result
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
@@ -2092,18 +2092,16 @@ async def get_ai_reading(
                 "chapter_blocks_hash": chapter_blocks_hash,
                 "endpoint": endpoint_name,
             }
-        # DISABLED FOR DEBUGGING
-        # if use_cache:
-        #     cache.set(cache_key, result, ttl=AI_CACHE_TTL)
+        if use_cache:
+            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
         return result
 
     try:
-        # DISABLED FOR DEBUGGING
-        # polished_reading = load_polished_reading_from_cache(
-        #     chapter_blocks_hash=chapter_blocks_hash,
-        #     language=language,
-        # ) if use_cache else None
-        polished_reading = None
+        polished_reading = load_polished_reading_from_cache(
+            chapter_blocks_hash=chapter_blocks_hash,
+            language=language,
+        ) if use_cache else None
+        selected_model = OPENAI_MODEL
         model_used = "cache/polished_reuse" if polished_reading else OPENAI_MODEL
 
         if polished_reading is None:
@@ -2116,17 +2114,16 @@ async def get_ai_reading(
                 endpoint=endpoint_name,
                 max_tokens=llm_max_tokens_resolved,
             )
-            model_used = "gpt-5"
+            model_used = selected_model
             if _is_low_quality_reading(polished_reading):
                 polished_reading = ""
 
-            # DISABLED FOR DEBUGGING
-            # if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
-            #     save_polished_reading_to_cache(
-            #         chapter_blocks_hash=chapter_blocks_hash,
-            #         language=language,
-            #         polished_reading=polished_reading,
-            #     )
+            if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
+                save_polished_reading_to_cache(
+                    chapter_blocks_hash=chapter_blocks_hash,
+                    language=language,
+                    polished_reading=polished_reading,
+                )
 
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
         final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
@@ -2172,9 +2169,8 @@ async def get_ai_reading(
                 "endpoint": endpoint_name,
             }
 
-        # DISABLED FOR DEBUGGING
-        # if use_cache:
-        #     cache.set(cache_key, result, ttl=AI_CACHE_TTL)
+        if use_cache:
+            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
 
         return result
 
