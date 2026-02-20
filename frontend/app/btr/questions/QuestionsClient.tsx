@@ -127,7 +127,7 @@ export default function BTRQuestionsPage() {
 
     const questionEventType = questionId.startsWith('followup-')
       ? 'other'
-      : mapQuestionEventType(questions.find((q) => q.id === questionId)?.event_type)
+      : mapQuestionEventType(questions.find((q) => q.id === questionId)?.event_type ?? '')
 
     const payload = buildEventPayload({
       eventType: questionEventType,
@@ -148,7 +148,7 @@ export default function BTRQuestionsPage() {
     if (!answer.precision_level) return false
     if (answer.precision_level === 'exact') return Boolean(answer.year)
     if (answer.precision_level === 'range') return Boolean(answer.age_range_label)
-    if (mapQuestionEventType(currentQuestion?.event_type) === 'other') return Boolean(answer.other_label?.trim())
+    if (mapQuestionEventType(currentQuestion?.event_type ?? '') === 'other') return Boolean(answer.other_label?.trim())
     return true
   }
 
@@ -216,7 +216,7 @@ export default function BTRQuestionsPage() {
           handleAnalyze(merged)
           return
         }
-        upsertQuestionEvent(currentQuestion.id, currentQuestion.event_type, answer)
+        upsertQuestionEvent(currentQuestion.id, currentQuestion.event_type ?? '', answer)
       }
     }
     if (currentStep < questions.length - 1) {

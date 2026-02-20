@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -18,49 +18,49 @@ type PlanetRow = {
 }
 
 const HOUSE_MEANING: Record<number, string> = {
-  1: '나 자신, 첫인상',
-  2: '돈과 소비 습관',
-  3: '말하기, 실행력',
-  4: '집, 마음 안정',
+  1: '자신, 첫인상',
+  2: '재물과 말',
+  3: '소통과 이동',
+  4: '가정, 마음 안정',
   5: '연애, 창의성',
-  6: '건강 관리, 루틴',
+  6: '건강 관리, 노력',
   7: '관계, 파트너십',
-  8: '큰 변화, 회복',
+  8: '변화, 위기',
   9: '가치관, 성장',
-  10: '일, 커리어',
-  11: '인맥, 기회',
+  10: '직업, 커리어',
+  11: '목표, 기회',
   12: '휴식, 정리',
 }
 
 function getPlanetEmoji(name: string): string {
   const m: Record<string, string> = {
-    Sun: '☀️',
-    Moon: '🌙',
-    Mars: '🔥',
-    Mercury: '🧠',
-    Jupiter: '🌟',
-    Venus: '💖',
-    Saturn: '🪐',
-    Rahu: '🌪️',
-    Ketu: '🕊️',
+    Sun: '☉',
+    Moon: '☾',
+    Mars: '♂',
+    Mercury: '☿',
+    Jupiter: '♃',
+    Venus: '♀',
+    Saturn: '♄',
+    Rahu: '☊',
+    Ketu: '☋',
   }
-  return m[name] || '✨'
+  return m[name] || '✦'
 }
 
 function getEasyPlanetMeaning(name: string, house: number | undefined): string {
   const base: Record<string, string> = {
     Sun: '자신감과 존재감',
     Moon: '감정과 안정감',
-    Mars: '추진력과 결단력',
-    Mercury: '생각과 소통',
+    Mars: '추진력과 결단',
+    Mercury: '감각과 소통',
     Jupiter: '성장과 기회',
     Venus: '관계와 매력',
-    Saturn: '책임감과 꾸준함',
-    Rahu: '새로운 욕구',
-    Ketu: '놓아야 할 습관',
+    Saturn: '책임감과 규칙',
+    Rahu: '새로운 욕망',
+    Ketu: '놓아줌과 지혜',
   }
-  const houseText = house ? HOUSE_MEANING[house] || '생활 영역' : '생활 영역'
-  return `${base[name] || '핵심 성향'}이(가) "${houseText}"에 집중돼요.`
+  const houseText = house ? HOUSE_MEANING[house] || '삶의 영역' : '삶의 영역'
+  return `${base[name] || '주제'}에 해당하는 "${houseText}"을(를) 중점적으로 보여줘요.`
 }
 
 export default function ChartPage() {
@@ -164,11 +164,13 @@ export default function ChartPage() {
   }
 
   const ascendant = chart?.houses?.ascendant
-  const ascendantInfo = ASCENDANT_TRAITS[ascendant?.rasi?.name] || {
+  const ascendantName = ascendant?.rasi?.name
+  const ascendantInfo = ascendantName ? ASCENDANT_TRAITS[ascendantName] : undefined
+  const displayAscendant = ascendantInfo || {
     name_kr: ascendant?.rasi?.name_kr || '알 수 없음',
-    emoji: '⭐',
+    emoji: '❓',
     keywords: [],
-    preview: '상승궁 정보를 확인할 수 없어요.',
+    preview: '상승궁 정보를 확인할 수 없습니다.',
   }
 
   const planetRows: PlanetRow[] = useMemo(() => {
@@ -233,19 +235,19 @@ export default function ChartPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-[#3a3240]">
               <Compass className="w-5 h-5 text-[#8d3d56]" />
-              핵심 요약
+              요약
             </CardTitle>
-            <CardDescription>전문용어 대신, 일상 언어로 정리했어요.</CardDescription>
+            <CardDescription>전문 용어 대신 쉬운 표현으로 정리했어요.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-5">
             <div className="flex items-start gap-4 rounded-xl border border-[#f0e6ea] bg-[#fff9fb] p-4">
-              <div className="text-4xl">{ascendantInfo.emoji}</div>
+              <div className="text-4xl">{displayAscendant.emoji}</div>
               <div>
                 <p className="text-sm text-[#866878] mb-1">상승궁</p>
-                <h2 className="text-xl font-semibold text-[#2f2a33]">{ascendantInfo.name_kr}</h2>
-                <p className="text-[#5f5a64] mt-2">{ascendantInfo.preview}</p>
+                <h2 className="text-xl font-semibold text-[#2f2a33]">{displayAscendant.name_kr}</h2>
+                <p className="text-[#5f5a64] mt-2">{displayAscendant.preview}</p>
                 <div className="flex flex-wrap gap-2 mt-3">
-                  {ascendantInfo.keywords.slice(0, 4).map((k: string, i: number) => (
+                  {displayAscendant.keywords.slice(0, 4).map((k: string, i: number) => (
                     <Badge key={`${k}-${i}`} variant="secondary" className="bg-[#f5edf1] text-[#694958]">
                       {k}
                     </Badge>
@@ -257,7 +259,7 @@ export default function ChartPage() {
             <div className="grid md:grid-cols-3 gap-3">
               {top3.map((p) => (
                 <div key={p.name} className="rounded-lg border border-[#ece5ea] p-3 bg-[#fdfcfc]">
-                  <p className="text-xs text-[#877b86] mb-1">영향 큰 행성</p>
+                  <p className="text-xs text-[#877b86] mb-1">대표 행성</p>
                   <p className="font-medium text-[#302a33]">
                     {getPlanetEmoji(p.name)} {PLANET_NAMES_KR[p.name] || p.name}
                   </p>
@@ -271,31 +273,31 @@ export default function ChartPage() {
         <div className="flex flex-wrap gap-3 justify-center mb-8">
           <Button onClick={handleLoadAIReading} disabled={loadingAI} className="bg-[#8d3d56] hover:bg-[#7a344a]">
             <Sparkles className="w-4 h-4 mr-2" />
-            {loadingAI ? '해석 생성 중...' : aiReading ? 'AI 해석 보기' : 'AI 해석 생성'}
+            {loadingAI ? 'AI 해석 생성 중...' : aiReading ? 'AI 해석 보기' : 'AI 해석 생성'}
           </Button>
           <Button onClick={handleDownloadPDF} disabled={loadingPDF} variant="outline" className="border-[#ccb8c2]">
             <Download className="w-4 h-4 mr-2" />
-            {loadingPDF ? 'PDF 준비 중...' : 'PDF 저장'}
+            {loadingPDF ? 'PDF 준비 중...' : 'PDF 다운로드'}
           </Button>
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList className="grid w-full grid-cols-3 mb-6 bg-[#f3eff2]">
             <TabsTrigger value="summary">요약</TabsTrigger>
-            <TabsTrigger value="planets">상세 성향</TabsTrigger>
+            <TabsTrigger value="planets">행성 해석</TabsTrigger>
             <TabsTrigger value="reading" disabled={!aiReading}>AI 해석</TabsTrigger>
           </TabsList>
 
           <TabsContent value="summary">
             <Card>
               <CardHeader>
-                <CardTitle className="text-[#362f39]">생활 가이드</CardTitle>
-                <CardDescription>요즘 삶에 바로 적용 가능한 포인트만 모았어요.</CardDescription>
+                <CardTitle className="text-[#362f39]">삶의 가이드</CardTitle>
+                <CardDescription>오늘 바로 적용할 수 있는 조언을 모았어요.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3 text-[#504a54]">
-                <p>1) 중요한 결정은 감정이 흔들릴 때보다, 컨디션 안정된 날에 하세요.</p>
-                <p>2) 관계/일에서 과하게 끌고 가기보다, 페이스를 나눠서 가는 게 유리해요.</p>
-                <p>3) 루틴(수면, 식사, 운동)만 잡아도 전체 운용감이 좋아집니다.</p>
+                <p>1) 중요한 결정은 감정이 가라앉은 뒤에 해 주세요.</p>
+                <p>2) 관계 속에서는 솔직함과 경계를 함께 지켜주세요.</p>
+                <p>3) 루틴(수면, 식사, 이동)을 지키면 안정감이 커져요.</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -316,7 +318,7 @@ export default function ChartPage() {
                             <span>{getPlanetEmoji(p.name)}</span>
                             {PLANET_NAMES_KR[p.name] || p.name}
                           </CardTitle>
-                          <CardDescription>{p.sign} / {p.house}하우스</CardDescription>
+                          <CardDescription>{p.sign} / {p.house} 하우스</CardDescription>
                         </div>
                         {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
                       </div>
@@ -331,12 +333,12 @@ export default function ChartPage() {
                           onClick={() => setShowAdvanced((v) => !v)}
                         >
                           <Star className="w-4 h-4 mr-1" />
-                          {showAdvanced ? '전문 정보 숨기기' : '전문 정보 보기'}
+                          {showAdvanced ? '상세 정보 숨기기' : '상세 정보 보기'}
                         </Button>
                         {showAdvanced && (
                           <div className="rounded-md bg-[#f6f2f4] border border-[#e9dde2] p-3 text-xs text-[#6f6470]">
                             <p>별자리(라시): {chart.planets?.[p.name]?.rasi?.name || '-'}</p>
-                            <p>나크샤트라: {chart.planets?.[p.name]?.nakshatra?.name || '-'}</p>
+                            <p>낙샤트라: {chart.planets?.[p.name]?.nakshatra?.name || '-'}</p>
                             <p>파다: {chart.planets?.[p.name]?.nakshatra?.pada || '-'}</p>
                           </div>
                         )}

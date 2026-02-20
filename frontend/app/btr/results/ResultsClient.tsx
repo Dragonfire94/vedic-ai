@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -25,10 +25,10 @@ function parseMidHour(candidate: BTRCandidate): string {
 }
 
 function confidenceLabel(pct: number): string {
-  if (pct >= 80) return '높음'
-  if (pct >= 60) return '보통 이상'
-  if (pct >= 40) return '보통'
-  return '참고'
+  if (pct >= 80) return '??'
+  if (pct >= 60) return '?? ??'
+  if (pct >= 40) return '??'
+  return '??'
 }
 
 export default function BTRResultsPage() {
@@ -74,12 +74,12 @@ export default function BTRResultsPage() {
       <div className="min-h-screen flex items-center justify-center bg-[#f7f6f3]">
         <Card className="max-w-md w-full">
           <CardHeader>
-            <CardTitle>분석 결과를 불러오지 못했어요</CardTitle>
-            <CardDescription>다시 분석을 실행해 주세요.</CardDescription>
+            <CardTitle>遺꾩꽍 寃곌낵瑜?遺덈윭?ㅼ? 紐삵뻽?댁슂</CardTitle>
+            <CardDescription>?ㅼ떆 遺꾩꽍??ㅽ뻾??二쇱꽭??</CardDescription>
           </CardHeader>
           <CardContent>
             <Button onClick={() => router.push('/btr/questions')} className="w-full">
-              다시 분석하기
+              ?ㅼ떆 遺꾩꽍?섍린
             </Button>
           </CardContent>
         </Card>
@@ -92,29 +92,29 @@ export default function BTRResultsPage() {
       <div className="container mx-auto px-4 py-12 max-w-4xl">
         <div className="text-center mb-8">
           <p className="text-sm tracking-[0.18em] uppercase text-[#8a808a] mb-3">Birth Time Check</p>
-          <h1 className="text-3xl font-semibold text-[#2b2731]">가장 가능성 높은 시간대</h1>
-          <p className="text-[#5f5a64] mt-3">입력한 이벤트를 기준으로 후보를 정리했어요.</p>
+          <h1 className="text-3xl font-semibold text-[#2b2731]">媛??媛?μ꽦 ?믪? ?쒓컙?</h1>
+          <p className="text-[#5f5a64] mt-3">?낅젰??대깽?몃? 湲곗??쇰줈 ?꾨낫瑜??뺣━?덉뼱??</p>
         </div>
 
         <Card className="mb-7 border-[#e5d9de] bg-white">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-[#3a3240]">
               <Sparkles className="w-5 h-5 text-[#8d3d56]" />
-              추천 후보
+              異붿쿇 ?꾨낫
             </CardTitle>
-            <CardDescription>우선 이 후보부터 확인하는 것을 권장해요.</CardDescription>
+            <CardDescription>?곗꽑 ??꾨낫遺??뺤씤?섎뒗 寃껋쓣 沅뚯옣?댁슂.</CardDescription>
           </CardHeader>
           <CardContent className="grid md:grid-cols-3 gap-3">
             <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
-              <p className="text-xs text-[#877b86] mb-1">시간대</p>
+              <p className="text-xs text-[#877b86] mb-1">?쒓컙?</p>
               <p className="font-semibold text-[#302a33]">{top?.time_range || '-'}</p>
             </div>
             <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
-              <p className="text-xs text-[#877b86] mb-1">신뢰도</p>
+              <p className="text-xs text-[#877b86] mb-1">?좊ː??</p>
               <p className="font-semibold text-[#302a33]">{topPct}% ({confidenceLabel(topPct)})</p>
             </div>
             <div className="rounded-lg border border-[#ece5ea] p-4 bg-[#fdfcfc]">
-              <p className="text-xs text-[#877b86] mb-1">상승궁</p>
+              <p className="text-xs text-[#877b86] mb-1">?곸듅沅?</p>
               <p className="font-semibold text-[#302a33]">{top?.ascendant || '-'}</p>
             </div>
           </CardContent>
@@ -124,11 +124,12 @@ export default function BTRResultsPage() {
           {candidates.map((candidate: BTRCandidate, index: number) => {
             const open = expandedCard === index
             const pct = formatConfidencePercent(candidate?.confidence)
-            const ascInfo = ASCENDANT_TRAITS[candidate?.ascendant] || {
-              name_kr: candidate?.ascendant || '알 수 없음',
-              emoji: '⭐',
+            const ascInfo = candidate?.ascendant ? ASCENDANT_TRAITS[candidate.ascendant] : undefined
+            const displayAsc = ascInfo || {
+              name_kr: candidate?.ascendant || '? ? ??',
+              emoji: '?',
               keywords: [],
-              preview: '',
+              preview: '? ?? ?? ?? ?? ???.',
             }
 
             return (
@@ -143,28 +144,28 @@ export default function BTRResultsPage() {
                         <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-[#f5edf1] text-[#6e4557] text-sm">
                           {index + 1}
                         </span>
-                        {candidate?.time_range || '시간대 정보 없음'}
-                        {index === 0 && <Badge className="bg-[#8d3d56]">추천</Badge>}
+                        {candidate?.time_range || '?쒓컙? ?뺣낫 ?놁쓬'}
+                        {index === 0 && <Badge className="bg-[#8d3d56]">異붿쿇</Badge>}
                       </CardTitle>
                       <CardDescription className="mt-1">
-                        {ascInfo.emoji} {ascInfo.name_kr} 상승궁 후보
+                        {displayAsc.emoji} {displayAsc.name_kr} ?곸듅沅??꾨낫
                       </CardDescription>
                     </div>
                     {open ? <ChevronUp className="w-4 h-4 text-[#8e8390]" /> : <ChevronDown className="w-4 h-4 text-[#8e8390]" />}
                   </div>
                   <div className="mt-2">
                     <Progress value={pct} className="h-2" />
-                    <p className="text-xs text-[#7a707c] mt-1">신뢰도 {pct}%</p>
+                    <p className="text-xs text-[#7a707c] mt-1">?좊ː??{pct}%</p>
                   </div>
                 </CardHeader>
 
                 {open && (
                   <CardContent className="space-y-4 text-sm text-[#5b5560]">
                     <div className="rounded-md bg-[#f6f2f4] border border-[#e9dde2] p-3">
-                      {ascInfo.preview || '이 후보는 성향 일치율이 높게 계산되었습니다.'}
+                      {displayAsc.preview || '??꾨낫??깊뼢 ?쇱튂?⑥씠 ?믨쾶 怨꾩궛?섏뿀?듬땲??'}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {(ascInfo.keywords || []).slice(0, 4).map((k: string, i: number) => (
+                      {(displayAsc.keywords || []).slice(0, 4).map((k: string, i: number) => (
                         <Badge key={`${k}-${i}`} variant="secondary" className="bg-[#f3ecf0] text-[#684857]">
                           {k}
                         </Badge>
@@ -175,7 +176,7 @@ export default function BTRResultsPage() {
                       onClick={() => handleSelectCandidate(candidate)}
                     >
                       <Compass className="w-4 h-4 mr-2" />
-                      이 시간대로 차트 보기
+                      ??쒓컙?濡?李⑦듃 蹂닿린
                     </Button>
                   </CardContent>
                 )}
@@ -187,10 +188,11 @@ export default function BTRResultsPage() {
         <div className="mt-8 text-center">
           <Button variant="outline" onClick={() => router.push('/')} className="border-[#cdb9c2]">
             <Home className="w-4 h-4 mr-2" />
-            처음으로
+            泥섏쓬?쇰줈
           </Button>
         </div>
       </div>
     </div>
   )
 }
+

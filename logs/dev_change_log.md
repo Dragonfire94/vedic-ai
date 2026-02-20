@@ -7,3 +7,7 @@
 - Updated BTR types, removed any in client pages, and centralized toNum utility.
 - Restricted CORS origins, secured BTR admin endpoint, and added backend env templates.
 - Preserved BTR birth params in results URL, typed BTR questions response, and restored Korean UI strings.
+- Enabled strict TypeScript options and fixed strict-mode issues plus JSX encoding cleanup.
+- Added ErrorBoundary component and wrapped BTR/chart pages.
+- Added Playwright config/scripts and initial E2E tests.
+- Restored Korean UI strings/emojis and error messages in chart client UI.\n- Updated Playwright error-state test to dismiss alert dialogs via page.on and adjusted timeout.\n- Tests: npx playwright test (4 passed).
