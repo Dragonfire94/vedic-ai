@@ -67,7 +67,12 @@ if "timezonefinder" not in sys.modules:
     tz_mod.TimezoneFinder = TimezoneFinder
     sys.modules["timezonefinder"] = tz_mod
 
-from backend.main import create_pdf_styles, parse_markdown_to_flowables
+from backend.main import (
+    _normalize_long_paragraphs,
+    build_llm_structural_prompt,
+    create_pdf_styles,
+    parse_markdown_to_flowables,
+)
 
 
 class TestMarkdownFlowableParser(unittest.TestCase):
@@ -86,6 +91,57 @@ class TestMarkdownFlowableParser(unittest.TestCase):
         flowables = parse_markdown_to_flowables("[UNKNOWN] Keep this as body text", self.styles)
         self.assertIsInstance(flowables[0], Paragraph)
         self.assertIn("[UNKNOWN]", flowables[0].getPlainText())
+
+    def test_semantic_emphasis_markers_render_highlight_blocks(self):
+        text = "\n".join(
+            [
+                "**[KEY]** Career acceleration probability is elevated in the next 18 months.",
+                "**[WARNING]** Avoid overleveraging in speculative partnerships this quarter.",
+                "**[STRATEGY]** Consolidate routines before expanding commitments.",
+            ]
+        )
+        flowables = parse_markdown_to_flowables(text, self.styles)
+
+        semantic_tables = [flowable for flowable in flowables if isinstance(flowable, Table)]
+        self.assertEqual(len(semantic_tables), 3)
+        self.assertEqual(len(flowables), 6)  # each semantic block appends a spacer
+
+
+class TestLongParagraphNormalization(unittest.TestCase):
+    def test_splits_single_long_paragraph_at_sentence_boundary(self):
+        long_paragraph = (
+            "Short-term conditions improve as visibility increases across collaborative workstreams. "
+            "Mid-term outcomes continue to strengthen when execution remains focused and paced. "
+            "Sustained discipline protects momentum while reducing avoidable reversals in direction."
+        )
+
+        normalized = _normalize_long_paragraphs(long_paragraph, max_chars=120)
+
+        self.assertEqual(normalized.count("\n\n"), 1)
+        split_parts = normalized.split("\n\n")
+        self.assertEqual(len(split_parts), 2)
+        self.assertTrue(all(part.strip() for part in split_parts))
+
+    def test_keeps_short_and_pre_split_text_unchanged(self):
+        short_text = "Forecast remains stable with manageable variance."
+        pre_split_text = "First paragraph stays here.\n\nSecond paragraph is already separate."
+
+        self.assertEqual(_normalize_long_paragraphs(short_text, max_chars=120), short_text)
+        self.assertEqual(_normalize_long_paragraphs(pre_split_text, max_chars=120), pre_split_text)
+
+
+class TestPromptContract(unittest.TestCase):
+    def test_prompt_contract_keeps_anti_boilerplate_and_paragraph_length_rules(self):
+        prompt = build_llm_structural_prompt(
+            structural_summary={"signal": "test"},
+            language="en",
+            atomic_interpretations={"asc": "asc", "sun": "sun", "moon": "moon"},
+            chapter_blocks={"Executive Summary": [{"title": "t", "summary": "s"}]},
+        )
+
+        self.assertIn("ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE", prompt)
+        self.assertIn("Closing boilerplate phrases", prompt)
+        self.assertIn("Each paragraph MUST NOT exceed 4 sentences.", prompt)
 
 
 if __name__ == "__main__":
