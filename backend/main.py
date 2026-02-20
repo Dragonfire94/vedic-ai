@@ -289,67 +289,78 @@ async def refine_reading_with_llm(
     )
     chapter_blocks_hash = compute_chapter_blocks_hash(validated)
     selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
+    candidate_models = _candidate_openai_models(selected_model)
+    last_error: Optional[Exception] = None
 
-    payload = _build_openai_payload(
-        model=selected_model,
-        system_message=system_message,
-        user_message=user_message,
-        max_completion_tokens=max_tokens,
-    )
-    _emit_llm_audit_event(
-        request_id=request_id,
-        chart_hash=chart_hash,
-        chapter_blocks_hash=chapter_blocks_hash,
-        model_used=f"openai/{selected_model}",
-        endpoint=endpoint,
-    )
-    try:
-        logger.info(
-            "LLM API call started request_id=%s selected_model=%s chapter_blocks_hash=%s",
-            request_id,
-            selected_model,
-            chapter_blocks_hash,
+    for candidate_model in candidate_models:
+        payload = _build_openai_payload(
+            model=candidate_model,
+            system_message=system_message,
+            user_message=user_message,
+            max_completion_tokens=max_tokens,
         )
-        response = await async_client.chat.completions.create(**payload)
-        text = response.choices[0].message.content if response and response.choices else ""
-        response_text = text if isinstance(text, str) else ""
-        logger.debug(
-            "LLM API response received request_id=%s selected_model=%s chapter_blocks_hash=%s response_length=%s",
-            request_id,
-            selected_model,
-            chapter_blocks_hash,
-            len(response_text),
-        )
-        if not response_text or not response_text.strip():
-            logger.debug(
-                "LLM raw response dump request_id=%s selected_model=%s chapter_blocks_hash=%s response=%r",
+        try:
+            logger.info(
+                "LLM API call started request_id=%s selected_model=%s chapter_blocks_hash=%s",
                 request_id,
-                selected_model,
+                candidate_model,
                 chapter_blocks_hash,
-                response,
             )
-            raise RuntimeError(
-                "LLM returned empty refinement. Model: "
-                f"{selected_model}, finish_reason: "
-                f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
+            response = await async_client.chat.completions.create(**payload)
+            text = response.choices[0].message.content if response and response.choices else ""
+            response_text = text if isinstance(text, str) else ""
+            logger.debug(
+                "LLM API response received request_id=%s selected_model=%s chapter_blocks_hash=%s response_length=%s",
+                request_id,
+                candidate_model,
+                chapter_blocks_hash,
+                len(response_text),
             )
-        response_text = _normalize_long_paragraphs(response_text, max_chars=300)
-        logger.info(
-            "LLM refinement executed request_id=%s selected_model=%s chapter_blocks_hash=%s",
-            request_id,
-            selected_model,
-            chapter_blocks_hash,
-        )
-        return response_text
-    except Exception as e:
-        logger.exception(
-            "LLM refinement failed request_id=%s selected_model=%s chapter_blocks_hash=%s error_type=%s",
-            request_id,
-            selected_model,
-            chapter_blocks_hash,
-            type(e).__name__,
-        )
-        raise
+            if not response_text or not response_text.strip():
+                logger.debug(
+                    "LLM raw response dump request_id=%s selected_model=%s chapter_blocks_hash=%s response=%r",
+                    request_id,
+                    candidate_model,
+                    chapter_blocks_hash,
+                    response,
+                )
+                raise RuntimeError(
+                    "LLM returned empty refinement. Model: "
+                    f"{candidate_model}, finish_reason: "
+                    f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
+                )
+            response_text = _normalize_long_paragraphs(response_text, max_chars=300)
+            model_used = f"openai/{candidate_model}"
+            _emit_llm_audit_event(
+                request_id=request_id,
+                chart_hash=chart_hash,
+                chapter_blocks_hash=chapter_blocks_hash,
+                model_used=model_used,
+                endpoint=endpoint,
+            )
+            logger.info(
+                "LLM refinement executed request_id=%s selected_model=%s model_used=%s chapter_blocks_hash=%s",
+                request_id,
+                candidate_model,
+                model_used,
+                chapter_blocks_hash,
+            )
+            return response_text
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "LLM model attempt failed request_id=%s selected_model=%s chapter_blocks_hash=%s error_type=%s error=%s",
+                request_id,
+                candidate_model,
+                chapter_blocks_hash,
+                type(e).__name__,
+                str(e),
+            )
+
+    raise RuntimeError(
+        "LLM refinement failed for all candidate models "
+        f"{candidate_models}. last_error={type(last_error).__name__ if last_error else 'N/A'}: {last_error}"
+    ) from last_error
 
 
 def build_llm_structural_prompt(
@@ -3513,4 +3524,3 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
