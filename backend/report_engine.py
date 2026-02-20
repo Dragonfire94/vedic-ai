@@ -495,6 +495,7 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
     include_fields = [
         "title",
         "summary",
+        "key_forecast",
         "analysis",
         "implication",
         "examples",
@@ -522,6 +523,12 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
         elif field == "predictive_compression":
             if isinstance(value, dict):
                 payload_block["predictive_compression"] = value
+                probability = value.get("probability_strength")
+                dominant_theme = value.get("dominant_theme")
+                window = value.get("window")
+                if isinstance(probability, str) and probability.strip() and isinstance(dominant_theme, str) and dominant_theme.strip():
+                    forecast_window = f" ({window})" if isinstance(window, str) and window.strip() else ""
+                    payload_block.setdefault("key_forecast", f"{dominant_theme}{forecast_window} · probability {probability}")
         else:
             payload_block[field] = str(value)
 
@@ -1600,6 +1607,23 @@ def _interpret_signal_sentence(
     )
 
 
+
+
+def _high_signal_forecast_line(signal_path: str, signal_value: Any, *, ko_mode: bool) -> str:
+    path_lower = str(signal_path or "").lower()
+    if "probability_forecast" not in path_lower:
+        return ""
+    if not isinstance(signal_value, (int, float)):
+        return ""
+    probability = float(signal_value)
+    if probability < 0.65:
+        return ""
+    label = str(signal_path).split(".")[-1].replace("_", " ").strip()
+    pct = int(round(probability * 100)) if probability <= 1 else int(round(probability))
+    if ko_mode:
+        return f"{label}: 고신호 확률 {pct}%"
+    return f"{label}: high-signal likelihood {pct}%"
+
 def _create_signal_fragment(
     *,
     chapter: str,
@@ -1647,6 +1671,9 @@ def _create_signal_fragment(
         "examples": examples,
         "_source": source_type,
     }
+    key_forecast = _high_signal_forecast_line(signal_path, signal_value, ko_mode=ko_mode)
+    if key_forecast:
+        fragment["key_forecast"] = key_forecast
     trace = {
         "text": f"{summary} {analysis}",
         "source_signal": signal_path,
