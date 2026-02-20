@@ -29,7 +29,7 @@ export default function HomePage() {
     timeKnown: 'unknown' as TimeKnown,
     hour: 12,
     minute: 0,
-    ampm: 'AM' as 'AM' | 'PM',
+    ampm: 'PM' as 'AM' | 'PM',
     timeBracket: '',
     timezone: 0,
   })
@@ -56,10 +56,12 @@ export default function HomePage() {
     })
 
     if (formData.timeKnown === 'exact') {
-      const hour24 =
-        formData.ampm === 'AM'
-          ? formData.hour === 12 ? 0 : formData.hour
-          : formData.hour === 12 ? 12 : formData.hour + 12
+      const hour24 = (() => {
+        if (formData.ampm === 'AM') {
+          return formData.hour === 12 ? 0 : formData.hour
+        }
+        return formData.hour === 12 ? 12 : formData.hour + 12
+      })()
       const decimalHour = hour24 + formData.minute / 60
       params.set('hour', String(decimalHour))
       params.set('house_system', 'W')
@@ -206,7 +208,7 @@ export default function HomePage() {
                         <Label>오전/오후</Label>
                         <Select
                           value={formData.ampm}
-                          onValueChange={(v) => setFormData({ ...formData, ampm: v as 'AM' | 'PM' })}
+                          onValueChange={(v) => setFormData((prev) => ({ ...prev, ampm: v as 'AM' | 'PM' }))}
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
@@ -217,7 +219,7 @@ export default function HomePage() {
                       </div>
                       <div>
                         <Label>시</Label>
-                        <Select value={String(formData.hour)} onValueChange={(v) => setFormData({ ...formData, hour: Number(v) })}>
+                        <Select value={String(formData.hour)} onValueChange={(v) => setFormData((prev) => ({ ...prev, hour: Number(v) }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {Array.from({ length: 12 }, (_, i) => i + 1).map((h) => (
@@ -228,10 +230,10 @@ export default function HomePage() {
                       </div>
                       <div>
                         <Label>분</Label>
-                        <Select value={String(formData.minute)} onValueChange={(v) => setFormData({ ...formData, minute: Number(v) })}>
+                        <Select value={String(formData.minute)} onValueChange={(v) => setFormData((prev) => ({ ...prev, minute: Number(v) }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {Array.from({ length: 12 }, (_, i) => i * 5).map((m) => (
+                            {Array.from({ length: 60 }, (_, i) => i).map((m) => (
                               <SelectItem key={m} value={String(m)}>{m}분</SelectItem>
                             ))}
                           </SelectContent>
