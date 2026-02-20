@@ -106,6 +106,45 @@ export interface ChartRequest {
   gender?: string
   timezone?: number
   analysis_mode?: 'standard' | 'pro'
+  detail_level?: string
+}
+
+export interface BTRCandidate {
+  time_range: string
+  mid_hour: number
+  confidence: number
+  ascendant: string
+  score?: number
+}
+
+export interface BTRAnalyzeResponse {
+  status: string
+  birth_date: string
+  candidates: BTRCandidate[]
+}
+
+export interface PlanetData {
+  house: number
+  rasi: { name: string; name_kr?: string }
+  nakshatra: { name: string; pada: number }
+  dignity?: string
+  longitude?: number
+}
+
+export interface HouseData {
+  ascendant: { rasi: { name: string; name_kr?: string } }
+}
+
+export interface ChartResponse {
+  planets: Record<string, PlanetData>
+  houses: HouseData
+  chart_hash?: string
+}
+
+export interface AIReadingResponse {
+  polished_reading: string
+  chart_hash?: string
+  language?: string
 }
 
 function applyVargaParams(params: URLSearchParams, data: ChartRequest): void {
@@ -149,6 +188,37 @@ async function buildApiError(response: Response, fallbackMessage: string): Promi
   return new Error(fallbackMessage)
 }
 
+function buildChartParams(
+  data: ChartRequest & { language?: string }
+): URLSearchParams {
+  const params = new URLSearchParams({
+    year: data.year.toString(),
+    month: data.month.toString(),
+    day: data.day.toString(),
+    hour: data.hour.toString(),
+    lat: data.lat.toString(),
+    lon: data.lon.toString(),
+    house_system: data.house_system || 'W',
+    include_nodes: data.include_nodes !== false ? '1' : '0',
+    include_d9: data.include_d9 ? '1' : '0',
+    gender: data.gender || 'male',
+  })
+  if (data.language) {
+    params.set('language', data.language)
+  }
+  if (data.analysis_mode) {
+    params.set('analysis_mode', data.analysis_mode)
+  }
+  if (data.detail_level) {
+    params.set('detail_level', data.detail_level)
+  }
+  applyVargaParams(params, data)
+  if (Number.isFinite(data.timezone)) {
+    params.set('timezone', String(data.timezone))
+  }
+  return params
+}
+
 export async function getBTRQuestions(age: number, language: string = 'ko') {
   const response = await safeFetch(`/btr/questions?age=${age}&language=${language}`)
   if (!response.ok) {
@@ -157,7 +227,9 @@ export async function getBTRQuestions(age: number, language: string = 'ko') {
   return response.json()
 }
 
-export async function analyzeBTR(data: BTRAnalyzeRequest) {
+export async function analyzeBTR(
+  data: BTRAnalyzeRequest
+): Promise<BTRAnalyzeResponse> {
   const response = await safeFetch('/btr/analyze', {
     method: 'POST',
     headers: {
@@ -168,83 +240,45 @@ export async function analyzeBTR(data: BTRAnalyzeRequest) {
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to analyze BTR')
   }
-  return response.json()
+  return response.json() as Promise<BTRAnalyzeResponse>
 }
 
-export async function getChart(data: ChartRequest) {
-  const params = new URLSearchParams({
-    year: data.year.toString(),
-    month: data.month.toString(),
-    day: data.day.toString(),
-    hour: data.hour.toString(),
-    lat: data.lat.toString(),
-    lon: data.lon.toString(),
-    house_system: data.house_system || 'W',
-    include_nodes: data.include_nodes !== false ? '1' : '0',
-    include_d9: data.include_d9 ? '1' : '0',
-    gender: data.gender || 'male',
-  })
-  applyVargaParams(params, data)
-  if (Number.isFinite(data.timezone)) {
-    params.set('timezone', String(data.timezone))
-  }
-
+export async function getChart(data: ChartRequest): Promise<ChartResponse> {
+  const params = buildChartParams(data)
   const response = await safeFetch(`/chart?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch chart')
   }
-  return response.json()
+  return response.json() as Promise<ChartResponse>
 }
 
-export async function getAIReading(data: ChartRequest & { language?: string }) {
-  const params = new URLSearchParams({
-    year: data.year.toString(),
-    month: data.month.toString(),
-    day: data.day.toString(),
-    hour: data.hour.toString(),
-    lat: data.lat.toString(),
-    lon: data.lon.toString(),
-    house_system: data.house_system || 'W',
-    include_nodes: data.include_nodes !== false ? '1' : '0',
-    include_d9: data.include_d9 ? '1' : '0',
-    language: 'ko',
-    gender: data.gender || 'male',
-    analysis_mode: data.analysis_mode || 'pro',
-    detail_level: 'full',
-  })
-  applyVargaParams(params, data)
-  if (Number.isFinite(data.timezone)) {
-    params.set('timezone', String(data.timezone))
+export async function getAIReading(
+  data: ChartRequest & { language?: string }
+): Promise<AIReadingResponse> {
+  const params = buildChartParams({ ...data, language: data.language ?? 'ko' })
+  if (!params.has('analysis_mode')) {
+    params.set('analysis_mode', 'pro')
   }
-
+  if (!params.has('detail_level')) {
+    params.set('detail_level', 'full')
+  }
   const response = await safeFetch(`/ai_reading?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch AI reading')
   }
-  return response.json()
+  return response.json() as Promise<AIReadingResponse>
 }
 
-export async function getPDF(data: ChartRequest & { language?: string }) {
-  const params = new URLSearchParams({
-    year: data.year.toString(),
-    month: data.month.toString(),
-    day: data.day.toString(),
-    hour: data.hour.toString(),
-    lat: data.lat.toString(),
-    lon: data.lon.toString(),
-    house_system: data.house_system || 'W',
-    include_nodes: data.include_nodes !== false ? '1' : '0',
-    include_d9: data.include_d9 ? '1' : '0',
-    language: 'ko',
-    gender: data.gender || 'male',
-    analysis_mode: data.analysis_mode || 'pro',
-    detail_level: 'full',
-  })
-  applyVargaParams(params, data)
-  if (Number.isFinite(data.timezone)) {
-    params.set('timezone', String(data.timezone))
+export async function getPDF(
+  data: ChartRequest & { language?: string }
+): Promise<Blob> {
+  const params = buildChartParams({ ...data, language: data.language ?? 'ko' })
+  if (!params.has('analysis_mode')) {
+    params.set('analysis_mode', 'pro')
   }
-
+  if (!params.has('detail_level')) {
+    params.set('detail_level', 'full')
+  }
   const response = await safeFetch(`/pdf?${params}`)
   if (!response.ok) {
     throw await buildApiError(response, 'Failed to fetch PDF')
