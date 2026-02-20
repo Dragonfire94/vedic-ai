@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """Vedic AI backend (FastAPI).
 
 - Chart calculation: Swiss Ephemeris + Lahiri Ayanamsa
@@ -227,6 +227,43 @@ def save_polished_reading_to_cache(*, chapter_blocks_hash: str, language: str, p
     cache.set(key, polished_reading, ttl=AI_CACHE_TTL)
 
 
+def _split_long_paragraph_at_sentence_boundary(paragraph: str, max_chars: int = 300) -> str:
+    if not isinstance(paragraph, str):
+        return ""
+    text = paragraph.strip()
+    if not text or len(text) <= max_chars or "\n" in text:
+        return paragraph
+
+    sentence_endings = [m.end() for m in re.finditer(r"[.!?。！？](?:\s+|$)", text)]
+    if not sentence_endings:
+        return paragraph
+
+    target = len(text) // 2
+    candidates = [idx for idx in sentence_endings if idx > 80 and idx < len(text) - 80]
+    if not candidates:
+        candidates = sentence_endings
+    split_idx = min(candidates, key=lambda idx: abs(idx - target))
+
+    first = text[:split_idx].strip()
+    second = text[split_idx:].strip()
+    if not first or not second:
+        return paragraph
+    return f"{first}\n\n{second}"
+
+
+def _normalize_long_paragraphs(text: str, max_chars: int = 300) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text
+    parts = re.split(r"(\n\s*\n)", text)
+    normalized_parts: list[str] = []
+    for part in parts:
+        if re.fullmatch(r"\n\s*\n", part or ""):
+            normalized_parts.append(part)
+            continue
+        normalized_parts.append(_split_long_paragraph_at_sentence_boundary(part, max_chars=max_chars))
+    return "".join(normalized_parts)
+
+
 async def refine_reading_with_llm(
     *,
     chapter_blocks: dict[str, Any],
@@ -280,6 +317,7 @@ async def refine_reading_with_llm(
                 f"{selected_model}, finish_reason: "
                 f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
             )
+        response_text = _normalize_long_paragraphs(response_text, max_chars=300)
         logger.info("LLM refinement executed for chapter_blocks_hash=%s", chapter_blocks_hash)
         return response_text
     except Exception as e:
@@ -316,9 +354,9 @@ CRITICAL COMMERCIAL GUIDELINES (STRICTLY ENFORCED):
 1. PREDICTIVE STRENGTH & TIMEFRAMES (CRITICAL):
    - You MUST write strong, structured predictions using specific timeframes: Short-term (1~2 years) and Mid-term (3~5
  years).
-   - Use strong directional language (e.g., "역할 확장 압력이 크게 증가합니다", "직업적 변동성이 먼저 옵니다").
-   - Provide conditional strategies (e.g., "실행축이 안정축과 조율될 때 상승 확률이 커집니다").
-   - DO NOT use generic safe statements (e.g., "기회와 도전이 번갈아 올 수 있습니다" -> BAN).
+   - Use strong directional language (e.g., "??븷 ?뺤옣 ?뺣젰???ш쾶 利앷??⑸땲??, "吏곸뾽??蹂?숈꽦??癒쇱? ?듬땲??).
+   - Provide conditional strategies (e.g., "?ㅽ뻾異뺤씠 ?덉젙異뺢낵 議곗쑉?????곸듅 ?뺣쪧??而ㅼ쭛?덈떎").
+   - DO NOT use generic safe statements (e.g., "湲고쉶? ?꾩쟾??踰덇컝???????덉뒿?덈떎" -> BAN).
    - DO NOT predict fatal events or exact extreme dates. Focus on flow, trends, and risk management.
 
 2. CONTENT RATIO:
@@ -329,12 +367,20 @@ CRITICAL COMMERCIAL GUIDELINES (STRICTLY ENFORCED):
 
 3. NO JARGON & NO RAW METRICS:
    - DO NOT use terms like 'varga_alignment', 'shadbala', 'lagna_lord', 'purushartha'.
-   - DO NOT output raw grades, letters, or scores (NEVER write "안정성 등급 D", "점수 45").
-   - Use structural framing: "차트 구조상", "기본 성향을 형성하는 축에서", "사회적 성취와 연결되는 흐름상".
+   - DO NOT output raw grades, letters, or scores (NEVER write "?덉젙???깃툒 D", "?먯닔 45").
+   - Use structural framing: "李⑦듃 援ъ“??, "湲곕낯 ?깊뼢???뺤꽦?섎뒗 異뺤뿉??, "?ы쉶???깆랬? ?곌껐?섎뒗 ?먮쫫??.
 
 4. ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE:
-   - NEVER write "이 장은 여기에서 마무리됩니다", "마무리하겠습니다", "이상입니다", "도움이 되길 바랍니다".
+   - NEVER write "???μ? ?ш린?먯꽌 留덈Т由щ맗?덈떎", "留덈Т由ы븯寃좎뒿?덈떎", "?댁긽?낅땲??, "?꾩????섍만 諛붾엻?덈떎".
    - Do NOT summarize at the end of every chapter. End each paragraph naturally and definitively.
+5. OUTPUT FORMAT CONTRACT (STRICT):
+   - Every chapter MUST begin with a `##` markdown heading.
+   - High-signal predictions MUST be prefixed with `**[KEY]**`.
+   - Risk signals MUST be prefixed with `**[WARNING]**`.
+   - Action items MUST be prefixed with `**[STRATEGY]**`.
+   - Each paragraph MUST NOT exceed 4 sentences.
+   - Closing boilerplate phrases (e.g., "This chapter concludes here") are strictly forbidden.
+   - {lang_instruction}
 
 Draft Narrative Blocks (Expand and synthesize these):
 {blocks_json}
@@ -2500,6 +2546,20 @@ def _to_pdf_paragraph(value: Any, style) -> Paragraph:
     return Paragraph(_sanitize_pdf_text(value), style)
 
 
+def _extract_summary_text(summary_value: Any) -> str:
+    if isinstance(summary_value, str):
+        return summary_value.strip()
+    if isinstance(summary_value, dict):
+        for key in ("key_takeaway", "key_takeaways", "summary", "executive_summary", "overview"):
+            candidate = summary_value.get(key)
+            if isinstance(candidate, str) and candidate.strip():
+                return candidate.strip()
+    if isinstance(summary_value, list):
+        parts = [str(item).strip() for item in summary_value if isinstance(item, str) and item.strip()]
+        return "\n".join(parts).strip()
+    return ""
+
+
 def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any]) -> list:
     """Deterministic report payload??chapter-aware layout?????????????????????"""
     chapter_blocks = report_payload.get("chapter_blocks", {}) if isinstance(report_payload, dict) else {}
@@ -2521,6 +2581,32 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
     content_width = max(320.0, page_width - margin_left - margin_right)
     table_label_col = max(120.0, min(170.0, content_width * 0.30))
     table_value_col = max(180.0, content_width - table_label_col)
+    summary_text = _extract_summary_text(report_payload.get("summary") if isinstance(report_payload, dict) else None)
+    summary_box_style = ParagraphStyle(
+        "KeyTakeawayLane",
+        parent=styles["SummaryLead"],
+        fontName=PDF_FONT_BOLD,
+        fontSize=styles["SummaryLead"].fontSize + 1.8,
+        leading=max(styles["SummaryLead"].leading, styles["SummaryLead"].fontSize + 8),
+        alignment=TA_LEFT,
+        spaceAfter=0,
+    )
+
+    if summary_text:
+        summary_title = Paragraph("Key Takeaway", styles["Subtitle"])
+        summary_body = Paragraph(convert_markdown_bold(_sanitize_pdf_text(summary_text)), summary_box_style)
+        summary_box = Table([[summary_body]], colWidths=[content_width])
+        summary_box.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#F5F9FF")),
+            ("BOX", (0, 0), (-1, -1), 1.1, colors.HexColor("#7A9CC6")),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10),
+            ("RIGHTPADDING", (0, 0), (-1, -1), 10),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ]))
+        elements.append(summary_title)
+        elements.append(summary_box)
+        elements.append(Spacer(1, 12))
 
     for chapter in REPORT_CHAPTERS:
         fragments = chapter_blocks.get(chapter, [])
@@ -2642,6 +2728,25 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
 
     return elements
 
+def _build_semantic_highlight_block(tag: str, body: str, styles) -> Table:
+    palette = {
+        "KEY": colors.HexColor("#FFF6CC"),
+        "WARNING": colors.HexColor("#FFE5DB"),
+        "STRATEGY": colors.HexColor("#E5F0FF"),
+    }
+    bg_color = palette.get(tag, colors.HexColor("#F5F5F5"))
+    paragraph_text = f"<b>[{tag}]</b> {convert_markdown_bold(body.strip())}"
+    block = Table([[Paragraph(paragraph_text, styles["Body"])]])
+    block.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, -1), bg_color),
+        ("BOX", (0, 0), (-1, -1), 0.5, colors.HexColor("#D1D9E6")),
+        ("LEFTPADDING", (0, 0), (-1, -1), 8),
+        ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+    ]))
+    return block
+
 def parse_markdown_to_flowables(text: str, styles):
     """Convert markdown-like text into ReportLab flowables."""
     flowables = []
@@ -2663,6 +2768,21 @@ def parse_markdown_to_flowables(text: str, styles):
         elif line.startswith('# '):
             clean_line = line[2:].replace('**', '')
             flowables.append(Paragraph(clean_line, styles['ReportTitle']))
+        # Semantic blocks
+        elif re.match(r'^\*\*\[(KEY|WARNING|STRATEGY)\]\*\*\s+', line):
+            match = re.match(r'^\*\*\[(KEY|WARNING|STRATEGY)\]\*\*\s+(.*)$', line)
+            if match:
+                tag = match.group(1)
+                body = match.group(2)
+                flowables.append(_build_semantic_highlight_block(tag, body, styles))
+                flowables.append(Spacer(1, 0.15*cm))
+        elif re.match(r'^\[(KEY|WARNING|STRATEGY)\]\s+', line):
+            match = re.match(r'^\[(KEY|WARNING|STRATEGY)\]\s+(.*)$', line)
+            if match:
+                tag = match.group(1)
+                body = match.group(2)
+                flowables.append(_build_semantic_highlight_block(tag, body, styles))
+                flowables.append(Spacer(1, 0.15*cm))
         # Section markers
         elif line.startswith('[') and line.endswith(']'):
             flowables.append(Spacer(1, 0.3*cm))
@@ -2699,7 +2819,7 @@ def _resolve_pdf_narrative_content(ai_reading: Any, language: str) -> dict[str, 
         return {"source": "none", "polished_text": None, "report_payload": None}
 
     chapter_blocks = _extract_chapter_blocks_from_ai_reading(ai_reading)
-    report_payload = {"chapter_blocks": chapter_blocks} if chapter_blocks else None
+    report_payload = {"chapter_blocks": chapter_blocks, "summary": ai_reading.get("summary")} if chapter_blocks else None
 
     chapter_blocks_hash = ai_reading.get("chapter_blocks_hash")
     polished_text = ai_reading.get("polished_reading") if isinstance(ai_reading.get("polished_reading"), str) else None
@@ -3275,6 +3395,8 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
 
 
 

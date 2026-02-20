@@ -53,3 +53,7 @@
 - Restored AI_CACHE_TTL to 1800, enabled PDF cache hit logging, and replaced LLM structural prompt per new commercial guidelines.
 - Replaced build_llm_structural_prompt with predictive-strength prompt per request.
 - Mapping summary investigation: total_signals_processed=0 likely because _interpret_signal_sentence is only called for signal/fallback fragments; when chapters are composed purely from template/atomic blocks, mapping_audit never increments.
+- TASK 1 completed: Added strict LLM output structural contract (## headings, [KEY]/[WARNING]/[STRATEGY] tags, paragraph sentence cap, and forbidden closing boilerplate) in backend/main.py.
+- TASK 2 completed: Extended parse_markdown_to_flowables with semantic block rendering for **[KEY]**, **[WARNING]**, and **[STRATEGY]** using highlighted paragraph boxes.
+- TASK 3 completed: Added promoted Key Takeaway lane in render_report_payload_to_pdf (bordered summary box with larger font before chapter body flow) and wired summary into report_payload for PDF rendering.
+- TASK 4 completed: Added LLM response post-processing to split newline-free paragraphs longer than 300 chars into two paragraphs at the nearest sentence boundary.
