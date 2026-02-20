@@ -275,13 +275,17 @@ async def refine_reading_with_llm(
     return polished_text
 
 
-def build_llm_structural_prompt(structural_summary: dict, language: str, atomic_interpretations: dict[str, str] | None = None) -> str:
+def build_llm_structural_prompt(
+    structural_summary: dict,
+    language: str,
+    atomic_interpretations: dict[str, str] | None = None,
+) -> str:
     import json
 
     lang_instruction = (
-        "Write the output in Korean."
+        "MUST be written in highly natural, fluent, and empathetic Korean (Hangul)."
         if language == "ko"
-        else "Write the output in English."
+        else "MUST be written in fluent English."
     )
 
     atomic = atomic_interpretations if isinstance(atomic_interpretations, dict) else {}
@@ -290,70 +294,32 @@ def build_llm_structural_prompt(structural_summary: dict, language: str, atomic_
     moon_text = str(atomic.get("moon", "")).strip()
 
     return f"""
-You are a high-precision Vedic astrology structural interpreter.
+You are a warm, highly intuitive, and world-class expert Vedic astrologer.
+Your task is to synthesize the provided structural data into a beautifully written, easy-to-understand, and deeply
+personal multidimensional narrative report.
 
-Your task is NOT to summarize.
-Your task is to derive deep psychological, behavioral, and life-pattern interpretation from deterministic structural signals.
-Your task is also to perform multi-signal cross-interpretation, not single-signal commentary.
+Constraints & Guidelines:
+1. TONE & LANGUAGE: {lang_instruction} Speak directly to the user (e.g., "당신은...", "당신의 차트는..."). Be
+empathetic but objective.
+2. NO TECHNICAL JARGON: Absolutely DO NOT use technical Vedic/system terms like 'varga_alignment', 'shadbala',
+'purushartha', 'lagna_lord', 'stability_index', 'score', or 'axis'. Translate these into everyday psychological
+concepts (e.g., "내면의 안정감", "사회적 성취력", "스트레스 저항력").
+3. NO RAW FORMATTING: DO NOT output JSON keys, labels like "Fragment", "Title:", "Summary:", "Analysis:", or bulleted
+lists of metrics. Write in flowing, natural paragraphs.
+4. ORGANIC SYNTHESIS (CRITICAL): Do not just list isolated facts. Weave the atomic traits (Ascendant, Sun, Moon)
+together with their specific tensions, stability metrics, and risks. Tell a cohesive story about how their core nature
+ interacts with their life patterns and challenges.
+5. COMPLETE OUTPUT: Generate full-length, publication-grade detail for exactly the 15 requested chapters.
 
-You MUST follow this reasoning sequence internally before producing output:
-
-STEP 1  Identify dominant forces
-- dominant_planet
-- life_purpose_vector.primary_axis
-- stability_metrics.stability_grade
-- dominant planetary clusters or strength patterns
-
-STEP 2  Identify internal tensions and imbalances
-- personality_vector asymmetries
-- stability_metrics.stability_index weaknesses
-- behavioral_risk_profile primary and secondary risks
-- psychological_tension_axis indicators
-- influence_matrix conflict patterns
-
-STEP 3  Identify execution and behavioral architecture
-- aggression_drive vs discipline_index relationship
-- ego_power vs emotional_regulation relationship
-- risk_appetite vs stability_index interaction
-- dominant planet behavioral expression patterns
-
-STEP 4  Identify structural trajectory and life-pattern tendencies
-- probability_forecast indicators
-- varga_alignment patterns
-- structural stability vs volatility interaction
-
-STEP 5  Synthesize unified interpretation
-
-Your output MUST obey these rules:
-
-- Every statement MUST be logically grounded in provided structural signals
-- DO NOT produce generic personality descriptions
-- DO NOT produce vague motivational advice
-- DO NOT invent planetary positions, houses, or chart data
-- DO NOT summarize mechanically  interpret structurally
-- DO NOT reference JSON or numeric values explicitly in output
-- Convert structural signals into natural psychological and life-pattern interpretation
-- Treat these as mandatory synthesis inputs and cross-interpret them together:
-  ascendant_sign, sun_sign, moon_sign, personality_vector, stability_metrics, varga_alignment, dominant planets, house strengths
-- For each major paragraph, explicitly explain interaction effects between at least two signal groups.
-- Explain psychological patterns that emerge from signal combinations, not isolated traits.
-- Explain life-direction implications (career path, relationship pattern, decision style, long-term trajectory) from combined structure.
-- If a required signal group is missing, state neutral uncertainty and continue using only available deterministic signals.
-- You must only refine and improve readability of the provided deterministic astrology report. Do not add, infer, or invent new astrological interpretation.
-
-This is a structural synthesis task, not a summary task.
-
-{lang_instruction}
-
-Atomic interpretations:
+Atomic Interpretations (Core Identity Base):
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
 
-Structural signals:
+Structural Signals (Underlying Data to Synthesize):
 {json.dumps(structural_summary, indent=2, ensure_ascii=False)}
 
-Produce a complete, coherent, professional interpretation.
+Now, deeply reflect on these combined signals and generate the 15-chapter organic narrative report.
 """
 
 
@@ -739,6 +705,8 @@ def _build_openai_client() -> tuple[Optional[AsyncOpenAI], Optional[httpx.AsyncC
 
 
 async_client, OPENAI_HTTP_CLIENT = _build_openai_client()
+if async_client is None:
+    print("WARNING: OpenAI client is None. LLM will not be called. Check OPENAI_API_KEY in .env")
 
 # ??????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????????
 # AI ?????

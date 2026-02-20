@@ -24,3 +24,7 @@
 - Removed boilerplate from _interpret_signal_sentence, _create_signal_fragment, and _build_atomic_anchor_fragment.
 - Replaced SYSTEM_PROMPT with new narrative synthesis instructions and explicit chapter list.
 - Import check: python -c "import report_engine; print('OK')" succeeded.
+- Replaced build_llm_structural_prompt with new synthesis prompt.
+- OPENAI_API_KEY MISSING ? add to backend/.env
+- Import check: python -c "import main; print('OK')" succeeded (warning: OpenAI client None).
+- OPENAI_API_KEY present (dotenv check).
