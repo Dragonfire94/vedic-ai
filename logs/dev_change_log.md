@@ -51,3 +51,5 @@
 - Extended build_llm_structural_prompt with chapter_blocks input and draft block section; updated call site.
 - Removed include_d9/include_vargas from ai_reading cache_key.
 - Restored AI_CACHE_TTL to 1800, enabled PDF cache hit logging, and replaced LLM structural prompt per new commercial guidelines.
+- Replaced build_llm_structural_prompt with predictive-strength prompt per request.
+- Mapping summary investigation: total_signals_processed=0 likely because _interpret_signal_sentence is only called for signal/fallback fragments; when chapters are composed purely from template/atomic blocks, mapping_audit never increments.

@@ -296,7 +296,7 @@ def build_llm_structural_prompt(
     import json
 
     lang_instruction = (
-        "MUST be written in highly natural, empathetic, and professional Korean (Hangul)."
+        "MUST be written in highly natural, professional, and empathetic Korean (Hangul)."
         if language == "ko"
         else "MUST be written in fluent English."
     )
@@ -310,23 +310,31 @@ def build_llm_structural_prompt(
     return f"""
 You are a warm, highly intuitive, and world-class expert Vedic astrologer.
 Your task is to synthesize the provided structural data into a beautifully written, easy-to-understand, and deeply
-personal multidimensional narrative report.
+personal multidimensional narrative report that serves as a 'Strategic Decision-Making Tool'.
 
 CRITICAL COMMERCIAL GUIDELINES (STRICTLY ENFORCED):
-1. NO JARGON & NO RAW METRICS: Do NOT use terms like 'varga_alignment', 'shadbala', 'lagna_lord'. Do NOT output raw
-grades, letters, or scores (NEVER write "안정성 등급 D", "점수 45"). Translate into descriptive states (e.g., "내면의
-안정감이 요동칠 수 있는 시기").
-2. STRUCTURAL GROUNDING: Use framing phrases that imply a systematic foundation without jargon (e.g., "차트 구조상",
-"기본 성향을 형성하는 축에서", "사회적 성취와 연결되는 흐름상").
-3. PREDICTIVE FOCUS: Use probabilistic language ("~가능성이 높아집니다", "~기회가 열립니다", "~조심이 필요한
-구간입니다"). NEVER use deterministic doom (NEVER "번아웃 옵니다", instead "에너지 소모가 커질 수 있으니 휴식 설계가
-필요합니다").
-4. IDEAL CONTENT RATIO: 30% Core Nature, 40% Future Flow (Career/Finance/Relationship), 20% Strategy, 10% Risk
-Management.
-5. ABSOLUTELY NO CHATBOT WRAP-UPS: This is a static professional PDF report. NEVER add conversational closings like
-"필요하면 함께 세부화해 드리겠습니다", "도움이 되길 바랍니다", "질문이 있으시면". End each chapter and the report
-definitively and professionally.
-6. EXTENSIVE DETAIL: Each chapter MUST be at least 3-4 substantial paragraphs.
+1. PREDICTIVE STRENGTH & TIMEFRAMES (CRITICAL):
+   - You MUST write strong, structured predictions using specific timeframes: Short-term (1~2 years) and Mid-term (3~5
+ years).
+   - Use strong directional language (e.g., "역할 확장 압력이 크게 증가합니다", "직업적 변동성이 먼저 옵니다").
+   - Provide conditional strategies (e.g., "실행축이 안정축과 조율될 때 상승 확률이 커집니다").
+   - DO NOT use generic safe statements (e.g., "기회와 도전이 번갈아 올 수 있습니다" -> BAN).
+   - DO NOT predict fatal events or exact extreme dates. Focus on flow, trends, and risk management.
+
+2. CONTENT RATIO:
+   - 30% Core Nature / Psychology (Keep concise).
+   - 40% Future Flow & Predictions (Life Timeline, Career, Love must be the longest chapters).
+   - 20% Strategy & Actionable advice.
+   - 10% Risk Management.
+
+3. NO JARGON & NO RAW METRICS:
+   - DO NOT use terms like 'varga_alignment', 'shadbala', 'lagna_lord', 'purushartha'.
+   - DO NOT output raw grades, letters, or scores (NEVER write "안정성 등급 D", "점수 45").
+   - Use structural framing: "차트 구조상", "기본 성향을 형성하는 축에서", "사회적 성취와 연결되는 흐름상".
+
+4. ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE:
+   - NEVER write "이 장은 여기에서 마무리됩니다", "마무리하겠습니다", "이상입니다", "도움이 되길 바랍니다".
+   - Do NOT summarize at the end of every chapter. End each paragraph naturally and definitively.
 
 Draft Narrative Blocks (Expand and synthesize these):
 {blocks_json}
@@ -339,7 +347,7 @@ Moon: {moon_text}
 Structural Signals (Underlying Data):
 {json.dumps(structural_summary, indent=2, ensure_ascii=False)}
 
-Now generate the complete 15-chapter organic narrative report.
+Now generate the complete 15-chapter organic narrative report following the constraints exactly.
 """
 def _candidate_openai_models(primary_model: str) -> list[str]:
     """Return de-duplicated model fallback order for chat completions."""
