@@ -2063,10 +2063,8 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
             atomic_fragments_per_chapter[chapter] = int(atomic_fragments_per_chapter.get(chapter, 0)) + 1
 
         has_atomic = len(chapter_payload) > 0 and any(isinstance(f, dict) and f.get("_source") == "atomic" for f in chapter_payload)
-        if has_atomic:
-            # Atomic exists: generic fallback/template fragments are disabled.
-            pass
-        elif use_fallback_builders:
+
+        if use_fallback_builders and not has_atomic:
             fallback_payload, fallback_meta = _build_deterministic_fallback_fragments(
                 chapter,
                 structural,
@@ -2076,7 +2074,8 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
             remaining = max(0, chapter_limit - len(chapter_payload))
             chapter_payload.extend(fallback_payload[:remaining])
             chapter_payload_meta.extend(fallback_meta[:remaining])
-        else:
+
+        if blocks:
             for block in blocks:
                 if len(chapter_payload) >= chapter_limit:
                     break

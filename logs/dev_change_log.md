@@ -47,3 +47,6 @@
 - Increased AI_MAX_TOKENS_* limits (reading/pdf/hard) and aligned model defaults with OPENAI_MODEL.
 - Added LLM empty-response debug log and restored ai_reading cache get/set and polished read cache usage.
 - Simplified _is_low_quality_reading to 1000-char threshold only.
+- Updated report_engine atomic fallback logic to always include template blocks after fallback.
+- Extended build_llm_structural_prompt with chapter_blocks input and draft block section; updated call site.
+- Removed include_d9/include_vargas from ai_reading cache_key.

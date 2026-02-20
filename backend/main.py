@@ -249,6 +249,7 @@ async def refine_reading_with_llm(
         structural_payload,
         language=language,
         atomic_interpretations=atomic_interpretations,
+        chapter_blocks=validated,
     )
     chapter_blocks_hash = compute_chapter_blocks_hash(validated)
     selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
@@ -290,6 +291,7 @@ def build_llm_structural_prompt(
     structural_summary: dict,
     language: str,
     atomic_interpretations: dict[str, str] | None = None,
+    chapter_blocks: dict | None = None,
 ) -> str:
     import json
 
@@ -303,6 +305,7 @@ def build_llm_structural_prompt(
     asc_text = str(atomic.get("asc", "")).strip()
     sun_text = str(atomic.get("sun", "")).strip()
     moon_text = str(atomic.get("moon", "")).strip()
+    blocks_json = json.dumps(chapter_blocks, indent=2, ensure_ascii=False) if chapter_blocks else "{}"
 
     return f"""
 You are a warm, highly intuitive, and world-class expert Vedic astrologer.
@@ -321,11 +324,18 @@ lists of metrics. Write in flowing, natural paragraphs.
 together with their specific tensions, stability metrics, and risks. Tell a cohesive story about how their core nature
  interacts with their life patterns and challenges.
 5. COMPLETE OUTPUT: Generate full-length, publication-grade detail for exactly the 15 requested chapters.
+5. EXTENSIVE DETAIL: You MUST write AT LEAST 3 full paragraphs (500+ characters) per chapter. Do not output brief
+summaries. Expand deeply on the psychological and practical implications.
+6. USE DRAFT BLOCKS: I have provided 'Draft Narrative Blocks' below. You MUST incorporate their meanings and expand
+upon them.
 
 Atomic Interpretations (Core Identity Base):
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
+
+Draft Narrative Blocks (Expand and synthesize these into flowing text):
+{blocks_json}
 
 Structural Signals (Underlying Data to Synthesize):
 {json.dumps(structural_summary, indent=2, ensure_ascii=False)}
@@ -1866,7 +1876,7 @@ async def get_ai_reading(
     events_json_norm = _normalize_json_for_cache(events_json)
 
     cache_key = (
-        f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_{include_d9}_{include_vargas}_"
+        f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_"
         f"{language}_{gender}_{production_mode}_{events_json_norm}_{timezone}_{analysis_mode_norm}_{detail_level_norm}_{llm_max_tokens_resolved}_"
         f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}"
     )
