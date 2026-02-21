@@ -413,9 +413,43 @@ Mention structural stability or foundational strength at least once
 in interpretive form (not raw numeric exposure).
 
 Avoid repeating identical structural phrasing across chapters.
+Do not reuse identical emotional framing across chapters.
+Do not repeat identical explanatory paragraphs.
+Emotional modulation must vary by domain context.
 
 Narrative Mode:
 {mode}
+
+Emotional Derivation & Tone Modulation (Internal Only):
+- Before writing the report, internally derive an emotional_state from structural signals.
+- Never print emotional_state as JSON or explicit labels.
+- Never print numeric values for this layer.
+- If a required structural key is missing, assume neutral mid-level conditions.
+- Never fail or output placeholder explanations due to missing keys.
+
+Fallback-safe derivation rules:
+- If burnout_risk exists and is high -> core_tone = fatigued
+- If risk_factor exists and high and stability_index exists and low -> core_tone = pressured
+- If opportunity_factor exists and high and risk_factor low -> core_tone = expansive
+- If stability_index exists and high -> confidence_pattern = grounded
+- If stability_index exists and low -> confidence_pattern = fragile
+- If psychological_tension_axis exists and risk elevated -> core_tone = conflicted
+- If none is clearly dominant -> core_tone = steady
+
+Tone mapping (compact):
+- fatigued: slower rhythm, recovery emphasis, softer warnings
+- pressured: shorter sentences, direct warnings, decision urgency
+- expansive: longer sentences, opportunity framing, future orientation
+- conflicted: contrast structures, dual-perspective phrasing
+- steady: balanced pacing, moderate urgency, grounded reassurance
+
+Emotional coherence rule:
+- Maintain emotional coherence across the full report.
+- Each chapter must apply emotional tone differently by domain context.
+- Career: drive or pressure.
+- Relationships: vulnerability or guardedness.
+- Finance: risk tolerance or caution.
+- Health: energy flow or depletion.
 
 GLOBAL NARRATIVE CONTINUITY RULE:
 - The selected Narrative Mode must remain consistent across all chapters.

@@ -30,14 +30,14 @@
   },
   "dominant_house_cluster": 8,
   "purushartha_profile": {
-    "Dharma": 17,
-    "Artha": 33,
+    "Dharma": 16,
+    "Artha": 30,
     "Kama": 13,
-    "Moksha": 37,
+    "Moksha": 41,
     "dominant_purushartha": "Moksha",
     "quadrant_tags": {
       "Dharma": "underdeveloped",
-      "Artha": "balanced",
+      "Artha": "underdeveloped",
       "Kama": "underdeveloped",
       "Moksha": "balanced"
     }
@@ -45,53 +45,53 @@
   "behavioral_risk_profile": {
     "ego_instability": 6.87,
     "emotional_volatility": 5.69,
-    "financial_instability": 9.02,
+    "financial_instability": 9.12,
     "relationship_break_risk": 3.82,
     "authority_conflict_risk": 5.19,
-    "burnout_risk": 5.98,
+    "burnout_risk": 6.05,
     "obsession_tendency": 3.36,
-    "self_sabotage_risk": 6.94,
-    "impulsivity_risk": 54.11,
-    "overcontrol_risk": 47.29,
+    "self_sabotage_risk": 7.02,
+    "impulsivity_risk": 54.42,
+    "overcontrol_risk": 47.61,
     "primary_risk": "impulsivity"
   },
   "interaction_risks": {
     "narcissistic_instability": 0.0,
     "authority_breakdown_risk": 0.0,
-    "impulsive_sabotage_risk": 19.78,
-    "chronic_stress_amplification": 0.6,
+    "impulsive_sabotage_risk": 19.61,
+    "chronic_stress_amplification": 0.7,
     "emotional_oscillation": 0.0
   },
   "enhanced_behavioral_risks": {
     "authority_conflict_risk": 5.19,
     "emotional_volatility": 5.69,
     "self_sabotage_risk": 10.0,
-    "burnout_risk": 6.22,
+    "burnout_risk": 6.33,
     "emotional_volatility_amplified": 5.69
   },
   "stability_metrics": {
-    "stability_index": 3.96,
+    "stability_index": 3.89,
     "stability_grade": "D",
     "mean_planet_strength": 3.61,
-    "tension_index": 0.0816,
+    "tension_index": 0.0863,
     "yoga_support_index": 0.7,
-    "risk_index": 5.86,
+    "risk_index": 5.89,
     "grade": "D"
   },
   "personality_vector": {
-    "ego_power": 40.25,
+    "ego_power": 38.65,
     "emotional_regulation": 45.2,
     "aggression_drive": 100.0,
     "discipline_index": 41.7,
     "attachment_intensity": 45.85,
     "authority_orientation": 29.57,
-    "risk_appetite": 77.3
+    "risk_appetite": 77.0
   },
   "probability_forecast": {
-    "marriage_5yr": 0.0966,
-    "career_shift_3yr": 0.2867,
-    "burnout_2yr": 0.3473,
-    "financial_instability_3yr": 0.2667
+    "marriage_5yr": 0.0926,
+    "career_shift_3yr": 0.2827,
+    "burnout_2yr": 0.3199,
+    "financial_instability_3yr": 0.2687
   },
   "varga_alignment": {
     "relationship_alignment": {
@@ -175,7 +175,7 @@
       },
       "Jupiter": {
         "band": "strong",
-        "total": 0.6865,
+        "total": 0.6881,
         "evidence_tags": [
           "Debilitated",
           "Temporal Strength",
@@ -201,7 +201,7 @@
       },
       "Saturn": {
         "band": "medium",
-        "total": 0.6477,
+        "total": 0.6403,
         "evidence_tags": [
           "Balanced Expression",
           "Temporal Strength",
@@ -247,8 +247,8 @@
   "current_dasha_vector": {
     "current_theme": "assertion, drive, and conflict navigation",
     "dominant_axis": "service_conflict_axis",
-    "risk_factor": 0.41,
-    "opportunity_factor": 0.49
+    "risk_factor": 0.43,
+    "opportunity_factor": 0.47
   },
   "dominant_life_theme": "delayed_success_pattern",
   "psychological_axis": "service_conflict_axis",
@@ -379,7 +379,7 @@
           "debilitated:-3"
         ],
         "shadbala": {
-          "total": 0.6865,
+          "total": 0.6881,
           "band": "strong",
           "components": {
             "sthana": 0.1,
@@ -440,7 +440,7 @@
           "kendra_house:+1"
         ],
         "shadbala": {
-          "total": 0.6477,
+          "total": 0.6403,
           "band": "medium",
           "components": {
             "sthana": 0.5,
@@ -562,8 +562,8 @@
         "name": "Raja Yoga",
         "strength": 0.75,
         "planets_involved": [
-          "Jupiter",
-          "Mars"
+          "Sun",
+          "Venus"
         ],
         "status": "active",
         "reason_tags": [],
@@ -643,12 +643,12 @@
     },
     "influence_matrix": {
       "matrix": {
-        "Sun->Moon": 0.8,
+        "Sun->Moon": 0.82,
         "Sun->Mars": 0.0,
         "Sun->Mercury": 0.0,
         "Sun->Jupiter": 0.0,
-        "Sun->Venus": 1.29,
-        "Sun->Saturn": 0.16,
+        "Sun->Venus": 1.48,
+        "Sun->Saturn": 0.17,
         "Sun->Rahu": 0.0,
         "Sun->Ketu": 0.0,
         "Moon->Sun": 1.3,
@@ -662,11 +662,11 @@
         "Mars->Sun": 0.0,
         "Mars->Moon": 0.0,
         "Mars->Mercury": 0.0,
-        "Mars->Jupiter": 1.8,
+        "Mars->Jupiter": 1.57,
         "Mars->Venus": 0.0,
-        "Mars->Saturn": 0.82,
-        "Mars->Rahu": 1.1,
-        "Mars->Ketu": 1.0,
+        "Mars->Saturn": 0.79,
+        "Mars->Rahu": 1.07,
+        "Mars->Ketu": 0.97,
         "Mercury->Sun": 0.0,
         "Mercury->Moon": 0.0,
         "Mercury->Mars": 0.0,
@@ -677,18 +677,18 @@
         "Mercury->Ketu": 0.0,
         "Jupiter->Sun": 0.0,
         "Jupiter->Moon": 0.0,
-        "Jupiter->Mars": 0.28,
+        "Jupiter->Mars": 0.24,
         "Jupiter->Mercury": 0.0,
         "Jupiter->Venus": 0.0,
         "Jupiter->Saturn": 0.0,
         "Jupiter->Rahu": 0.1,
         "Jupiter->Ketu": 0.09,
-        "Venus->Sun": 1.61,
-        "Venus->Moon": 1.03,
+        "Venus->Sun": 1.85,
+        "Venus->Moon": 1.07,
         "Venus->Mars": 0.0,
         "Venus->Mercury": 0.0,
         "Venus->Jupiter": 0.0,
-        "Venus->Saturn": 0.13,
+        "Venus->Saturn": 0.14,
         "Venus->Rahu": 0.0,
         "Venus->Ketu": 0.0,
         "Saturn->Sun": 0.16,
@@ -729,9 +729,9 @@
         "3": 0.0,
         "4": 0.0,
         "5": 7.0,
-        "6": 8.66,
+        "6": 7.66,
         "7": 0.0,
-        "8": 9.33,
+        "8": 11.33,
         "9": 0.0,
         "10": 5.17,
         "11": 5.33,
@@ -743,9 +743,9 @@
         "3": 0.0,
         "4": 0.0,
         "5": 7.0,
-        "6": 4.33,
+        "6": 3.83,
         "7": 0.0,
-        "8": 3.11,
+        "8": 3.78,
         "9": 0.0,
         "10": 5.17,
         "11": 5.33,
@@ -772,14 +772,14 @@
       ]
     },
     "purushartha_profile": {
-      "Dharma": 17,
-      "Artha": 33,
+      "Dharma": 16,
+      "Artha": 30,
       "Kama": 13,
-      "Moksha": 37,
+      "Moksha": 41,
       "dominant_purushartha": "Moksha",
       "quadrant_tags": {
         "Dharma": "underdeveloped",
-        "Artha": "balanced",
+        "Artha": "underdeveloped",
         "Kama": "underdeveloped",
         "Moksha": "balanced"
       }
@@ -787,14 +787,14 @@
     "behavioral_risks": {
       "ego_instability": 6.87,
       "emotional_volatility": 5.69,
-      "financial_instability": 9.02,
+      "financial_instability": 9.12,
       "relationship_break_risk": 3.82,
       "authority_conflict_risk": 5.19,
-      "burnout_risk": 5.98,
+      "burnout_risk": 6.05,
       "obsession_tendency": 3.36,
-      "self_sabotage_risk": 6.94,
-      "impulsivity_risk": 54.11,
-      "overcontrol_risk": 47.29,
+      "self_sabotage_risk": 7.02,
+      "impulsivity_risk": 54.42,
+      "overcontrol_risk": 47.61,
       "primary_risk": "impulsivity"
     },
     "interaction_summary": {
@@ -803,28 +803,28 @@
       "mitigators": []
     },
     "stability_metrics": {
-      "stability_index": 3.96,
+      "stability_index": 3.89,
       "stability_grade": "D",
       "mean_planet_strength": 3.61,
-      "tension_index": 0.0816,
+      "tension_index": 0.0863,
       "yoga_support_index": 0.7,
-      "risk_index": 5.86,
+      "risk_index": 5.89,
       "grade": "D"
     },
     "personality_vector": {
-      "ego_power": 40.25,
+      "ego_power": 38.65,
       "emotional_regulation": 45.2,
       "aggression_drive": 100.0,
       "discipline_index": 41.7,
       "attachment_intensity": 45.85,
       "authority_orientation": 29.57,
-      "risk_appetite": 77.3
+      "risk_appetite": 77.0
     },
     "probability_forecast": {
-      "marriage_5yr": 0.0966,
-      "career_shift_3yr": 0.2867,
-      "burnout_2yr": 0.3473,
-      "financial_instability_3yr": 0.2667
+      "marriage_5yr": 0.0926,
+      "career_shift_3yr": 0.2827,
+      "burnout_2yr": 0.3199,
+      "financial_instability_3yr": 0.2687
     },
     "varga_alignment": {
       "relationship_alignment": {
@@ -908,7 +908,7 @@
         },
         "Jupiter": {
           "band": "strong",
-          "total": 0.6865,
+          "total": 0.6881,
           "evidence_tags": [
             "Debilitated",
             "Temporal Strength",
@@ -934,7 +934,7 @@
         },
         "Saturn": {
           "band": "medium",
-          "total": 0.6477,
+          "total": 0.6403,
           "evidence_tags": [
             "Balanced Expression",
             "Temporal Strength",

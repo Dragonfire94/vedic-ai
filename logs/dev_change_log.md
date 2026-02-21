@@ -536,3 +536,21 @@ Engine marked production-safe.
 - 순서 규칙은 '각 챕터 내 기본 흐름'으로 완화해 챕터 구조 지시와 충돌 방지
 - 검증: build_llm_structural_prompt import OK
 - 검증: golden_sample_runner structural 모드 실행 OK (LLM 호출 없음)
+
+## Astro Engine Stability Patch (No schema/version change)
+- backend/astro_engine.py에 dispositor chain 안전 fallback 추가
+  - while 루프 종료 후에도 chain_lengths/final_dispositors 키 누락이 없도록 방어
+- _compute_single_varga_alignment()에 varga rasi dict/string 양방향 매핑 처리 추가
+  - rasi: Virgo 및 rasi: {name: Virgo} 모두 정상 정렬
+- 의도적으로 미적용: ENGINE_VERSION 변경, current_dasha 조건식 변경
+- 검증: py_compile PASS, import PASS
+- 스모크: alignment 계산/chain key 존재 확인 PASS
+
+## Emotional Layer Integration v1.1 (Prompt-only)
+- backend/llm_service.py build_llm_structural_prompt()에 Emotional Derivation & Tone Modulation 섹션 추가
+- fallback-safe 규칙(키 누락 시 neutral 가정) 명시
+- emotional coherence + 도메인별 변주 규칙 추가(career/relationships/finance/health)
+- 반복 억제 강화(감정 프레이밍/설명 문단 중복 방지)
+- 엔진/스키마/audit 로직 미변경
+- 검증: build_llm_structural_prompt import PASS
+- 검증: golden_sample_runner structural mode PASS

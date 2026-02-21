@@ -792,6 +792,12 @@ def analyze_dispositor_chains(planets: dict[str, Any]) -> dict[str, Any]:
 
             current = nxt
 
+        # === v1.0.1 stability fallback ===
+        # Ensure keys are always populated even if an unexpected path exits.
+        if p not in chain_lengths:
+            chain_lengths[p] = len(path) if path else 1
+            final_dispositors[p] = path[-1] if path else p
+
     for p1, d1 in dispositors.items():
         if not d1 or d1 == p1 or d1 not in dispositors:
             continue
@@ -1744,7 +1750,11 @@ def _compute_single_varga_alignment(planets: dict[str, Any], varga_planets: dict
     matched = 0
     for name in sample_planets:
         d1_sign = ((planets.get(name, {}) or {}).get("rasi", {}) or {}).get("name")
-        d_sign = ((varga_planets.get(name, {}) or {})).get("rasi")
+        d_sign_raw = ((varga_planets.get(name, {}) or {})).get("rasi")
+        if isinstance(d_sign_raw, dict):
+            d_sign = d_sign_raw.get("name")
+        else:
+            d_sign = d_sign_raw
         if not isinstance(d1_sign, str) or not isinstance(d_sign, str):
             continue
         total += 1

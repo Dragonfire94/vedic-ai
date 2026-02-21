@@ -1,0 +1,387 @@
+Vedic AI Report
+Page 1
+ Vedic Signature Report
+ A refined narrative of pattern, timing, and personal alignment
+Birth Date
+1991-11-19
+Birth Time
+14:30
+Coordinates
+37.5665, 126.9780
+House System
+Whole Sign
+D1 Chart (Rasi)
+Moo
+Ket
+Jup
+Ven
+Mar
+SU, Mer
+Rah
+Sat
+Planetary Positions
+Planet
+Sign
+House
+Nakshatra
+Dignity
+Sun
+Scorpio
+9
+Vishakha
+Neutral
+Moon
+Pisces
+1
+Revati
+Neutral
+Mars
+Libra
+8
+Vishakha
+Neutral
+Mercury
+Scorpio
+9
+Jyeshtha
+Neutral
+Jupiter
+Leo
+6
+Purva Phalguni
+Neutral
+Venus
+Virgo
+7
+Hasta
+Debilitated
+Saturn
+Capricorn
+11
+Uttara Ashadha
+Own
+
+
+Vedic AI Report
+Page 2
+Rahu
+Sagittarius
+10
+Purva Ashadha
+Shadow
+Ketu
+Gemini
+4
+Ardra
+Shadow
+
+
+Vedic AI Report
+Page 3
+Executive Summary
+Executive Summary - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+
+
+Vedic AI Report
+Page 4
+Purushartha Profile
+Purushartha Profile - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Purushartha Profile - dharma_dominant
+현재 `dharma_dominant` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.
+세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로
+자동 대체됩니다.
+이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에
+추가하는 것을 권장합니다.
+Practice Note: 예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로
+교체됩니다.
+
+
+Vedic AI Report
+Page 5
+Psychological Architecture
+Psychological Architecture - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 달이 물고기자리에 있을 때 감정이 매우 섬세하고 직관적이며 상상력이
+풍부해 내면의 세계와 다른 사람의 기분에 쉽게 동화되는 경향이 있다. 창의력과 공감 능력이 강해 예술적
+표현이나 치유적 역할에서 장점이 나타나고, 영적·내적 통찰을 통해 상황을 깊이 이해할 가능성이 있다. 다만
+경계가 흐려지기 쉬워 현실도피나 이상화에 빠지기 쉽고 감정에 과민하게 반응하거나 타인의 영향에 휘둘릴
+가능성이 있어 자기관리와 현실적 기반을 의식적으로 마련할 필요가 있다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+
+
+Vedic AI Report
+Page 6
+Behavioral Risks
+Behavioral Risks - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 달이 물고기자리에 있을 때 감정이 매우 섬세하고 직관적이며 상상력이
+풍부해 내면의 세계와 다른 사람의 기분에 쉽게 동화되는 경향이 있다. 창의력과 공감 능력이 강해 예술적
+표현이나 치유적 역할에서 장점이 나타나고, 영적·내적 통찰을 통해 상황을 깊이 이해할 가능성이 있다. 다만
+경계가 흐려지기 쉬워 현실도피나 이상화에 빠지기 쉽고 감정에 과민하게 반응하거나 타인의 영향에 휘둘릴
+가능성이 있어 자기관리와 현실적 기반을 의식적으로 마련할 필요가 있다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Behavioral Risks - risk_overcontrol
+현재 `risk_overcontrol` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.
+세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로
+자동 대체됩니다.
+이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에
+추가하는 것을 권장합니다.
+Practice Note: 예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로
+교체됩니다.
+Karmic Patterns
+Karmic Patterns - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Karmic Patterns - karmic_correction
+현재 `karmic_correction` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.
+
+
+Vedic AI Report
+Page 7
+세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로
+자동 대체됩니다.
+이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에
+추가하는 것을 권장합니다.
+Practice Note: 예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로
+교체됩니다.
+
+
+Vedic AI Report
+Page 8
+Stability Metrics
+Shadbala & Avastha Snapshot
+Top stabilizing planets: Jupiter, Sun, Mercury.
+Shadbala approximate metrics and Avastha state viewed together: Jupiter: STRONG (0.76) |
+Avastha: madhya | Evidence: Balanced Expression, Temporal Strength, Aspect Support Sun:
+STRONG (0.72) | Avastha: madhya | Evidence: Balanced Expression, Temporal Strength Mercury:
+STRONG (0.70) | Avastha: madhya | Evidence: Balanced Expression, Aspect Support
+Use stronger planets as execution anchors for timing cycles, and treat weaker-planet domains with
+stabilization and recovery before expansion.
+Practice Note: Evidence tags include Directional Strength, Exalted, Own Sign, Combust, and
+Retrograde. Interpretation emphasizes relative planetary hierarchy over single scalar scores.
+Stability Metrics - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Stability Metrics - high_stability_fall
+현재 `high_stability_fall` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.
+세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로
+자동 대체됩니다.
+이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에
+추가하는 것을 권장합니다.
+Practice Note: 예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로
+교체됩니다.
+Personality Vector
+
+
+Vedic AI Report
+Page 9
+Personality Vector - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 달이 물고기자리에 있을 때 감정이 매우 섬세하고 직관적이며 상상력이
+풍부해 내면의 세계와 다른 사람의 기분에 쉽게 동화되는 경향이 있다. 창의력과 공감 능력이 강해 예술적
+표현이나 치유적 역할에서 장점이 나타나고, 영적·내적 통찰을 통해 상황을 깊이 이해할 가능성이 있다. 다만
+경계가 흐려지기 쉬워 현실도피나 이상화에 빠지기 쉽고 감정에 과민하게 반응하거나 타인의 영향에 휘둘릴
+가능성이 있어 자기관리와 현실적 기반을 의식적으로 마련할 필요가 있다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Life Timeline Interpretation
+Life Timeline Interpretation - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 시데리얼(항성황도), 라히리 기준으로
+태양이 전갈자리에 있으면 감정과 동기가 깊고 강렬한 편이며 내면 변화와 재생을 추구하는 경향이 있다.
+강점으로는 위기 상황에서 침착하게 본질을 꿰뚫는 통찰력과 높은 집중력, 끈기 있는 회복력이 발휘될 가능성이
+있다. 주의할 점으로는 소유욕이나 비밀주의, 통제하려는 성향이 강화되어 대인관계에서 갈등이나 힘겨루기가
+생길 수 있으니 감정 표출과 경계 설정을 연습할 필요가 있다. 시데리얼(항성황도), 라히리 기준으로 달이
+물고기자리에 있을 때 감정이 매우 섬세하고 직관적이며 상상력이 풍부해 내면의 세계와 다른 사람의 기분에
+쉽게 동화되는 경향이 있다. 창의력과 공감 능력이 강해 예술적 표현이나 치유적 역할에서 장점이 나타나고,
+영적·내적 통찰을 통해 상황을 깊이 이해할 가능성이 있다. 다만 경계가 흐려지기 쉬워 현실도피나 이상화에
+빠지기 쉽고 감정에 과민하게 반응하거나 타인의 영향에 휘둘릴 가능성이 있어 자기관리와 현실적 기반을
+의식적으로 마련할 필요가 있다. 현재 구조에서는 Rahu 성향이 실행 방식과 선택 우선순위에 강하게 영향을
+줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께 규정합니다.
+Career & Success
+Career & Success - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 태양이 전갈자리에 있으면 감정과 동기가 깊고 강렬한 편이며 내면
+변화와 재생을 추구하는 경향이 있다. 강점으로는 위기 상황에서 침착하게 본질을 꿰뚫는 통찰력과 높은 집중력,
+끈기 있는 회복력이 발휘될 가능성이 있다. 주의할 점으로는 소유욕이나 비밀주의, 통제하려는 성향이 강화되어
+대인관계에서 갈등이나 힘겨루기가 생길 수 있으니 감정 표출과 경계 설정을 연습할 필요가 있다. 현재
+구조에서는 Rahu 성향이 실행 방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화
+구간에서 반응 폭과 회복 속도를 함께 규정합니다.
+
+
+Vedic AI Report
+Page 10
+Career & Success - career_conflict_karma
+현재 `career_conflict_karma` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.
+세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로
+자동 대체됩니다.
+이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에
+추가하는 것을 권장합니다.
+Practice Note: 예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로
+교체됩니다.
+Love & Relationships
+Love & Relationships - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 달이 물고기자리에 있을 때 감정이 매우 섬세하고 직관적이며 상상력이
+풍부해 내면의 세계와 다른 사람의 기분에 쉽게 동화되는 경향이 있다. 창의력과 공감 능력이 강해 예술적
+표현이나 치유적 역할에서 장점이 나타나고, 영적·내적 통찰을 통해 상황을 깊이 이해할 가능성이 있다. 다만
+경계가 흐려지기 쉬워 현실도피나 이상화에 빠지기 쉽고 감정에 과민하게 반응하거나 타인의 영향에 휘둘릴
+가능성이 있어 자기관리와 현실적 기반을 의식적으로 마련할 필요가 있다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Health & Body Patterns
+Health & Body Patterns - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Confidence & Forecast
+
+
+Vedic AI Report
+Page 11
+Confidence & Forecast - 해석 블록 1
+시데리얼(항성황도), 라히리 기준으로 태양이 전갈자리에 있으면 감정과 동기가 깊고 강렬한 편이며 내면
+변화와 재생을 추구하는 경향이 있다. 강점으로는 위기 상황에서 침착하게 본질을 꿰뚫는 통찰력과 높은 집중력,
+끈기 있는 회복력이 발휘될 가능성이 있다. 주의할 점으로는 소유욕이나 비밀주의, 통제하려는 성향이 강화되어
+대인관계에서 갈등이나 힘겨루기가 생길 수 있으니 감정 표출과 경계 설정을 연습할 필요가 있다. 현재
+구조에서는 Rahu 성향이 실행 방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화
+구간에서 반응 폭과 회복 속도를 함께 규정합니다.
+Remedies & Program
+Remedy Priority by Shadbala
+Set remedy priority as weak-planet stabilization first, then strong-planet overload
+prevention.
+Start weak-planet correction with sleep, rhythm, and behavioral consistency. For strong planets,
+distribute excessive responsibility concentration to preserve global chart balance.
+Practice Note: Begin with a two-week check cycle and adjust intensity according to observed band
+shifts.
+Remedies & Program - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+
+
+Vedic AI Report
+Page 12
+Final Summary
+Final Synthesis: Strength Axis
+The primary strength axis converges on Jupiter, Sun, Mercury.
+Top planets act as the center of execution and resilience, while weak-planet domains become
+volatile under overextension. Recommendations should be prioritized by this strong-weak
+structure.
+Align major decisions to strong axes first, and approach weaker axes with staged correction.
+Final Summary - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+Appendix (Optional)
+Appendix (Optional) - 해석 블록 1
+시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과
+분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며
+타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는
+경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다. 현재 구조에서는 Rahu 성향이 실행
+방식과 선택 우선순위에 강하게 영향을 줍니다. 안정성 등급(D)은 변화 구간에서 반응 폭과 회복 속도를 함께
+규정합니다.
+
+
+Vedic AI Report
+Page 13
+D9 Chart (Navamsa)
+Moo
+Ket
+Jup
+Ven
+Mar
+SU, Mer
+Rah
+Sat
+
+
+Vedic AI Report
+Page 14
+D10 Chart (Dashamsha)
+Planet
+Sign
+Sun
+Aquarius
+Moon
+Aquarius
+Mars
+Capricorn
+Mercury
+Libra
+Jupiter
+Aquarius
+Venus
+Scorpio
+Saturn
+Sagittarius
+
+
+Vedic AI Report
+Page 15
+D7 Chart (Saptamsha)
+Planet
+Sign
+Sun
+Taurus
+Moon
+Pisces
+Mars
+Aries
+Mercury
+Libra
+Jupiter
+Sagittarius
+Venus
+Gemini
+Saturn
+Leo
+
+
+Vedic AI Report
+Page 16
+D12 Chart (Dvadasamsha)
+Planet
+Sign
+Sun
+Taurus
+Moon
+Aquarius
+Mars
+Pisces
+Mercury
+Capricorn
+Jupiter
+Scorpio
+Venus
+Libra
+Saturn
+Cancer
