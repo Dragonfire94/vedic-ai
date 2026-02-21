@@ -554,3 +554,362 @@ Engine marked production-safe.
 - 엔진/스키마/audit 로직 미변경
 - 검증: build_llm_structural_prompt import PASS
 - 검증: golden_sample_runner structural mode PASS
+
+## Dasha Narrative Layer v1.1 (Safe Activation Model)
+- report_engine.py에 build_dasha_narrative_context() 추가 (read-only, fallback-safe)
+- llm_service.py refine_reading_with_llm()에서 dasha_context 생성/주입
+- build_llm_structural_prompt() 시그니처에 dasha_context optional 인자 추가
+- 프롬프트에 조건부 Timing Narrative Rule 추가
+  - classical lords 존재 시 해당 상호작용 프레이밍
+  - 없으면 current activation vector 기반 프레이밍
+  - 데이터 미흡 시 neutral developmental framing
+- 엔진/스키마/audit 로직 미변경
+- 검증: report_engine+llm_service import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 2A PoC - Life Timeline Isolation
+- llm_service.py에 Timeline 전용 생성 함수 추가:
+  - build_life_timeline_prompt()
+  - generate_life_timeline_chapter()
+  - replace_life_timeline_block()
+- refine_reading_with_llm()에서 base 생성 후 Life Timeline 챕터만 조건부 교체
+- 헤더 매칭: ## Life Timeline / ## Life Timeline Interpretation 모두 지원
+- 실패 시 기존 base 텍스트 유지(fallback)
+- 엔진/스키마/audit 구조 미변경
+- 검증: llm_service py_compile PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 2B PoC - Executive Isolation
+- llm_service.py에 Executive 전용 함수 추가:
+  - build_executive_prompt()
+  - generate_executive_chapter()
+  - replace_executive_block()
+- refine_reading_with_llm()에서 Timeline 교체 이후 Executive 교체 추가
+- Executive 실패 시 None 반환 및 기존 텍스트 유지(fallback)
+- Executive 챕터에 한정하여 raw numeric 노출 금지 규칙 반영
+- 엔진/스키마/audit/캐시 구조 미변경
+- 검증: llm_service py_compile PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 1 - Dasha Logical Narrative Upgrade (Timeline Prompt)
+- build_life_timeline_prompt() 프롬프트 본문을 구조-정합 버전으로 교체
+- 3문단 암묵 구조 강제(Continuity / Present Mechanics / Near-Term Vector)
+- 인공 드라마/행성주기 환각/이벤트 단정 금지 규칙 강화
+- classical lord 부재 시 activation-vector only 규칙 고정
+- 함수 시그니처/리턴 타입/컨텍스트 JSON 주입 형식 유지
+- 엔진/스키마/audit 로직 미변경
+- 검증: build_life_timeline_prompt import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 2 - Yogas Structural Narrative Reintegration (Prompt-only)
+- build_llm_structural_prompt()에 YOGA STRUCTURAL INTEGRATION RULES 섹션 추가
+- 경로 고정 가정 최소화: provided structural context 기준으로 yogas 해석 지시
+- yoga mention 조건 제한: timing/axis/risk-opportunity 증폭기 역할로만 허용
+- yoga context가 비어있거나 약하면 침묵하도록 명시 (insignificant handling)
+- Executive Summary에서 yoga 이름 직접 노출 금지 규칙 추가
+- build_life_timeline_prompt()에 yoga가 activation을 수정할 때만 설명하도록 보강
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 3 - Commercial Narrative Depth Layer (Prompt-only)
+- build_llm_structural_prompt()에 상업형 서사 강화 규칙 추가:
+  - COMMERCIAL NARRATIVE DEPTH RULES
+  - HUMANIZATION FILTER
+  - IDENTITY MIRROR RULE
+  - RHYTHMIC VARIATION RULE
+  - YOGA INTEGRATION TONE RULE
+- 구조 우선/드라마 금지 원칙 유지(Structure > Dasha > Yoga)
+- 전문용어를 생활 언어로 변환하는 지침 추가
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+
+## Phase 4 - Money Deep Chapter Module (Prompt-only)
+- build_llm_structural_prompt()에 MONEY STRUCTURAL DEEP ANALYSIS RULES 추가
+- 보정 반영:
+  - house-pressure 신호 부재 시 강제 서술 금지
+  - Money 챕터 700자+ 목표 + 반복 패딩 금지
+  - 즉시 주의 문장은 의미 유지하되 고정 문구 반복 금지(변주 허용)
+  - 소제목은 ### 레벨만 허용
+- FINANCIAL PSYCHOLOGY MAPPING / IMPACT INTENSIFIER 섹션 추가
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+## Phase 6 - Career Authority & Conflict Deep Module (Prompt-only)
+- build_llm_structural_prompt()에 Career 전용 상업 심화 규칙 추가:
+  - CAREER STRUCTURAL AUTHORITY RULES
+  - CAREER LEADERSHIP ARCHETYPE MAPPING
+  - POWER & BURNOUT INTENSIFIER
+  - CAREER SUB-HEADING POLICY
+- 보정 반영:
+  - burnout_risk / authority_conflict_risk 키 부재 시 강제 서술 금지
+  - 내부 점수 메커니즘 노출 금지(해석형 표현 유지)
+  - authority truth line은 비난/단정 금지
+  - 800자+ 목표 + 반복 패딩 금지
+  - 소제목은 ### 레벨만 허용
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: build_llm_structural_prompt import PASS
+- 검증: backend.main import PASS
+## Phase 7 - Cross-Domain Structural Integration (Prompt-only)
+- build_llm_structural_prompt()에 교차영역 통합 규칙 추가:
+  - CROSS-DOMAIN STRUCTURAL INTERACTION RULES
+  - CROSS-DOMAIN PATTERN MAPPING
+  - STRUCTURAL PRIORITY LOCK
+- 5개 보정 반영:
+  - 15챕터 규칙 충돌 방지: 신규 탑레벨 챕터 금지, Final Summary 내부 하위 섹션으로 고정
+  - 단일 호출 현실화: "After generating" 표현 대신 후반부 통합 레이어 작성 지시
+  - 신호 fallback: 키 부재/약한 신호 시 neutral integration, 강제 주장 금지
+  - 반복 억제: 기존 문단 재요약/재사용 금지 명시
+  - 숫자 노출 일관성: raw numeric 노출 금지 유지
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: build_llm_structural_prompt import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+## Phase 8 - Shadow Axis Advanced Module (Prompt-only, global)
+- build_llm_structural_prompt()에 SHADOW AXIS STRUCTURAL MODULE 추가
+- 사용자 요청에 따라 premium flag 게이팅 제거(전체 보고서 기본 적용)
+- 보정 반영:
+  - 15챕터 구조 유지: 신규 탑레벨 챕터 금지, Final Summary 내부 하위 섹션으로 고정
+  - 단정 완화: confrontation 문구를 "우연만은 아닙니다" 톤으로 조정
+  - fallback-safe: 신호 약/부재 시 neutral psychological framing, 강제 강도 부여 금지
+  - 반복 억제: 기존 챕터 문단/문장 프레임 재사용 금지 명시
+  - raw numeric 노출 금지 및 비드라마/비예측/비비난 규칙 고정
+- 추가 규칙:
+  - SHADOW PATTERN ARCHETYPES
+  - SHADOW STRUCTURAL PRIORITY
+  - SHADOW REUSE GUARD
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: build_llm_structural_prompt import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+## Phase 9 - Precision Signal Weight Calibration (Prompt-only)
+- build_llm_structural_prompt()에 가중치 정밀화 규칙 추가:
+  - STRUCTURAL SIGNAL PRIORITY HIERARCHY
+  - TONE INTENSITY CALIBRATION
+  - CHAPTER SIGNAL ANCHOR LOCK
+  - STRUCTURAL ANTI-DILUTION RULE
+  - CONFLICT INTEGRITY LOCK
+- 사용자 요청 보정 3개 반영:
+  1) Shadow 조건에서 premium 문구 제거 (현재 전체 적용 구조와 일치)
+  2) dominant_axis 강제 반복 완화 (major chapters 전반 semantic presence 기준)
+  3) TIMEOUT 절대조건 대신 baseline 대비 모니터링 원칙으로 운영
+- 엔진/스키마/audit 로직 미변경
+- 검증: llm_service py_compile PASS
+- 검증: build_llm_structural_prompt import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+## Phase 10 - Commercial Narrative Rewrite v2 (Prompt-only)
+- build_llm_structural_prompt()에 conflict-safe 상업 서사 재작성 규칙 추가
+  - META LABEL ELIMINATION (영문 내부 메타어 출력 금지)
+  - STRUCTURE -> HUMAN TRANSLATION PROTOCOL
+  - CHAPTER OPENING DRAMATIC RULE (major chapters 70% 적용)
+  - STRUCTURAL INTEGRITY GUARD
+  - STRATEGY COMPRESSION RULE (전략 문장 챕터당 최대 2)
+  - EMOTIONAL DENSITY REQUIREMENT
+  - EXECUTIVE REPOSITIONING RULE
+  - VEDIC SEASONING RULE (용어 최소화 + 즉시 생활어 번역)
+  - READ-ME-FIRST PROLOGUE RULE (400-600자, 챕터 미포함)
+  - METAPHOR TITLE ENGINE (소제목 ### 고정)
+  - RHYTHMIC VARIATION RULE
+  - INTERNAL COMMERCIAL READABILITY CHECK
+- 사용자 주의점 반영:
+  - 프롤로그는 독립 챕터가 아니며 고정 15챕터 카운트에서 제외
+  - 소제목 레벨은 ###로 제한, top-level chapter hierarchy 불변
+- 엔진/스키마/audit/pdf_service 미변경
+- 검증: llm_service py_compile PASS
+- 검증: build_llm_structural_prompt import PASS
+- 검증: backend.main import PASS
+- 검증: golden_sample_runner structural mode PASS
+## Phase 10 v2 Pipeline Alignment - report_engine SYSTEM_PROMPT 교체
+- 파일: backend/report_engine.py
+- 내용: SYSTEM_PROMPT를 분석/컨설팅 강제형에서 상업 서사형 흐름으로 교체
+  - Observation -> Empathy -> Pattern -> Insight -> Options(최대 2문장)
+  - professional/analytical 톤 강제 제거
+  - 4문단 강제 제거
+  - practical guidance 강제 제거
+- 충돌 방지 미세 보정 반영:
+  - semantic emphasis markers는 선택적/경량으로 완화
+  - 근거 약한 경우 중립/간결 처리 fallback 문구 추가
+  - 한국어 별자리 메타포 우선, 과한 전문용어 억제
+- Output format contract/## <Chapter Name>/챕터 순서 계약은 유지
+- 검증: py_compile PASS, import backend.report_engine PASS, import backend.main PASS
+## Step 2 - Chapter display name mapping (render-layer only)
+- 파일: backend/main.py
+- 변경:
+  - CHAPTER_DISPLAY_NAME_KO 추가 (내부 챕터 키 -> 출력용 생활어 제목)
+  - _render_chapter_blocks_deterministic()에 language optional 인자 추가 (기본 ko)
+  - ko 언어에서만 출력 제목 치환 적용, 내부 키/순서는 그대로 유지
+  - 각 챕터 제목 아래 내부 식별자 보존용 메타 주석 추가: <!-- chapter_key: <EN chapter key> -->
+  - get_ai_reading() deterministic 경로 호출부에 language 인자 전달
+- 유지:
+  - REPORT_CHAPTERS/챕터 키/순서 불변
+  - chapter_blocks 딕셔너리 키 불변
+- 검증:
+  - python -m py_compile backend/main.py PASS
+  - python -c "from backend.main import app; print('OK')" PASS
+  - 샘플 호출로 ko 표시명 치환 및 chapter_key 메타 주석 출력 확인
+## Step 3 - Added "Read Me First" glossary box on PDF page 1 (layout-safe)
+- 파일: backend/pdf_service.py
+- 변경:
+  - Birth information card 직후, D1 Chart 직전에 "읽기 전에" 핵심 용어 6개 안내 박스 삽입
+  - 카드 스타일은 기존 birth_table 계열(panel_bg/border/padding) 재사용, 전용 local table로 구성
+  - 상하 Spacer 최소화(0.18cm)로 첫 페이지 overflow 리스크 완화
+  - 한국어/영어 분기 텍스트 제공(기본 ko)
+- 안전 보정 반영:
+  1) 테스트 민감도 대응: 기존 데이터 구조/엔진/스키마/오딧 미변경
+  2) 폰트 줄바꿈 대응: 문장 길이 축약 + 항목당 1문장 중심 유지
+  3) 스타일 부작용 방지: 전용 glossary_table 스타일 사용(기존 테이블 스타일 객체 공유 없음)
+- 검증:
+  - python -m py_compile backend/pdf_service.py PASS
+  - python -m pytest backend/test_pdf_layout_stability.py -v PASS (3 passed)
+  - 샘플 PDF 생성(include_ai=0): logs/pdf_quality_check/sample_report_glossary_20260221_184003.pdf
+  - pypdf 추출 확인: 1페이지에서 "읽기 전에" 박스가 D1 Chart (Rasi) 이전에 위치
+## Step 4 - Removed deterministic meta/JSON leakage (render-layer) with safe line-level sanitizer
+- 파일: backend/main.py
+- 변경:
+  - 결정론 렌더용 누출 가드 추가(ko 경로):
+    - STRONG_META_LINE_PATTERNS / FORBIDDEN_OUTPUT_REGEXES
+    - _stable_pick() (해시 기반 결정론적 순환 선택)
+    - _sanitize_deterministic_text_ko() (라인 단위 제거, 챕터 전체 덮어쓰기 금지)
+    - _contains_forbidden_output() QA 검사 함수
+  - _render_chapter_blocks_deterministic()에 필드 단위 sanitize 적용
+    - analysis/summary 등 텍스트 필드 출력 직전 정제
+    - choice_fork / predictive_compression JSON 직접 노출 대신 챕터별 한국어 서사 브리지(2~3문장)로 대체
+  - chapter_key 메타 주석은 유지
+  - QA는 차단이 아닌 debug 요약 로그(removed_lines/forbidden_hits)로 기록
+- 안전 보정 반영:
+  1) 과탐지 억제: 강한 패턴 우선, MODERATE 패턴 기본 비활성
+  2) 정보 손실 억제: 메타 라인만 제거, 유효 문장 보존
+  3) regex 경계 적용 + %는 숫자% 패턴만 금지
+- 검증:
+  - python -m py_compile backend/main.py PASS
+  - python -c "from backend.main import app; print('OK')" PASS
+  - 샘플 deterministic 렌더 텍스트에서 Shadbala/Avastha/%/Strength Axis 비노출 확인
+## Step 1 - PDF leakage scanner gate added (CI-friendly)
+- Added backend/pdf_output_scanner.py
+  - extract_pdf_text(pdf_path)
+  - scan_forbidden_patterns(text) with forbidden regexes:
+    Shadbala|Avastha|Evidence:|Strength Axis|\b\d{1,3}%\b (case-insensitive)
+- Added backend/test_pdf_output_scanner.py
+  - Generates sample PDF via /pdf (include_ai=0)
+  - Extracts text and asserts forbidden patterns are absent
+  - Uses skip marker when pypdf is missing in current runtime
+- Added dependency: backend/requirements.txt -> pypdf>=5.1.0
+
+## Step 4 reinforcement - PDF deterministic leakage mitigation (ko path)
+- Updated backend/pdf_service.py deterministic renderer
+  - render_report_payload_to_pdf(..., language='en') signature expanded
+  - generate_pdf_report now passes language to renderer
+  - For ko output, applies line-level meta sanitization for deterministic block text
+  - choice_fork / predictive_compression tables are converted to short narrative bridge lines (ko) instead of raw meta tables
+  - forecast summary bullets normalized to readable bullets
+- Preserved existing non-ko behavior to keep legacy table-based tests stable
+
+## Verification summary (this run)
+- python -m py_compile backend/main.py backend/pdf_service.py backend/pdf_output_scanner.py PASS
+- pytest backend/test_pdf_layout_stability.py -v PASS (3 passed)
+- pytest backend/test_pdf_output_scanner.py -v SKIPPED in global python (no pypdf installed)
+- Manual scanner run with venv pypdf on logs/pdf_quality_check/scanner_sample.pdf: forbidden findings = 0
+
+## Step 2 deterministic check (recommended flow)
+- Ran golden_sample_runner --mode structural three times.
+- summary_index.json hashes were not identical across runs (engine-side aggregate variability observed), so no salt expansion was forced yet.
+
+## Step 3 final integration check
+- Ran: python -m backend.golden_sample_runner --mode full
+- Result: 12/12 LLM OK, no timeout failures in this run.
+- Audit scores observed in run output: 76/88/100 bands.
+## Fast LLM Gate - Added lightweight pre-release check
+- Added `backend/llm_output_scanner.py` for forbidden-token scanning on LLM text output.
+- Added `backend/fast_llm_gate.py` to run selected golden profiles through LLM path (default 2) and fail on forbidden hits.
+- Added `backend/test_llm_output_scanner.py` (unit tests for scanner behavior).
+- Verification:
+  - python -m py_compile backend/llm_output_scanner.py backend/fast_llm_gate.py backend/test_llm_output_scanner.py PASS
+  - python -m pytest backend/test_llm_output_scanner.py -q PASS (2 passed)
+  - python -m backend.fast_llm_gate --samples 2 PASS (ok=2, timeout=0, failed_no_llm=0, forbidden_hits_total=0)
+## Gate policy hardening - PR/Nightly/Release standard
+- Updated `backend/fast_llm_gate.py` with representative profile selector:
+  - Added `--profile-mode {extremes,ordered}` (default: `extremes`)
+  - `extremes` prioritizes `highest_stability` + `lowest_stability` before filling remaining sample slots.
+- Added `backend/QUALITY_GATES.md` with fixed operating policy:
+  - PR: structural runner + fast LLM gate
+  - Nightly/Release: PR gate + PDF scanner (`test_pdf_output_scanner.py`)
+  - Release final: full golden runner once
+  - pypdf-installed runner requirement noted for Nightly/Release
+- Verification:
+  - python -m py_compile backend/fast_llm_gate.py PASS
+  - python -m backend.fast_llm_gate --samples 1 --profile-mode extremes PASS (ok=1, timeout=0, failed_no_llm=0, forbidden_hits_total=0)
+## Fast LLM Gate - Selection rationale and policy clarity update
+- Updated `backend/fast_llm_gate.py` summary payload to include selection rationale:
+  - Added `selection.mode`, selected target list with `profile_name/seed/stability_index`
+  - Added `selection.highest` and `selection.lowest` fields for `--profile-mode extremes`
+  - Added `stability_index` into per-row result records
+- Updated `backend/QUALITY_GATES.md` wording:
+  - PR gate explicitly excludes PDF scanner
+  - Nightly/Release explicitly requires mandatory PDF scanner pass
+- Verification:
+  - python -m py_compile backend/fast_llm_gate.py PASS
+  - python -m backend.fast_llm_gate --samples 1 --profile-mode extremes PASS (forbidden_hits_total=0)
+## Phase 10 v3 - Tone regression source hardening (prompt-layer)
+- File: `backend/llm_service.py`
+- Updated `_build_structural_executive_summary()`:
+  - Removed metric/index/axis/probability style executive anchor text.
+  - Replaced with narrative-only executive anchor preserving chart-specific element (`dominant_planet`).
+  - Added explicit guard sentence: no metrics/indices/axes/probabilities/percent in output.
+- Updated `build_llm_structural_prompt()` top contract:
+  - Replaced strategic-coach/report-style persona with narrative-diagnostic persona flow:
+    observation -> empathy -> pattern -> insight -> options(max 2 sentences).
+  - Removed direct report-driving lines (`STRUCTURE -> INTERPRETATION -> STRATEGY`, `Use probability-based language`).
+  - Added Meaning Anchor Enforcement and Caution Framing Rule (risk concept kept internal, output phrased as everyday language).
+  - Added first-mention rule for Dasha: `시기 흐름(다샤)`.
+  - Replaced Read-Me-First prologue rule with fixed empathic 4-line Korean prologue (no mechanism labels).
+- Verification:
+  - `python -m py_compile backend/llm_service.py` PASS
+  - `python -m backend.fast_llm_gate --samples 2 --profile-mode extremes` PASS (forbidden_hits_total=0)
+  - `rg` check: no remaining matches in code/output for
+    `구조→해석→전략`, `활성화 강도`, `구조 교정`, `구조 설명`.
+## Phase 10 v3 follow-up - percent leak closure and pypdf auto-extraction recheck
+- File: `backend/llm_service.py`
+  - Added `_sanitize_percent_phrasing_ko()` to replace `\b\d{1,3}%\b` with living-language phrase (`일정 몫(예: 월 5만원부터)`).
+  - Applied sanitizer on full LLM response path before/after chapter isolation replacement.
+  - Replaced remaining legacy prompt block (`Structural Anchor Enforcement` / `Risk Acknowledgment`) with meaning-anchor + choice/recovery caution framing.
+- Verification:
+  - `python -m py_compile backend/llm_service.py` PASS
+  - `python -m backend.fast_llm_gate --samples 2 --profile-mode extremes` PASS (`forbidden_hits_total=0`)
+  - Generated new sample PDF: `logs/pdf_quality_check/sample_report_live_20260221_195709.pdf`
+  - Auto extraction with `venv` (`pypdf 6.7.1`) confirmed:
+    - Shadbala/Avastha/Evidence:/Strength Axis = 0
+    - numeric percent (`\b\d{1,3}%\b`) = 0
+## Dual mode added - classic/premium report style for PDF
+- File: `backend/main.py`
+  - Added `/pdf` query parameter: `report_style` (`classic` | `premium`, default `premium`).
+  - Validation added for supported values.
+  - In `classic` mode, AI narrative generation is bypassed (`include_ai` forced off for PDF path).
+  - Passed `report_style` into `pdf_service.generate_pdf_report(...)`.
+- File: `backend/pdf_service.py`
+  - Added optional `report_style` argument to `generate_pdf_report(...)` (default `premium`).
+  - In `classic` mode, first-page glossary card is not rendered.
+- Verification:
+  - `python -m py_compile backend/main.py backend/pdf_service.py` PASS
+  - `/pdf` with `report_style=classic` generated successfully:
+    `logs/pdf_quality_check/sample_report_classic_20260221_202539.pdf`
+  - Runtime log confirms classic path without LLM API call.
+## Rollback - removed temporary classic report_style branch
+- Reverted `report_style` additions from `/pdf` path in `backend/main.py`.
+- Restored original AI include behavior (`include_ai` only) without classic override.
+- Reverted `report_style` branching in `backend/pdf_service.py`.
+- Restored glossary rendering behavior to previous single-path logic.
+- Verification:
+  - `python -m py_compile backend/main.py backend/pdf_service.py` PASS
+  - `/pdf` generation PASS: `logs/pdf_quality_check/sample_report_post_revert_20260221_203049.pdf`

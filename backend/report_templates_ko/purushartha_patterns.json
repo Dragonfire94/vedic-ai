@@ -1,1 +1,127 @@
-[]
+[
+  {
+    "id": "dharma_dominant",
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Dharma"
+      }
+    ],
+    "logic": "AND",
+    "priority": 90,
+    "content": {
+      "title": "삶의 방향: 다르마 중심",
+      "summary": "이 구조에서 다르마(dharma), 즉 의무와 목적의식이 삶의 핵심 동력으로 강하게 강조되어 있다.",
+      "analysis": "원칙 기반의 기여와 장기적 책임을 향한 지향성이 내재되어 있다. 이 흐름은 단기 이익보다 장기 의미를 우선하는 방향으로 에너지를 작동시킨다.",
+      "implication": "행동이 사명과 봉사에 닻을 내릴 때 결정 품질이 향상된다. 목적에서 벗어난 선택은 에너지를 급속히 소모시키는 경향이 있다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "artha_dominant",
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
+    ],
+    "logic": "AND",
+    "priority": 80,
+    "content": {
+      "title": "삶의 방향: 아르타 중심",
+      "summary": "물질적 구조, 성취, 실용적 야망이 이 프로필의 중심 주제다.",
+      "analysis": "측정 가능한 목표와 실행 시스템이 명확할 때 가장 강한 실행력이 발현된다. 이 에너지는 구조화된 환경에서 가장 효과적으로 작동한다.",
+      "implication": "자원 전략과 규율 있는 순서화가 진전을 가속시킨다. 목표를 가시적인 실행 계약으로 전환하는 능력이 이 구조의 핵심 자산이다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "kama_dominant",
+    "chapter": "Purushartha Profile",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Kama"
+      }
+    ],
+    "logic": "AND",
+    "priority": 70,
+    "content": {
+      "title": "삶의 방향: 카마 중심",
+      "summary": "관계적 충만감, 창의성, 감정적 풍요로움이 주요 결정을 형성하는 핵심 동력이다.",
+      "analysis": "심미적, 관계적 동기가 삶의 방향에 실질적으로 기여한다. 이 에너지는 억압될 때 오히려 예상치 못한 형태로 분출되는 경향이 있다.",
+      "implication": "욕구가 명확한 경계와 균형을 이룰 때 가장 좋은 결과가 나타난다. 감정을 제거하려 하기보다 구조 안에 통합하는 것이 더 효과적이다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "career_purushartha",
+    "chapter": "Career & Success",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
+    ],
+    "logic": "AND",
+    "priority": 84,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": ["career_karma_pattern_reinforcement"],
+    "content": {
+      "title": "아르타에 닻을 내린 커리어 동력",
+      "summary": "물질적 전략과 구조적 성장이 이 커리어 경로의 핵심 동력이다.",
+      "analysis": "소유권, 레버리지 포인트, 성공 지표가 명확할 때 가장 강한 성과가 나타난다. 이 구조는 모호성을 측정 가능한 실행 계약으로 전환하는 능력에서 강점을 발휘한다.",
+      "implication": "커리어 성장을 설계된 아키텍처로 취급할 것: 마일스톤을 순서화하고, 집중력을 보호하고, 신뢰도를 복리로 쌓아라. 모호한 역할도 명확한 실행 지표로 번역되면 작동 가능하다.",
+      "examples": "모호성이 높은 역할도 측정 가능한 실행 계약으로 번역되면 충분히 기능한다."
+    }
+  },
+  {
+    "id": "career_karma_pattern_reinforcement",
+    "chapter": "Executive Summary",
+    "conditions": [
+      {
+        "field": "dominant_purushartha",
+        "operator": "==",
+        "value": "Artha"
+      }
+    ],
+    "logic": "AND",
+    "priority": 93,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "커리어 서사 강화",
+      "summary": "커리어 결과는 전략적 야망과 카르마 교정 루프의 상호작용에 의해 강하게 형성된다.",
+      "analysis": "실행 규율이 교훈 통합과 일치할 때 변동성이 감소하고 복리 성장이 개선된다. 두 가지가 어긋날 때 유사한 장애물이 반복된다.",
+      "implication": "각 후퇴를 구조화된 교정으로 취급하여 장기 사이클 모멘텀을 보존할 것. 반복되는 장애물은 패턴 재설계의 신호다.",
+      "examples": "반복되는 장애물은 동일한 결정 패턴이 의도적으로 재설계되는 순간 해소되는 경향이 있다."
+    }
+  }
+]

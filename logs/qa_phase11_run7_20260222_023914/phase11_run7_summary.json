@@ -1,0 +1,37 @@
+{
+  "run_dir": "logs\\qa_phase11_run7_20260222_023914",
+  "rows": [
+    {
+      "profile_name": "highest_stability",
+      "seed": 33,
+      "audit_overall": 88,
+      "audit_structural": 60,
+      "audit_tone": 100,
+      "audit_density": 100,
+      "ai_forbidden_hits": 0,
+      "pdf_path": "logs\\qa_phase11_run7_20260222_023914\\01_highest_stability\\highest_stability_20260222_024029.pdf"
+    },
+    {
+      "profile_name": "lowest_stability",
+      "seed": 36,
+      "audit_overall": 88,
+      "audit_structural": 60,
+      "audit_tone": 100,
+      "audit_density": 100,
+      "ai_forbidden_hits": 0,
+      "pdf_path": "logs\\qa_phase11_run7_20260222_023914\\02_lowest_stability\\lowest_stability_20260222_024137.pdf"
+    },
+    {
+      "profile_name": "most_balanced",
+      "seed": 44,
+      "audit_overall": 88,
+      "audit_structural": 60,
+      "audit_tone": 100,
+      "audit_density": 100,
+      "ai_forbidden_hits": 0,
+      "pdf_path": "logs\\qa_phase11_run7_20260222_023914\\03_most_balanced\\most_balanced_20260222_024300.pdf"
+    }
+  ],
+  "avg_audit_overall": 88.0,
+  "ai_forbidden_hits_total": 0
+}

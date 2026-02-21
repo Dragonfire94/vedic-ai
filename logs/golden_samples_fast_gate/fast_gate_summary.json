@@ -1,0 +1,290 @@
+{
+  "targets": 7,
+  "selection": {
+    "mode": "extremes",
+    "targets": [
+      {
+        "profile_name": "highest_stability",
+        "seed": 33,
+        "stability_index": 12.71
+      },
+      {
+        "profile_name": "lowest_stability",
+        "seed": 36,
+        "stability_index": 0.76
+      },
+      {
+        "profile_name": "highest_opportunity",
+        "seed": 49,
+        "stability_index": 11.96
+      },
+      {
+        "profile_name": "highest_risk",
+        "seed": 39,
+        "stability_index": 3.89
+      },
+      {
+        "profile_name": "highest_influence",
+        "seed": 32,
+        "stability_index": 12.61
+      },
+      {
+        "profile_name": "lowest_influence",
+        "seed": 34,
+        "stability_index": 1.17
+      },
+      {
+        "profile_name": "highest_dominant_score",
+        "seed": 24,
+        "stability_index": 6.11
+      }
+    ],
+    "highest": {
+      "profile_name": "highest_stability",
+      "seed": 33,
+      "stability_index": 12.71
+    },
+    "lowest": {
+      "profile_name": "lowest_stability",
+      "seed": 36,
+      "stability_index": 0.76
+    }
+  },
+  "ok": 7,
+  "timeout": 0,
+  "failed_no_llm": 0,
+  "retry_count": 0,
+  "retried_profiles": [],
+  "forbidden_hits_total": 0,
+  "style_failures_total": 0,
+  "fallback_duplication_hits": 0,
+  "mrc_similarity_hits": 0,
+  "error_codes": [],
+  "error_code_counts": {},
+  "rows": [
+    {
+      "profile_name": "highest_stability",
+      "seed": 33,
+      "stability_index": 12.71,
+      "llm_status": "OK",
+      "audit_score": 88,
+      "forbidden_hits": 0,
+      "normalized_text_length": 2968,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "lowest_stability",
+      "seed": 36,
+      "stability_index": 0.76,
+      "llm_status": "OK",
+      "audit_score": 100,
+      "forbidden_hits": 0,
+      "normalized_text_length": 3509,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "highest_opportunity",
+      "seed": 49,
+      "stability_index": 11.96,
+      "llm_status": "OK",
+      "audit_score": 88,
+      "forbidden_hits": 0,
+      "normalized_text_length": 3619,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "highest_risk",
+      "seed": 39,
+      "stability_index": 3.89,
+      "llm_status": "OK",
+      "audit_score": 88,
+      "forbidden_hits": 0,
+      "normalized_text_length": 3105,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "highest_influence",
+      "seed": 32,
+      "stability_index": 12.61,
+      "llm_status": "OK",
+      "audit_score": 76,
+      "forbidden_hits": 0,
+      "normalized_text_length": 2588,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "lowest_influence",
+      "seed": 34,
+      "stability_index": 1.17,
+      "llm_status": "OK",
+      "audit_score": 76,
+      "forbidden_hits": 0,
+      "normalized_text_length": 2534,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    },
+    {
+      "profile_name": "highest_dominant_score",
+      "seed": 24,
+      "stability_index": 6.11,
+      "llm_status": "OK",
+      "audit_score": 100,
+      "forbidden_hits": 0,
+      "normalized_text_length": 3339,
+      "heading_count": 15,
+      "paragraph_count": 60,
+      "retry_mode": "none",
+      "style_policy": {
+        "hard_ban_residual": 0,
+        "soft_ban_residual": 0,
+        "percent_residual": 0,
+        "english_run_detected": 0,
+        "english_token_residual": 0,
+        "directive_phrase_hits": 0
+      },
+      "chapter_style_signature": {
+        "targets": [
+          "Career & Success",
+          "Love & Relationships",
+          "Stability Metrics"
+        ],
+        "convergence_hits": 0,
+        "long_sentence_hits": 0,
+        "fallback_duplication_hits": 0,
+        "mrc_similarity_hits": 0
+      },
+      "error_codes": []
+    }
+  ]
+}

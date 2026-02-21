@@ -1,1 +1,413 @@
-[]
+[
+  {
+    "id": "high_internal_tension",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.tension_level",
+        "operator": "==",
+        "value": "high"
+      }
+    ],
+    "logic": "AND",
+    "priority": 85,
+    "content": {
+      "title": "심리 축: 내면 긴장 상승",
+      "summary": "이 프로필은 통제 욕구, 책임감, 감정적 회복력 사이에서 지속적인 내면의 당김 현상을 보이고 있다.",
+      "analysis": "이 세 가지 동력이 동시에 활성화될 때 판단 폭이 좁아지고 반응 속도가 판단 품질을 앞질러 버리는 경향이 있다.",
+      "implication": "고압 상황의 결정을 두 단계로 처리할 것: 먼저 조절하고, 그 다음 확약한다. 하나의 결정이 모든 긴장을 해소해줄 것이라는 기대는 패턴을 악화시킨다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": ["tension_stability_interaction"]
+  },
+  {
+    "id": "balanced_axis",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.tension_level",
+        "operator": "==",
+        "value": "balanced"
+      }
+    ],
+    "logic": "AND",
+    "priority": 60,
+    "content": {
+      "title": "심리 축: 조절된 균형",
+      "summary": "현재 프로필의 기준선은 감정, 전략, 절제 사이에서 기능적 균형을 보이고 있다.",
+      "analysis": "이 패턴은 루틴이 유지되는 한 안정적인 계획과 압박 상황에서의 적응력을 지지한다. 균형 상태는 유지될 때 자산이 된다.",
+      "implication": "당신의 강점은 반복 가능한 조절 능력이다. 이것을 명확한 경계와 회복 리듬으로 보호할 것. 균형이 깨지는 상황 패턴을 미리 파악해두는 것이 중요하다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "high_tension_risk_aggro",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.impulsivity_risk",
+        "operator": ">=",
+        "value": 60
+      }
+    ],
+    "logic": "AND",
+    "priority": 95,
+    "content": {
+      "title": "고긴장 + 반응적 리스크 프로필",
+      "summary": "현재 높은 내면 압박이 조기 행동 경향과 맞물려 동시에 작동하고 있다.",
+      "analysis": "이 상태에서 마음은 즉각적인 마무리를 추구한다. 이는 신뢰와 타이밍 측면에서 2차적 비용을 만들어낼 수 있다.",
+      "implication": "주요 반응 전에 고정된 냉각 시간을 확보하여 전략적 정확성을 유지할 것. 빠른 마무리의 충동이 클수록, 잠시 멈추는 것이 더 중요하다.",
+      "examples": "격앙된 상황에서 너무 빠르게 결론에 도달하고, 이후 관계 수습에 더 많은 에너지를 소비하는 패턴이 반복될 수 있다."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "tension_stability_interaction",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 60
+      }
+    ],
+    "logic": "AND",
+    "priority": 88,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "긴장-안정성 상호작용 패턴",
+      "summary": "심리적 압박과 구조적 안정성이 현 국면에서 긴밀하게 연동되어 있다.",
+      "analysis": "마찰이 상승하고 안정성이 동시에 하락하면, 주의 대역폭이 좁아지고 '파급 결정'(spillover decision)이 증가한다. 하나의 영역에서 발생한 긴장이 다른 영역의 판단을 오염시킨다.",
+      "implication": "영역 간에 리셋 의례를 설치하여, 하나의 갈등이 다음 선택을 오염시키지 않도록 할 것. 이 구조가 작동하는 한, 영역 분리는 선택이 아닌 필수다.",
+      "examples": "감압 경계 없이는 해소되지 않은 한 가지 이슈가 관계, 재정, 커리어 판단 모두에 스며들 수 있다."
+    }
+  },
+  {
+    "id": "high_pressure_identity_fragmentation",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 75
+      },
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 45
+      }
+    ],
+    "logic": "AND",
+    "priority": 98,
+    "content": {
+      "title": "고압 정체성 분열",
+      "summary": "지속적인 압박 아래서 정체성의 일관성이 경쟁하는 역할과 자기 기대 사이에서 분열될 수 있다.",
+      "analysis": "스트레스는 내면의 역할 갈등을 증폭시켜, 관계로의 파급과 단기 위협 통제 방향으로 실행 대역폭이 축소된다.",
+      "implication": "이 패턴이 억제되지 않으면 판단 품질을 왜곡하고 대인 신뢰 루프를 불안정하게 만들 수 있다. 이 부분을 방치하면 같은 붕괴가 다른 역할에서 반복된다.",
+      "examples": "기대가 충돌할 때 초과 통제와 무관심 사이를 빠르게 오가는 패턴이 나타날 수 있다.",
+      "shadow_pattern": "역량 중단에 대한 무의식적 두려움이 성과 페르소나에 대한 과도한 동일시를 만들어낸다.",
+      "defense_mechanism": "구획화(compartmentalization)와 압박 상황에서의 반사적 합리화가 혼재한다.",
+      "emotional_trigger": "통제력 상실, 비판, 또는 역할 기반 부정의 느낌.",
+      "repetition_cycle": "압박 급등 → 정체성 분열 반응 → 관계 마찰 → 인지 좁아짐 → 임시 회복 → 반복.",
+      "integration_path": "먼저 결정을 단일 가치 위계에 재정박하고, 재확약 전에 역할 간 경계를 재건할 것.",
+      "choice_fork": "방치하면 분열이 만성적 변동성으로 굳어진다. 통합되면 압박이 일관된 리더십의 촉매로 전환된다."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "중간 강도에서 이 패턴은 복수의 역할이 우선순위를 두고 경쟁하는 전환 시점에 주로 나타난다.",
+        "implication_extension": "방치하면, 반복적인 역할 전환이 기본 정체성 반사로 굳어져 결정 명확성을 저하시킨다.",
+        "example_extension": "한 가지 기대에 과도하게 헌신한 뒤 갑자기 철수하여 통제를 되찾으려는 패턴으로 나타날 수 있다."
+      },
+      "high": {
+        "analysis_extension": "지속적인 압박 아래 이 패턴은 가속화되어 인지적 유연성을 좁히고 감정적 반응성을 전 영역에서 증폭시킨다.",
+        "implication_extension": "빠른 통합 없이는 신뢰 침식과 전략 분열이 동시에 복합적으로 심화될 수 있다.",
+        "example_extension": "고압 사이클 내에서 지시 모드와 감정적 폐쇄 사이를 빠르게 오가는 행동이 반복된다.",
+        "micro_scenario": "스트레스 아래 내려진 빠른 결정이 이후 '불가피했다'는 합리화로 처리되는 전형적인 패턴.",
+        "long_term_projection": "여러 사이클 동안 중단 없이 반복되면 평판이나 관계의 만성적 피로로 이어질 수 있다."
+      }
+    }
+  },
+  {
+    "id": "high_pressure_identity_fragmentation_final",
+    "chapter": "Final Summary",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 200
+      }
+    ],
+    "logic": "AND",
+    "priority": 89,
+    "content": {
+      "title": "요약 에코: 압박 아래의 정체성",
+      "summary": "이 리포트의 중심 주제는 지속적인 압박 아래에서의 정체성 일관성이다.",
+      "analysis": "스트레스가 관리되지 않으면, 관계 톤, 전략적 연속성, 감정적 안정이 함께 분열된다.",
+      "implication": "장기 결과는 스트레스 반응이 일관된 자기 리더십으로 훈련될 때 개선된다.",
+      "examples": "",
+      "shadow_pattern": "중단 없는 역량에 연결된 숨겨진 자기 가치 방정식.",
+      "defense_mechanism": "과잉 기능과 선택적 감정 억제.",
+      "emotional_trigger": "실패, 거절, 권위 상실을 암시하는 상황.",
+      "repetition_cycle": "확대 → 분열 → 회복 → 재확대, 방아쇠 수준에서 중단되지 않는 한.",
+      "integration_path": "정체성을 먼저 안정화한 뒤, 결정 속도를 높여라.",
+      "choice_fork": "통합된 압박 반응은 신뢰를 복리로 쌓는다. 분열된 반응은 마찰을 복리로 쌓는다."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "authority_projection_pattern",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 65
+      },
+      {
+        "field": "behavioral_risk_profile.overcontrol_risk",
+        "operator": ">=",
+        "value": 60
+      }
+    ],
+    "logic": "AND",
+    "priority": 78,
+    "content": {
+      "title": "권위 투사 패턴",
+      "summary": "관계 역학이 직접적인 감정 신호보다 권위 서사를 통해 필터링될 가능성이 있다.",
+      "analysis": "처리되지 않은 통제 불안이 파트너에게 경직성, 판단, 위계 갈등으로 투사될 수 있다. 이 패턴에서 관계 갈등의 진짜 원인은 상대가 아닌 내면의 불안이다.",
+      "implication": "권력 언어를 욕구 언어로 다시 번역할 때 회복이 빨라진다. 경계를 부과하기 전에 취약성을 먼저 명명할 것.",
+      "examples": "사소한 의견 불일치가 역량이나 존중에 대한 도전으로 해석될 때 빠르게 확대될 수 있다.",
+      "shadow_pattern": "관계 안전에 대한 욕구가 구조 고집으로 위장된다.",
+      "defense_mechanism": "갈등 상황에서의 투사와 지적화.",
+      "emotional_trigger": "모호함, 충족되지 않은 기대, 또는 무시로 해석된 말투.",
+      "repetition_cycle": "무례함 인식 → 통제 반응 → 파트너 저항 → 강화된 통제 → 단절.",
+      "integration_path": "구조를 부과하기 전에 취약성을 명명할 것. 경계는 강요가 아니라 함께 만드는 것."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "relational_mirroring_conflict",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 79,
+    "content": {
+      "title": "관계적 미러링 갈등",
+      "summary": "파트너십 스트레스가 해소되지 않은 내면의 모순을 높은 강도로 되비출 수 있다.",
+      "analysis": "반응적 교환은 거울처럼 기능하여 반복적인 갈등 스크립트를 통해 통합되지 않은 감정적 주제를 드러낸다.",
+      "implication": "주기적 확대를 막으려면 패턴을 의식적으로 명명하는 작업이 선행되어야 한다. 같은 싸움이 반복된다면 주제가 아니라 트리거를 다뤄야 한다.",
+      "examples": "논쟁이 서로 다른 주제로 전개되지만 동일한 감정적 안무를 반복하는 패턴이 나타날 수 있다.",
+      "shadow_pattern": "소유하지 않은 감정적 욕구가 관계 영역에서 외재화되어 싸움으로 표출된다.",
+      "defense_mechanism": "전위(displacement)와 반사적 역공.",
+      "emotional_trigger": "보이지 않음, 코너에 몰림, 또는 오해받는 느낌.",
+      "repetition_cycle": "방아쇠 → 미러링 반응 → 확대 → 단절 위기 → 임시 회복 → 같은 방아쇠.",
+      "integration_path": "활성화 후 90초를 추적하고, 문제 해결 전에 반성적 언어로 먼저 중단할 것."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "중간 강도에서 미러링 역학은 보통 해소되지 않은 스트레스 이월과 연결된 일시적 패턴으로 나타난다.",
+        "implication_extension": "패턴을 일찍 명명하면 불필요한 확대를 막고 회복 시간을 단축할 수 있다.",
+        "example_extension": "작은 오해가 이전에 해소되지 않은 갈등의 감정적 잔재를 빠르게 흡수할 수 있다."
+      },
+      "high": {
+        "analysis_extension": "고강도에서는 미러링이 재귀적이 되어 각 반응이 상대방의 위협 인식을 검증하는 사이클로 이어진다.",
+        "implication_extension": "양쪽 모두가 실시간으로 방아쇠-반응 루프를 끊지 않으면 관계 안정성이 하락할 수 있다.",
+        "example_extension": "긴장된 대화에서 사소한 방어적 발언이 어느 쪽도 원래 의도하지 않았던 연쇄 반응을 촉발할 수 있다.",
+        "micro_scenario": "긴장된 대화에서 하나의 방어적 발언이 어느 쪽도 의도하지 않은 연쇄 역공을 만들어낸다.",
+        "long_term_projection": "개입 없이 반복되면, 관계는 불신과 감정적 거리를 정상화할 수 있다."
+      }
+    }
+  },
+  {
+    "id": "identity_control_paradox",
+    "chapter": "Psychological Architecture",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 75
+      },
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 50
+      }
+    ],
+    "logic": "AND",
+    "priority": 90,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "insight_spike": {
+      "text": "결과를 통제하려는 내면의 충동이, 역설적으로 당신의 주도감을 잠식하고 있다.",
+      "min_intensity": 0.8
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "정체성-통제 역설",
+      "summary": "결과를 지시하려는 강한 욕구가 조용히 자신의 적응 능력에 대한 신뢰를 침식할 수 있다.",
+      "analysis": "압박이 커질수록 통제 행동은 유연성을 감소시키고, 안전이 오직 완전한 관리를 통해서만 존재한다는 내면의 이야기를 강화한다.",
+      "implication": "정밀함을 불확실성에 대한 내성과 균형시킬 때 주도감이 개선된다. 통제할 수 있는 영역을 명확히 정의하고, 그 바깥에서 제한된 실험을 허용할 것.",
+      "examples": "결정을 과도하게 구조화한 뒤, 자신이 만든 경직성에 갇혀 있다고 느끼는 패턴이 반복될 수 있다.",
+      "shadow_pattern": "자기 가치가 중단 없는 통제 성과와 융합되어 있다.",
+      "defense_mechanism": "초과 경계 계획과 교정적 세부 관리.",
+      "emotional_trigger": "모호함, 지연된 피드백, 또는 영향력 상실의 느낌.",
+      "repetition_cycle": "불확실성 → 통제 확대 → 단기 안도 → 적응력 감소 → 새로운 불안.",
+      "integration_path": "통제 가능한 영역을 명시적으로 정의하고, 그 경계 바깥에서 제한된 실험을 허용할 것."
+    }
+  },
+  {
+    "id": "relational_mirroring_insight",
+    "chapter": "Love & Relationships",
+    "conditions": [
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      },
+      {
+        "field": "behavioral_risk_profile.primary_risk",
+        "operator": "==",
+        "value": "impulsivity"
+      }
+    ],
+    "logic": "AND",
+    "priority": 84,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "insight_spike": {
+      "text": "당신이 타인에게서 만나는 긴장은, 자신 안에서 직면하기를 거부한 바로 그것이다.",
+      "min_intensity": 0.8
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "관계적 미러링 인사이트",
+      "summary": "파트너십 마찰은 해소되지 않은 내면 갈등을 놀라운 정밀도로 반영하는 경향이 있다.",
+      "analysis": "외부 분쟁은 처리되지 않은 두려움, 통제 압박, 충족되지 않은 감정적 욕구의 용기가 될 수 있다.",
+      "implication": "투사를 책임 있는 자기 탐구로 번역할 때 회복이 가속된다. 상대를 바꾸려 하기 전에, 내면의 방아쇠를 먼저 확인해야 한다.",
+      "examples": "내면의 방아쇠가 바뀌지 않기 때문에, 서로 다른 사람들과의 관계에서 동일한 갈등 패턴이 반복될 수 있다.",
+      "shadow_pattern": "소유하지 않은 취약성이 상대방 행동에 대한 비판으로 나타난다.",
+      "defense_mechanism": "투사와 반응적 정당화의 결합.",
+      "emotional_trigger": "오해받거나, 무시당하거나, 영향력을 빼앗기는 느낌.",
+      "repetition_cycle": "내면 활성화 → 관계 갈등 → 임시 해결 → 미해결 방아쇠 재활성화.",
+      "integration_path": "외부 사실을 논쟁하기 전에 내면의 두려움을 먼저 명명할 것."
+    }
+  },
+  {
+    "id": "tension_choice_fork",
+    "chapter": "Psychological Architecture",
+    "priority": 95,
+    "content": {
+      "title": "정체성 압박 갈림길",
+      "summary": "당신은 지금 구조적 결정의 임계점에 진입하고 있다.",
+      "choice_fork": {
+        "path_a": {
+          "label": "통제 강화",
+          "trajectory": "즉각적 권위 강화, 장기적 긴장 누적.",
+          "emotional_cost": "억압된 취약성이 경직성으로 전환된다."
+        },
+        "path_b": {
+          "label": "통제 내려놓기",
+          "trajectory": "단기적 불안정, 장기적 일관성 성장.",
+          "emotional_cost": "일시적 감정 노출."
+        }
+      }
+    }
+  },
+  {
+    "id": "impulsivity_choice_fork",
+    "chapter": "Behavioral Risks",
+    "priority": 95,
+    "content": {
+      "title": "충동 결정 갈림길",
+      "summary": "당신의 행동 패턴이 분기 궤도에 접근하고 있다.",
+      "choice_fork": {
+        "path_a": {
+          "label": "즉시 행동",
+          "trajectory": "빠른 해소, 이후 오류 노출 위험 증가.",
+          "emotional_cost": "결과 인식 후의 후회와 방어성."
+        },
+        "path_b": {
+          "label": "지연과 검증",
+          "trajectory": "느린 모멘텀, 장기적으로 높은 결정 품질.",
+          "emotional_cost": "행동 유예로 인한 일시적 좌절감."
+        }
+      }
+    }
+  },
+  {
+    "id": "stability_choice_fork",
+    "chapter": "Stability Metrics",
+    "priority": 95,
+    "content": {
+      "title": "안정성 회복 갈림길",
+      "summary": "현재 회복력 신호가 결정적인 구조적 분기를 가리키고 있다.",
+      "choice_fork": {
+        "path_a": {
+          "label": "부하를 밀어붙임",
+          "trajectory": "단기 연속성, 증가하는 취약성과 복합적 긴장.",
+          "emotional_cost": "과잉 확장으로 위장된 불안."
+        },
+        "path_b": {
+          "label": "회복 리듬 재건",
+          "trajectory": "단기 속도 감소, 장기 안정성 여유 개선.",
+          "emotional_cost": "출력 강도 감소로 인한 불편함."
+        }
+      }
+    }
+  }
+]

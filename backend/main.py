@@ -312,7 +312,164 @@ def _build_readability_snapshot(structured_summary: dict[str, Any]) -> dict[str,
     }
 
 
-def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any]) -> str:
+CHAPTER_DISPLAY_NAME_KO = {
+    "Executive Summary": "Executive Summary",
+    "Purushartha Profile": "삶의 우선순위 지도",
+    "Psychological Architecture": "마음이 움직이는 방식",
+    "Behavioral Risks": "무너지는 순간의 습관",
+    "Karmic Patterns": "반복되는 인생 장면",
+    "Stability Metrics": "버티는 힘과 회복 리듬",
+    "Personality Vector": "당신의 반응 방식",
+    "Life Timeline Interpretation": "시간의 흐름 해석",
+    "Career & Success": "Career & Success",
+    "Love & Relationships": "Love & Relationships",
+    "Health & Body Patterns": "Health & Body Patterns",
+    "Confidence & Forecast": "앞으로의 흐름과 확신",
+    "Remedies & Program": "정리와 회복의 방향",
+    "Final Summary": "마지막 정리",
+    "Appendix (Optional)": "Appendix (Optional)",
+}
+
+STRONG_META_LINE_PATTERNS = [
+    re.compile(r"\bpredictive_compression\b", re.IGNORECASE),
+    re.compile(r"\bchoice_fork\b", re.IGNORECASE),
+    re.compile(r"\bstability_metrics\b", re.IGNORECASE),
+    re.compile(r"\bpersonality_vector\b", re.IGNORECASE),
+    re.compile(r"\bshadbala\b", re.IGNORECASE),
+    re.compile(r"\bavastha\b", re.IGNORECASE),
+    re.compile(r"^Evidence:\s*", re.IGNORECASE),
+    re.compile(r"\bapproximate metrics\b", re.IGNORECASE),
+    re.compile(r"\bstrength axis\b", re.IGNORECASE),
+    re.compile(r"\b\d{1,3}%\b"),
+]
+MODERATE_META_LINE_PATTERNS: list[re.Pattern[str]] = []
+
+CHAPTER_NARRATIVE_LINES_KO = {
+    "Stability Metrics": [
+        "버티는 힘은 있는데, 한 번 꺾이면 회복에 시간이 걸릴 수 있습니다.",
+        "무리한 날의 여파가 길게 남는 편이라, 속도를 조절하는 게 실력입니다.",
+        "지금은 꾸준함이 중요하되, 꾸준함을 강요하면 오히려 흐름이 깨집니다.",
+        "작게 유지되는 루틴이 큰 결정을 지켜줍니다.",
+    ],
+    "Personality Vector": [
+        "당신은 상황을 빠르게 읽고 반응하는 편입니다.",
+        "다만 속도가 붙을수록 감정이 따라오지 못해, 갑자기 확 식을 수 있습니다.",
+        "그래서 몰입과 단절이 반복될 때가 있습니다.",
+        "속도를 조금만 낮추면, 같은 능력이 훨씬 오래 갑니다.",
+    ],
+    "Confidence & Forecast": [
+        "확신은 서서히 올라오는데, 중간에 스스로를 의심하는 파도가 한 번 낄 수 있습니다.",
+        "그 순간 흔들린다고 해서 방향이 틀린 건 아닙니다.",
+        "지금은 확신을 만들기보다, 확신이 유지되는 조건을 정하는 게 더 중요합니다.",
+        "작게 확인하고 쌓아가면 흐름이 안정됩니다.",
+    ],
+    "Behavioral Risks": [
+        "당신이 무너질 때는 능력 부족이 아니라, 너무 오래 참았을 때입니다.",
+        "참다가 한 번에 터지면, 회복보다 후회가 먼저 옵니다.",
+        "그래서 괜찮은 척이 반복될수록 더 쉽게 지칩니다.",
+        "미리 한 번씩 내려놓는 게, 오히려 오래 가게 합니다.",
+    ],
+    "Psychological Architecture": [
+        "당신은 마음이 한 번 움직이면 끝까지 가고 싶어 합니다.",
+        "하지만 동시에, 틀에 갇히는 느낌이 들면 바로 빠져나오고 싶어집니다.",
+        "그래서 자유와 안정 사이에서 줄다리기를 자주 합니다.",
+        "둘 중 하나를 버리기보다, 상황마다 역할을 나누면 편해집니다.",
+    ],
+    "Karmic Patterns": [
+        "비슷한 장면이 형태만 바꿔 다시 나타날 수 있습니다.",
+        "그때마다 더 잘하려고 하기보다, 내가 자동으로 고르는 선택을 먼저 보는 게 중요합니다.",
+        "패턴을 알아차리는 순간부터, 같은 일이 같은 결과로 가지 않습니다.",
+        "이번에는 방향을 조금만 바꿔도 충분합니다.",
+    ],
+    "Life Timeline Interpretation": [
+        "시간이 앞으로 가면서, 초점이 바뀌는 구간입니다.",
+        "예전 방식이 안 먹히는 건 실패가 아니라, 방식의 교체 신호일 수 있습니다.",
+        "지금은 크게 뒤집기보다, 작은 전환을 여러 번 하는 편이 자연스럽습니다.",
+        "천천히 바뀌어도 괜찮습니다.",
+    ],
+    "Career & Success": [
+        "일에서는 속도와 완성도 사이에서 늘 고민이 생깁니다.",
+        "빨리 가면 마음이 닳고, 천천히 가면 불안이 올라올 수 있습니다.",
+        "지금은 더 일하기보다, 덜 소모되는 방식으로 재배치하는 게 이득입니다.",
+        "작게 시험하고, 잘 되는 걸 키우는 흐름이 맞습니다.",
+    ],
+    "Love & Relationships": [
+        "관계에서는 마음이 깊은데, 표현은 오히려 조심스러울 수 있습니다.",
+        "가까워질수록 확인이 필요해지고, 그게 피곤으로 바뀔 때가 있습니다.",
+        "상대의 반응을 바꾸려 하기보다, 내가 편해지는 표현을 찾는 게 먼저입니다.",
+        "한 번에 해결하려 하지 않아도 됩니다.",
+    ],
+    "Remedies & Program": [
+        "해결은 거창한 결심보다, 작은 조정에서 시작됩니다.",
+        "지금은 마음을 다잡는 것보다, 마음이 편해지는 환경을 만드는 게 더 빠릅니다.",
+        "딱 하나만 바꾼다면, 무리하는 순간을 조금 더 빨리 알아차리는 연습이 도움 됩니다.",
+        "그것만으로도 리듬이 달라집니다.",
+    ],
+    "Final Summary": [
+        "당신은 약해서 흔들리는 게 아니라, 너무 많은 걸 혼자 버티려 해서 흔들립니다.",
+        "패턴을 알면, 같은 상황에서도 선택이 달라집니다.",
+        "이번 흐름의 핵심은 더 하기가 아니라, 덜 닳기입니다.",
+        "이제는 당신이 편해지는 방식으로 가도 됩니다.",
+    ],
+}
+FALLBACK_NARRATIVE_LINES_KO = [
+    "지금은 결론을 빨리 내리기보다, 한 번 더 확인하고 가는 편이 안전합니다.",
+    "흐름이 흔들릴 수 있는 구간이라, 선택을 작게 쪼개면 훨씬 편해집니다.",
+    "핵심은 더 강해지는 게 아니라, 덜 닳는 방식을 찾는 것입니다.",
+]
+
+FORBIDDEN_OUTPUT_REGEXES = [
+    re.compile(r"\bshadbala\b", re.IGNORECASE),
+    re.compile(r"\bavastha\b", re.IGNORECASE),
+    re.compile(r"^Evidence:\s*", re.IGNORECASE),
+    re.compile(r"\bapproximate metrics\b", re.IGNORECASE),
+    re.compile(r"\bstrength axis\b", re.IGNORECASE),
+    re.compile(r"\b\d{1,3}%\b"),
+]
+
+
+def _stable_pick(lines: list[str], chapter_key: str, salt: str) -> list[str]:
+    if not lines:
+        return []
+    digest = hashlib.sha256(f"{chapter_key}::{salt}".encode("utf-8")).hexdigest()
+    start = int(digest[:8], 16) % len(lines)
+    k = min(3, len(lines))
+    return [lines[(start + i) % len(lines)] for i in range(k)]
+
+
+def _contains_forbidden_output(text: str) -> bool:
+    if not text:
+        return False
+    return any(rx.search(text) for rx in FORBIDDEN_OUTPUT_REGEXES)
+
+
+def _sanitize_deterministic_text_ko(chapter_key: str, text: str, *, salt: str) -> tuple[str, int]:
+    if not text or not text.strip():
+        return text, 0
+
+    patterns = STRONG_META_LINE_PATTERNS + MODERATE_META_LINE_PATTERNS
+    kept: list[str] = []
+    removed = 0
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("<!--") and "chapter_key:" in stripped:
+            kept.append(line)
+            continue
+        if any(p.search(line) for p in patterns):
+            removed += 1
+            continue
+        kept.append(line)
+
+    cleaned = "\n".join(kept).strip()
+    if removed > 0 and len(cleaned) < 120:
+        candidate = CHAPTER_NARRATIVE_LINES_KO.get(chapter_key, FALLBACK_NARRATIVE_LINES_KO)
+        bridge = _stable_pick(candidate, chapter_key, salt=salt)
+        if bridge:
+            cleaned = (cleaned + "\n\n" if cleaned else "") + "\n".join(bridge)
+    return cleaned, removed
+
+
+def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any], language: str = "ko") -> str:
     chapter_name_ko = {
         "Executive Summary": "Executive Summary",
         "Purushartha Profile": "Purushartha Profile",
@@ -345,9 +502,18 @@ def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any]) -> str:
         "long_term_projection",
     ]
     out: list[str] = []
+    qa_removed_lines_total = 0
+    qa_forbidden_hits = 0
+    lang_norm = str(language or "ko").strip().lower()
     for idx, chapter in enumerate(REPORT_CHAPTERS, start=1):
-        title = chapter_name_ko.get(chapter, chapter)
-        out.append(f"# {idx}. {title}")
+        title_legacy = chapter_name_ko.get(chapter, chapter)
+        display_title = (
+            CHAPTER_DISPLAY_NAME_KO.get(chapter, title_legacy or chapter)
+            if lang_norm.startswith("ko")
+            else (title_legacy or chapter)
+        )
+        out.append(f"# {idx}. {display_title}")
+        out.append(f"<!-- chapter_key: {chapter} -->")
         blocks = chapter_blocks.get(chapter, []) if isinstance(chapter_blocks, dict) else []
         if not blocks:
             out.append("Insufficient chapter fragments were available for this section.")
@@ -360,10 +526,18 @@ def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any]) -> str:
             if "spike_text" in block:
                 spike_text = str(block.get("spike_text", "")).strip()
                 if spike_text:
+                    if lang_norm.startswith("ko"):
+                        spike_text, removed_count = _sanitize_deterministic_text_ko(
+                            chapter, spike_text, salt=f"spike:{block_idx}"
+                        )
+                        qa_removed_lines_total += removed_count
+                        if _contains_forbidden_output(spike_text):
+                            qa_forbidden_hits += 1
                     out.append(f"[Insight Spike {block_idx}] {spike_text}")
                 continue
 
-            out.append(f"## Fragment {block_idx}")
+            if not lang_norm.startswith("ko"):
+                out.append(f"## Fragment {block_idx}")
             for field in ordered_fields:
                 raw = block.get(field)
                 if not isinstance(raw, str):
@@ -371,32 +545,657 @@ def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any]) -> str:
                 value = raw.strip()
                 if not value:
                     continue
-                out.append(f"{field.replace('_', ' ').title()}:")
-                out.append(value)
+                if lang_norm.startswith("ko"):
+                    value, removed_count = _sanitize_deterministic_text_ko(
+                        chapter, value, salt=f"{field}:{block_idx}"
+                    )
+                    qa_removed_lines_total += removed_count
+                    if not value:
+                        continue
+                    if _contains_forbidden_output(value):
+                        qa_forbidden_hits += 1
+                    out.append(value)
+                else:
+                    out.append(f"{field.replace('_', ' ').title()}:")
+                    out.append(value)
                 out.append("")
 
             choice_fork = block.get("choice_fork")
             if isinstance(choice_fork, dict):
-                out.append("Choice Fork:")
-                out.append(json.dumps(choice_fork, ensure_ascii=False, indent=2))
+                if lang_norm.startswith("ko"):
+                    bridge = _stable_pick(
+                        CHAPTER_NARRATIVE_LINES_KO.get(chapter, FALLBACK_NARRATIVE_LINES_KO),
+                        chapter,
+                        salt=f"choice_fork:{block_idx}",
+                    )
+                    if bridge:
+                        out.extend(bridge)
+                else:
+                    out.append("Choice Fork:")
+                    out.append(json.dumps(choice_fork, ensure_ascii=False, indent=2))
                 out.append("")
 
             predictive = block.get("predictive_compression")
             if isinstance(predictive, dict):
-                out.append("Predictive Compression:")
-                out.append(json.dumps(predictive, ensure_ascii=False, indent=2))
+                if lang_norm.startswith("ko"):
+                    bridge = _stable_pick(
+                        CHAPTER_NARRATIVE_LINES_KO.get(chapter, FALLBACK_NARRATIVE_LINES_KO),
+                        chapter,
+                        salt=f"predictive_compression:{block_idx}",
+                    )
+                    if bridge:
+                        out.extend(bridge)
+                else:
+                    out.append("Predictive Compression:")
+                    out.append(json.dumps(predictive, ensure_ascii=False, indent=2))
                 out.append("")
         out.append("")
-    return "\n".join(out).strip()
+    rendered = "\n".join(out).strip()
+    if lang_norm.startswith("ko") and (qa_removed_lines_total > 0 or qa_forbidden_hits > 0):
+        logger.debug(
+            "deterministic_sanitizer_summary removed_lines=%s forbidden_hits=%s",
+            qa_removed_lines_total,
+            qa_forbidden_hits,
+        )
+    return rendered
+
+
+_STYLE_LABEL_PATTERNS = [
+    re.compile(r"^(중심 주제|내적 줄다리기|전략 제안|요약|해석|전략|경고|리스크|기회)\s*:\s*", re.MULTILINE),
+    re.compile(r"^([A-Za-z_]{3,20})\s*:\s*", re.MULTILINE),
+]
+_STYLE_EN_PREFIX_PATTERN = re.compile(r"\bChapter\s+\d+\b|\bExecutive\b\s*:|\bFinal\b\s*:|\bSummary\b\s*:", re.IGNORECASE)
+_STYLE_PERCENT_PATTERN = re.compile(r"\b\d{1,3}%\b")
+_STYLE_HARD_BAN_PATTERNS = {
+    "구조": re.compile(r"구조"),
+    "프로토콜": re.compile(r"프로토콜"),
+    "교정": re.compile(r"교정"),
+    "인덱스": re.compile(r"인덱스"),
+    "축": re.compile(r"축"),
+}
+_STYLE_SOFT_BAN_PATTERNS = {
+    "리스크": re.compile(r"리스크"),
+    "지표": re.compile(r"지표"),
+    "확률": re.compile(r"확률"),
+    "필수": re.compile(r"필수"),
+    "중요": re.compile(r"중요"),
+    "전략": re.compile(r"전략"),
+    "규율": re.compile(r"규율"),
+    "계약": re.compile(r"계약"),
+    "아키텍처": re.compile(r"아키텍처"),
+    "마일스톤": re.compile(r"마일스톤"),
+    "임계점": re.compile(r"임계점"),
+    "검토": re.compile(r"검토"),
+    "개입": re.compile(r"개입"),
+}
+_STYLE_HARD_BAN_REPLACEMENTS = {
+    "구조": ["흐름", "패턴", "결"],
+    "프로토콜": ["방식", "루틴", "순서"],
+    "교정": ["정리", "가다듬기", "조율"],
+    "인덱스": ["흐름", "상태", "결"],
+    "축": ["중심 흐름", "핵심 방향", "결의 중심"],
+}
+_STYLE_SOFT_BAN_REPLACEMENTS = {
+    "리스크": "부담",
+    "지표": "흐름",
+    "확률": "가능성",
+    "필수": "먼저 챙겨야 하는",
+    "중요": "눈여겨볼",
+    "전략": "선택지",
+    "규율": "리듬",
+    "계약": "약속",
+    "아키텍처": "흐름의 결",
+    "마일스톤": "중간 점검 지점",
+    "임계점": "버거워지는 순간",
+    "검토": "다시 살펴보기",
+    "개입": "손보기",
+}
+_STYLE_SENTENCE_SPLIT = re.compile(
+    r"(?<=[.!?])\s+|(?<=다\.)\s+|(?<=요\.)\s+|(?<=니다\.)\s+|(?<=…)\s+"
+)
+_STYLE_SOFT_DERIVED_PATTERNS = {
+    "전략적": re.compile(r"전략적"),
+    "필수적인": re.compile(r"필수적인"),
+}
+_STYLE_SOFT_DERIVED_REPLACEMENTS = {
+    "전략적": "선택지 중심의",
+    "필수적인": "먼저 챙겨야 하는",
+}
+_STYLE_DIRECTIVE_PATTERNS = {
+    "필요합니다": re.compile(r"필요합니다"),
+    "권장합니다": re.compile(r"권장합니다"),
+    "검토하세요": re.compile(r"검토하세요"),
+    "필수적입니다": re.compile(r"필수적입니다"),
+}
+_STYLE_HEADING_REWRITE_MAP = {
+    "마음의 구조": "마음이 움직이는 방식",
+    "관계 구조": "관계가 흔들리는 패턴",
+    "성공 구조": "일에서 힘이 실리는 방식",
+}
+_STYLE_LINKER_PATTERNS = [
+    re.compile(r"그러므로\s*"),
+    re.compile(r"따라서\s*"),
+    re.compile(r"이러한\s*"),
+    re.compile(r"반면에\s*"),
+    re.compile(r"즉\s*"),
+    re.compile(r"또한\s*"),
+]
+
+
+def _apply_korean_whitelist_corrections(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return text
+    out = text
+    corrections = [
+        ("패턴를", "패턴을"),
+        ("흐름를", "흐름을"),
+        ("부담로", "부담으로"),
+        ("구중심 흐름하는", ""),
+    ]
+    for src, dst in corrections:
+        out = out.replace(src, dst)
+    # Normalize accidental extra spaces after removals.
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip()
+
+
+def _should_skip_directive_rewrite(sentence: str) -> bool:
+    if not isinstance(sentence, str):
+        return False
+    # Keep quoted/conditional semantics intact.
+    if "라고" in sentence:
+        return True
+    if "\"" in sentence or "'" in sentence or "“" in sentence or "”" in sentence:
+        return True
+    if "면 " in sentence or sentence.endswith("면"):
+        return True
+    return False
+
+
+def _reduce_linker_chain(paragraph: str) -> str:
+    if not isinstance(paragraph, str) or not paragraph.strip():
+        return paragraph
+    out = paragraph
+    for pat in _STYLE_LINKER_PATTERNS:
+        hits = list(pat.finditer(out))
+        if len(hits) <= 1:
+            continue
+        # Keep first linker, remove from second occurrence onward (word + trailing space only).
+        first_span = hits[0].span()
+        rebuilt = []
+        cursor = 0
+        for m in hits[1:]:
+            s, e = m.span()
+            rebuilt.append(out[cursor:s])
+            cursor = e
+        rebuilt.append(out[cursor:])
+        out = out[:first_span[1]] + "".join(rebuilt)
+    # Minimal cleanup only; no semantic rewrite.
+    out = re.sub(r"\s{2,}", " ", out).strip()
+    out = re.sub(r"\s+([,;])", r"\1", out)
+    out = re.sub(r"([,;])\s*([,;])", r"\1 ", out)
+    return out
+
+
+def _split_long_sentence_once(sentence: str, threshold: int = 110) -> list[str]:
+    s = (sentence or "").strip()
+    if not s:
+        return []
+    # Length includes spaces and symbols.
+    if len(s) <= threshold:
+        return [s]
+    if s.endswith("?"):
+        return [s]
+    # Priority order for one-time split.
+    split_markers = [",", ";", "—", " 그래서 ", " 하지만 ", " 그런데 ", " 다만 ", " 또는 ", " 특히 ", "고 ", "며 ", "면서 ", "지만 "]
+    for marker in split_markers:
+        idx = s.find(marker)
+        if idx <= 0:
+            continue
+        if marker in [",", ";", "—"]:
+            left = s[: idx + 1].strip()
+            right = s[idx + 1 :].strip()
+        else:
+            left = s[:idx].strip()
+            right = s[idx:].strip()
+        if left and right:
+            return [left, right]
+    return [s]
+
+
+def _split_sentences_local(text: str) -> list[str]:
+    src = (text or "").strip()
+    if not src:
+        return []
+    return [s.strip() for s in _STYLE_SENTENCE_SPLIT.split(src) if s and s.strip()]
+
+
+def _split_long_sentences_in_paragraph(paragraph: str, threshold: int = 110) -> str:
+    if not isinstance(paragraph, str) or not paragraph.strip():
+        return paragraph
+    sentences = _split_sentences_local(paragraph)
+    if not sentences:
+        return paragraph
+    # Standalone emphasis paragraph (single sentence) -> keep as-is.
+    if len(sentences) == 1:
+        return paragraph.strip()
+    out: list[str] = []
+    for sent in sentences:
+        out.extend(_split_long_sentence_once(sent, threshold=threshold))
+    return " ".join(x.strip() for x in out if x and x.strip()).strip()
+
+
+def _english_ratio(text: str) -> float:
+    if not isinstance(text, str) or not text:
+        return 0.0
+    alpha = re.findall(r"[A-Za-z]", text)
+    if not alpha:
+        return 0.0
+    visible = re.findall(r"[A-Za-z가-힣0-9]", text)
+    denom = max(1, len(visible))
+    return len(alpha) / denom
+
+
+def _replace_hard_bans_sentence_limited(sentence: str) -> str:
+    if not isinstance(sentence, str) or not sentence:
+        return sentence
+    out = sentence
+    used_replacements: set[str] = set()
+    for term, pattern in _STYLE_HARD_BAN_PATTERNS.items():
+        choices = list(_STYLE_HARD_BAN_REPLACEMENTS.get(term, []))
+        if not choices:
+            continue
+        local_idx = 0
+
+        def _pick_replacement() -> str:
+            nonlocal local_idx
+            for _ in range(len(choices)):
+                candidate = choices[local_idx % len(choices)]
+                local_idx += 1
+                if candidate not in used_replacements:
+                    used_replacements.add(candidate)
+                    return candidate
+            candidate = choices[local_idx % len(choices)]
+            local_idx += 1
+            used_replacements.add(candidate)
+            return candidate
+
+        out = pattern.sub(lambda _m: _pick_replacement(), out)
+    return out
+
+
+def _repair_one_paragraph(paragraph: str, before_sentence: str = "", after_sentence: str = "") -> str:
+    if not isinstance(paragraph, str) or not paragraph.strip():
+        return paragraph
+    raw = paragraph.strip()
+    parts = [p.strip() for p in _STYLE_SENTENCE_SPLIT.split(raw) if p and p.strip()]
+    if not parts:
+        parts = [raw]
+    repaired_sentences: list[str] = []
+    directive_budget = 2
+    for s in parts:
+        x = _replace_hard_bans_sentence_limited(s)
+        for term, pat in _STYLE_SOFT_DERIVED_PATTERNS.items():
+            x = pat.sub(_STYLE_SOFT_DERIVED_REPLACEMENTS.get(term, term), x)
+        for term, pat in _STYLE_SOFT_BAN_PATTERNS.items():
+            x = pat.sub(_STYLE_SOFT_BAN_REPLACEMENTS.get(term, term), x)
+        # Directive style rewrite: sentence-end oriented, with exclusions to avoid semantic damage.
+        if directive_budget > 0 and not _should_skip_directive_rewrite(x):
+            x = re.sub(r"하는 것이 필요합니다\.?$", "해보는 편이 맞습니다.", x)
+            x = re.sub(r"이 필수적입니다\.?$", "을 먼저 챙기면 좋습니다.", x)
+            x = re.sub(r"을 권장합니다\.?$", "을 해보면 도움이 됩니다.", x)
+            x = re.sub(r"을 검토하세요\.?$", "을 한번 다시 봐도 좋습니다.", x)
+            directive_budget -= 1
+            # Fallback rewrite for residual directive phrases inside sentence body.
+            x = x.replace("필요합니다", "도움이 됩니다")
+            x = x.replace("권장합니다", "해보면 좋습니다")
+            x = x.replace("검토하세요", "다시 살펴봐도 좋습니다")
+            x = x.replace("필수적입니다", "먼저 챙기면 좋습니다")
+        x = _STYLE_PERCENT_PATTERN.sub("일정 몫(예: 월 5만원부터)", x)
+        repaired_sentences.append(x)
+    repaired = " ".join(repaired_sentences).strip()
+    repaired = _reduce_linker_chain(repaired)
+    repaired = _split_long_sentences_in_paragraph(repaired, threshold=110)
+    has_hard = any(p.search(repaired) for p in _STYLE_HARD_BAN_PATTERNS.values())
+    too_english = _english_ratio(repaired) >= 0.60 and len(repaired) >= 80
+    if has_hard or too_english:
+        ctx = f"{before_sentence} {after_sentence}".strip()
+        if any(k in ctx for k in ("돈", "재정", "수입", "지출")):
+            return "돈의 흐름은 속도보다 리듬이 중요합니다. 무리한 확대보다 작은 확인이 더 오래 갑니다."
+        if any(k in ctx for k in ("관계", "감정", "거리", "신뢰")):
+            return "관계에서는 정답보다 타이밍이 더 중요합니다. 반응을 늦추면 같은 장면도 다르게 풀립니다."
+        if any(k in ctx for k in ("일", "커리어", "직장", "역할")):
+            return "일에서는 버티는 방식이 성과를 좌우합니다. 속도를 낮춰도 방향을 잃지 않으면 충분히 올라갑니다."
+        return "지금은 결론을 서두르기보다 흐름을 정리하는 편이 유리합니다. 작게 확인하며 가면 소모가 줄어듭니다."
+    return repaired
+
+
+def _style_policy_diagnostics(text: str) -> dict[str, int]:
+    src = text or ""
+    hard_hits = sum(len(p.findall(src)) for p in _STYLE_HARD_BAN_PATTERNS.values())
+    soft_hits = sum(len(p.findall(src)) for p in _STYLE_SOFT_BAN_PATTERNS.values())
+    soft_derived_hits = sum(len(p.findall(src)) for p in _STYLE_SOFT_DERIVED_PATTERNS.values())
+    percent_hits = len(_STYLE_PERCENT_PATTERN.findall(src))
+    directive_hits = sum(len(p.findall(src)) for p in _STYLE_DIRECTIVE_PATTERNS.values())
+    english_runs = 0
+    run = 0
+    for sent in [s.strip() for s in _STYLE_SENTENCE_SPLIT.split(src) if s and s.strip()]:
+        if _english_ratio(sent) >= 0.60:
+            run += 1
+            if run >= 2:
+                english_runs = 1
+                break
+        else:
+            run = 0
+    # English token residual should ignore mandatory chapter_key headings.
+    src_for_token_scan = re.sub(r"(?m)^##\s*\[[^\]]+\]\s*.*$", "", src)
+    src_for_token_scan = re.sub(r"<!--\s*chapter_key:\s*.*?-->", "", src_for_token_scan)
+    english_tokens = re.findall(r"\b[A-Za-z]{6,}\b", src_for_token_scan)
+    # Drop known contract/system words that are not user-facing leakage quality issues.
+    ignore_lower = {
+        "executive", "summary", "purushartha", "psychological", "architecture",
+        "behavioral", "karmic", "stability", "personality", "timeline",
+        "interpretation", "career", "success", "relationships", "health",
+        "patterns", "confidence", "forecast", "remedies", "program", "appendix",
+        "optional", "dharma", "artha", "kama", "moksha",
+    }
+    filtered_english_tokens = [t for t in english_tokens if t.lower() not in ignore_lower]
+
+    return {
+        "hard_ban_residual": int(hard_hits),
+        "soft_ban_residual": int(soft_hits + soft_derived_hits),
+        "percent_residual": int(percent_hits),
+        "english_run_detected": int(english_runs),
+        "english_token_residual": len(filtered_english_tokens),
+        "directive_phrase_hits": int(directive_hits),
+    }
+
+
+def _normalize_fallback_surface(text: str) -> str:
+    src = (text or "").strip().lower()
+    src = src.replace("…", ".")
+    src = re.sub(r"[\(\)\[\]\"'“”‘’]", "", src)
+    src = re.sub(r"[.,!?;:]+$", "", src)
+    src = re.sub(r"\s+", "", src)
+    return src
+
+
+def _pick_surface_bridge(*, chapter_key: str, salt: str, offset: int = 0) -> str:
+    bridge_pool = [
+        "지금은 한 번에 결론내리기보다 흐름을 가볍게 확인해도 충분합니다.",
+        "속도를 조금만 낮추면 같은 상황도 훨씬 덜 소모적으로 넘어갈 수 있습니다.",
+        "큰 해답보다 작은 조정 하나가 지금 구간에는 더 잘 맞습니다.",
+        "지금은 밀어붙이기보다 리듬을 맞추는 쪽이 결과를 지켜줍니다.",
+        "오늘은 완벽한 답보다 흔들리는 지점을 먼저 잡아도 괜찮습니다.",
+        "당장 크게 바꾸지 않아도, 작은 확인이 방향을 선명하게 만듭니다.",
+    ]
+    digest = hashlib.sha256(f"{salt}|{chapter_key}|{offset}".encode("utf-8")).hexdigest()
+    idx = int(digest[:8], 16) % len(bridge_pool)
+    return bridge_pool[idx]
+
+
+def _dedupe_fallback_lines_surface(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text or ""
+    try:
+        from backend.llm_service import _FALLBACK_PARAGRAPH_POOL
+    except Exception:
+        return text
+
+    pool = [x.strip() for x in _FALLBACK_PARAGRAPH_POOL if isinstance(x, str) and x.strip()]
+    if not pool:
+        return text
+
+    fallback_norms = {_normalize_fallback_surface(x) for x in pool}
+    lines = text.splitlines()
+    out: list[str] = []
+    current_chapter = "global"
+    chapter_fallback_count: dict[str, int] = {}
+    used_fallback_norms: set[str] = set()
+    salt = hashlib.sha256(text.encode("utf-8", errors="ignore")).hexdigest()[:16]
+    heading_re = re.compile(r"^\s*##\s*\[([^\]]+)\]\s*")
+
+    for idx, raw_line in enumerate(lines):
+        line = raw_line
+        m = heading_re.match(line)
+        if m:
+            current_chapter = m.group(1).strip() or "global"
+            out.append(line)
+            continue
+
+        stripped = line.strip()
+        if not stripped:
+            out.append(line)
+            continue
+
+        line_norm = _normalize_fallback_surface(stripped)
+        if line_norm in fallback_norms:
+            used_in_chapter = chapter_fallback_count.get(current_chapter, 0)
+            if line_norm in used_fallback_norms or used_in_chapter >= 1:
+                out.append(_pick_surface_bridge(chapter_key=current_chapter, salt=salt, offset=idx))
+            else:
+                used_fallback_norms.add(line_norm)
+                chapter_fallback_count[current_chapter] = used_in_chapter + 1
+                out.append(line)
+            continue
+
+        sentences = [s.strip() for s in _STYLE_SENTENCE_SPLIT.split(line) if s and s.strip()]
+        if not sentences:
+            out.append(line)
+            continue
+
+        new_sentences: list[str] = []
+        for s_idx, sent in enumerate(sentences):
+            sent_norm = _normalize_fallback_surface(sent)
+            if sent_norm in fallback_norms:
+                used_in_chapter = chapter_fallback_count.get(current_chapter, 0)
+                if sent_norm in used_fallback_norms or used_in_chapter >= 1:
+                    new_sentences.append(
+                        _pick_surface_bridge(chapter_key=current_chapter, salt=salt, offset=idx * 31 + s_idx)
+                    )
+                else:
+                    used_fallback_norms.add(sent_norm)
+                    chapter_fallback_count[current_chapter] = used_in_chapter + 1
+                    new_sentences.append(sent)
+            else:
+                new_sentences.append(sent)
+        out.append(" ".join(new_sentences).strip())
+
+    return "\n".join(out)
+
+
+def _apply_style_remediation(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return text
+    # Phase 12-R3:
+    # - Hard ban removal + soft ban replacement.
+    # - Partial repair scope: current paragraph + adjacent one sentence context.
+    # - Repair cap: max 2 paragraph-level retries.
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    blocks = re.split(r"\n\s*\n", normalized)
+    if not blocks:
+        return normalized
+
+    repaired_blocks: list[str] = []
+    regen_count = 0
+    max_regen = 2
+
+    doc_directive_rewrites = 0
+    doc_directive_cap = 20
+    for i, block in enumerate(blocks):
+        b = block.strip()
+        if not b:
+            continue
+        if b.lstrip().startswith("## ") or b.lstrip().startswith("<!--"):
+            # Heading path: apply explicit heading rewrite map first, then hard/soft replacements.
+            if b.lstrip().startswith("## "):
+                hb = b
+                for src, dst in _STYLE_HEADING_REWRITE_MAP.items():
+                    hb = hb.replace(src, dst)
+                hb = _replace_hard_bans_sentence_limited(hb)
+                for term, pat in _STYLE_SOFT_BAN_PATTERNS.items():
+                    hb = pat.sub(_STYLE_SOFT_BAN_REPLACEMENTS.get(term, term), hb)
+                hb = _STYLE_PERCENT_PATTERN.sub("일정 몫(예: 월 5만원부터)", hb)
+                repaired_blocks.append(hb)
+            else:
+                repaired_blocks.append(b)
+            continue
+
+        before = blocks[i - 1].strip() if i > 0 else ""
+        after = blocks[i + 1].strip() if i + 1 < len(blocks) else ""
+        before_parts = [x for x in _STYLE_SENTENCE_SPLIT.split(before) if x and x.strip()]
+        after_parts = [x for x in _STYLE_SENTENCE_SPLIT.split(after) if x and x.strip()]
+        before_sentence = before_parts[-1].strip() if before_parts else ""
+        after_sentence = after_parts[0].strip() if after_parts else ""
+
+        repaired = _repair_one_paragraph(b, before_sentence=before_sentence, after_sentence=after_sentence)
+        diag = _style_policy_diagnostics(repaired)
+        needs_retry = diag["hard_ban_residual"] > 0 or diag["english_run_detected"] > 0
+        if needs_retry and regen_count < max_regen:
+            regen_count += 1
+            repaired = _repair_one_paragraph(
+                repaired,
+                before_sentence=before_sentence,
+                after_sentence=after_sentence,
+            )
+
+        # Soft cap for directive rewrites across a document: if over budget, stop aggressive sentence-end rewrites.
+        if doc_directive_rewrites < doc_directive_cap:
+            # Count exact target directives remaining after repair for telemetry-like control.
+            remained_directives = sum(len(p.findall(repaired)) for p in _STYLE_DIRECTIVE_PATTERNS.values())
+            if remained_directives == 0:
+                doc_directive_rewrites += 1
+
+        repaired_blocks.append(repaired)
+    # Order lock: soft/hard remediation -> Korean whitelist correction -> style checks (outside).
+    remediated = "\n\n".join(repaired_blocks).strip()
+    remediated = _apply_korean_whitelist_corrections(remediated)
+
+    # Final directive sweep (output-surface only):
+    # keep wording humanized even when sentence-level rewrite was skipped by guard conditions.
+    remediated = remediated.replace("필요합니다", "도움이 됩니다")
+    remediated = remediated.replace("권장합니다", "해보면 좋습니다")
+    remediated = remediated.replace("검토하세요", "다시 살펴봐도 좋습니다")
+    remediated = remediated.replace("필수적입니다", "먼저 챙기면 좋습니다")
+    remediated = _dedupe_fallback_lines_surface(remediated)
+    return remediated
+
+
+def _extract_paragraphs_for_style(text: str) -> list[str]:
+    if not isinstance(text, str) or not text.strip():
+        return []
+    lines = text.splitlines()
+    paragraphs: list[str] = []
+    buf: list[str] = []
+    for raw in lines:
+        line = raw.rstrip()
+        if not line.strip():
+            if buf:
+                paragraphs.append("\n".join(buf).strip())
+                buf = []
+            continue
+        if line.lstrip().startswith("## "):
+            if buf:
+                paragraphs.append("\n".join(buf).strip())
+                buf = []
+            continue
+        # Keep list/quote continuity inside one paragraph block.
+        if buf and (line.lstrip().startswith(("-", "*", ">")) or buf[-1].lstrip().startswith(("-", "*", ">"))):
+            buf.append(line)
+            continue
+        buf.append(line)
+    if buf:
+        paragraphs.append("\n".join(buf).strip())
+    return [p for p in paragraphs if p]
+
+
+def _chapter_order_matches_from_meta(text: str) -> bool:
+    keys = re.findall(r"<!--\s*chapter_key:\s*(.*?)\s*-->", text or "")
+    if not keys:
+        # Fallback: accept heading-level chapter keys if present.
+        # Example: ## [Executive Summary] ...
+        keys = re.findall(r"(?m)^##\s*\[([^\]]+)\]\s*", text or "")
+    if not keys:
+        return True
+    # Validate order against canonical REPORT_CHAPTERS using subsequence matching.
+    pos = 0
+    seen: set[str] = set()
+    for key in keys:
+        if key in seen:
+            return False
+        seen.add(key)
+        try:
+            idx = REPORT_CHAPTERS.index(key, pos)
+        except ValueError:
+            return False
+        pos = idx + 1
+    return True
+
+
+def _reading_style_error_codes(text: str) -> list[str]:
+    normalized = (text or "").strip()
+    if not normalized:
+        return ["empty_text"]
+
+    errors: list[str] = []
+    headings = re.findall(r"(?m)^##\s+(.+?)\s*$", normalized)
+    if len(headings) < 15:
+        errors.append("headline_count_invalid")
+
+    if not _chapter_order_matches_from_meta(normalized):
+        errors.append("chapter_boundary_mismatch")
+
+    if any(p.search(normalized) for p in _STYLE_LABEL_PATTERNS):
+        errors.append("label_pattern_detected")
+
+    if _STYLE_EN_PREFIX_PATTERN.search(normalized):
+        errors.append("english_prefix_detected")
+
+    if _STYLE_PERCENT_PATTERN.search(normalized):
+        errors.append("percent_pattern_detected")
+
+    # Soft headline-length guard: keep Korean headline concise without over-failing.
+    if headings:
+        bad_len = 0
+        for heading in headings:
+            h = re.sub(r"^\s*\[[^\]]+\]\s*", "", heading)
+            h = re.sub(r"^\s*\d+\.\s*", "", h)
+            h = re.sub(r"[\(\)\[\]:—\-]", "", h)
+            h = re.sub(r"\s+", "", h)
+            if len(h) < 3 or len(h) > 20:
+                bad_len += 1
+        if bad_len > max(1, len(headings) // 3):
+            errors.append("headline_length_outlier")
+
+    paragraphs = _extract_paragraphs_for_style(normalized)
+    if headings:
+        avg_paragraphs = len(paragraphs) / max(1, len(headings))
+        if avg_paragraphs < 3.0:
+            errors.append("paragraph_density_low")
+    else:
+        if len(paragraphs) < 6:
+            errors.append("paragraph_density_low")
+
+    sentence_end = re.compile(r"[.!?\u3002\uff1f\uff01]+")
+    for p in paragraphs:
+        sentence_count = len([s for s in sentence_end.split(p) if s.strip()])
+        if sentence_count > 5:
+            errors.append("paragraph_too_long")
+            break
+
+    # Deduplicate while preserving order
+    out: list[str] = []
+    for code in errors:
+        if code not in out:
+            out.append(code)
+    return out
 
 
 def _is_low_quality_reading(text: str) -> bool:
-    normalized = (text or "").strip()
-    # Trust the LLM if it generated at least 1000 characters of narrative.
-    # Strict heading/chapter checks conflict with the organic storytelling prompt.
-    if len(normalized) < 1000:
-        return True
-    return False
+    normalized = normalize_llm_layout_strict(text or "")
+    remediated = _apply_style_remediation(normalized)
+    return bool(_reading_style_error_codes(remediated))
 
 from backend import pdf_service
 from backend.pdf_service import init_fonts
@@ -1589,7 +2388,7 @@ def _normalize_json_for_cache(raw_json: str) -> str:
         return raw
 
 
-from backend.llm_service import refine_reading_with_llm
+from backend.llm_service import normalize_llm_layout_strict, refine_reading_with_llm
 
 
 # ------------------------------------------------------------------------------
@@ -1747,7 +2546,7 @@ async def get_ai_reading(
                         polished_reading=polished_reading,
                     )
 
-            final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks)
+            final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks, language=language)
             final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
 
             production_result = {
@@ -1830,7 +2629,7 @@ async def get_ai_reading(
     }
 
     if not async_client:
-        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_reading = deterministic_reading
         final_polished = None
         result = {
@@ -1907,7 +2706,7 @@ async def get_ai_reading(
                     polished_reading=polished_reading,
                 )
 
-        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
         final_reading = final_polished if final_polished else deterministic_reading
         fallback_used = final_polished is None
@@ -1960,7 +2759,7 @@ async def get_ai_reading(
         raise
     except Exception as e:
         logger.exception("AI reading failed error_type=%s", type(e).__name__)
-        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks)
+        deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_reading = deterministic_reading
         final_polished = None
         result = {
@@ -2016,23 +2815,58 @@ def _extract_chapter_blocks_from_ai_reading(ai_reading: Any) -> dict[str, Any]:
 
 def _resolve_pdf_narrative_content(ai_reading: Any, language: str) -> dict[str, Any]:
     if not isinstance(ai_reading, dict):
-        return {"source": "none", "polished_text": None, "report_payload": None}
+        return {"source": "none", "polished_text": None, "report_payload": None, "error_codes": ["no_ai_reading"]}
 
     chapter_blocks = _extract_chapter_blocks_from_ai_reading(ai_reading)
     report_payload = {"chapter_blocks": chapter_blocks, "summary": ai_reading.get("summary")} if chapter_blocks else None
 
     chapter_blocks_hash = ai_reading.get("chapter_blocks_hash")
     polished_text = ai_reading.get("polished_reading") if isinstance(ai_reading.get("polished_reading"), str) else None
+    reading_text = ai_reading.get("reading") if isinstance(ai_reading.get("reading"), str) else None
     if (not isinstance(polished_text, str) or not polished_text.strip()) and isinstance(chapter_blocks_hash, str) and chapter_blocks_hash.strip():
         polished_cached = load_polished_reading_from_cache(chapter_blocks_hash=chapter_blocks_hash, language=language)
         if isinstance(polished_cached, str) and polished_cached.strip():
             polished_text = polished_cached
 
-    if isinstance(polished_text, str) and polished_text.strip():
-        return {"source": "polished", "polished_text": polished_text, "report_payload": report_payload}
+    # Source selection order:
+    # polished -> reading -> deterministic fallback.
+    # For each text source, apply remediation(%) and re-check style before fallback.
+    source_candidates: list[tuple[str, Optional[str]]] = [
+        ("polished", polished_text),
+        ("reading", reading_text),
+    ]
+    source_errors: dict[str, list[str]] = {}
+    for source_name, source_text in source_candidates:
+        if not isinstance(source_text, str) or not source_text.strip():
+            continue
+        normalized = normalize_llm_layout_strict(source_text)
+        remediated = _apply_style_remediation(normalized)
+        errors = _reading_style_error_codes(remediated)
+        if not errors:
+            # Treat both polished/reading text sources as narrative-first source
+            # to prevent deterministic block mixing in PDF body.
+            return {
+                "source": "polished",
+                "text_source": source_name,
+                "polished_text": remediated,
+                "report_payload": report_payload,
+                "error_codes": [],
+            }
+        source_errors[source_name] = errors
+
     if report_payload:
-        return {"source": "deterministic", "polished_text": None, "report_payload": report_payload}
-    return {"source": "none", "polished_text": None, "report_payload": None}
+        merged_errors: list[str] = []
+        for key in ("polished", "reading"):
+            for code in source_errors.get(key, []):
+                if code not in merged_errors:
+                    merged_errors.append(code)
+        return {
+            "source": "deterministic",
+            "polished_text": None,
+            "report_payload": report_payload,
+            "error_codes": merged_errors,
+        }
+    return {"source": "none", "polished_text": None, "report_payload": None, "error_codes": ["no_narrative_source"]}
 
 def convert_markdown_bold(text: str) -> str:
     """Convert **bold** to <b>bold</b> safely"""

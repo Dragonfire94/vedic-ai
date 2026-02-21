@@ -1,0 +1,15 @@
+{
+  "structural_integrity_score": 60,
+  "tone_alignment_score": 100,
+  "boilerplate_score": 100,
+  "density_score": 100,
+  "repetition_score": 100,
+  "overall_score": 88,
+  "flags": {
+    "missing_anchor": true,
+    "tone_inconsistency": false,
+    "boilerplate_detected": false,
+    "low_density": false,
+    "repetition_issue": false
+  }
+}

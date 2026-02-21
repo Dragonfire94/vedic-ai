@@ -468,7 +468,48 @@ def _extract_key_forecast_text(forecast_value: Any) -> str:
     return ""
 
 
-def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any]) -> list:
+_META_LINE_PATTERNS = [
+    re.compile(r"\bshadbala\b", re.IGNORECASE),
+    re.compile(r"\bavastha\b", re.IGNORECASE),
+    re.compile(r"^evidence:\s*", re.IGNORECASE),
+    re.compile(r"\bapproximate metrics\b", re.IGNORECASE),
+    re.compile(r"\bstrength axis\b", re.IGNORECASE),
+    re.compile(r"\b\d{1,3}%\b"),
+]
+
+_KO_BRIDGE_BY_CHAPTER = {
+    "Stability Metrics": [
+        "버티는 힘은 있는데, 무리하면 회복 속도가 눈에 띄게 느려질 수 있습니다.",
+        "지금은 크게 밀어붙이기보다 리듬을 고르게 맞추는 편이 더 유리합니다.",
+    ],
+    "Final Summary": [
+        "핵심은 더 많이 하는 것이 아니라 덜 소모되는 방식으로 가는 것입니다.",
+        "같은 상황에서도 선택을 조금만 바꾸면 흐름은 충분히 달라질 수 있습니다.",
+    ],
+}
+_KO_BRIDGE_FALLBACK = [
+    "지금은 결론을 서두르기보다 한 번 더 확인하고 가는 편이 안전합니다.",
+    "작은 조정을 반복하면 흐름은 생각보다 빠르게 안정됩니다.",
+]
+
+def _sanitize_customer_text_ko(chapter: str, text: str) -> str:
+    if not isinstance(text, str):
+        return ""
+    kept: list[str] = []
+    removed = 0
+    for line in text.splitlines():
+        if any(p.search(line) for p in _META_LINE_PATTERNS):
+            removed += 1
+            continue
+        kept.append(line)
+    cleaned = "\n".join(kept).strip()
+    if removed > 0 and len(cleaned) < 60:
+        bridge = _KO_BRIDGE_BY_CHAPTER.get(chapter, _KO_BRIDGE_FALLBACK)
+        cleaned = (cleaned + "\n\n" if cleaned else "") + "\n".join(bridge)
+    return cleaned
+
+
+def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config: dict[str, Any], language: str = "en") -> list:
     """Render deterministic report payload with chapter-aware PDF layout."""
     chapter_blocks = report_payload.get("chapter_blocks", {}) if isinstance(report_payload, dict) else {}
     if not isinstance(chapter_blocks, dict):
@@ -490,6 +531,8 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
     content_width = max(320.0, page_width - margin_left - margin_right)
     table_label_col = max(120.0, min(170.0, content_width * 0.30))
     table_value_col = max(180.0, content_width - table_label_col)
+    lang_ko = str(language or "en").lower().startswith("ko")
+
     summary_text = _extract_summary_text(report_payload.get("summary") if isinstance(report_payload, dict) else None)
     summary_box_style = ParagraphStyle(
         "KeyTakeawayLane",
@@ -540,58 +583,63 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
                 continue
 
             if "spike_text" in fragment:
-                elements.append(Paragraph(_sanitize_pdf_text(fragment.get("spike_text", "")), styles["InsightSpike"]))
-                elements.append(Spacer(1, 8))
+                spike = _sanitize_pdf_text(fragment.get("spike_text", ""))
+                if lang_ko:
+                    spike = _sanitize_customer_text_ko(chapter, spike)
+                if spike:
+                    elements.append(Paragraph(spike, styles["InsightSpike"]))
+                    elements.append(Spacer(1, 8))
                 continue
 
             key_forecast = _extract_key_forecast_text(fragment.get("key_forecast"))
             if key_forecast:
+                if lang_ko:
+                    key_forecast = _sanitize_customer_text_ko(chapter, key_forecast)
                 chapter_forecast_lines.extend(
-                    line.strip(" -•")
+                    line.strip(" -?")
                     for line in key_forecast.splitlines()
                     if isinstance(line, str) and line.strip()
                 )
-                forecast_table = Table(
-                    [[
-                        _to_pdf_paragraph("Forecast", styles["TableHeaderCell"]),
-                        Paragraph(convert_markdown_bold(_sanitize_pdf_text(key_forecast)), styles["Body"]),
-                    ]],
-                    colWidths=[table_label_col, table_value_col],
-                )
-                forecast_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (0, 0), forecast_color),
-                    ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#F5F3FF")),
-                    ('FONTNAME', (0, 0), (0, 0), PDF_FONT_BOLD),
-                    ('FONTNAME', (1, 0), (1, 0), PDF_FONT_REG),
-                    ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
-                    ('GRID', (0, 0), (-1, -1), 0.45, colors.HexColor("#C4B5FD")),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                    ('TOPPADDING', (0, 0), (-1, -1), 5),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
-                ]))
-                elements.append(forecast_table)
-                elements.append(Spacer(1, 7))
+                if not lang_ko:
+                    forecast_table = Table(
+                        [[
+                            _to_pdf_paragraph("Forecast", styles["TableHeaderCell"]),
+                            Paragraph(convert_markdown_bold(_sanitize_pdf_text(key_forecast)), styles["Body"]),
+                        ]],
+                        colWidths=[table_label_col, table_value_col],
+                    )
+                    forecast_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (0, 0), forecast_color),
+                        ('BACKGROUND', (1, 0), (1, 0), colors.HexColor("#F5F3FF")),
+                        ('FONTNAME', (0, 0), (0, 0), PDF_FONT_BOLD),
+                        ('FONTNAME', (1, 0), (1, 0), PDF_FONT_REG),
+                        ('TEXTCOLOR', (0, 0), (0, 0), colors.white),
+                        ('GRID', (0, 0), (-1, -1), 0.45, colors.HexColor("#C4B5FD")),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 5),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+                    ]))
+                    elements.append(forecast_table)
+                    elements.append(Spacer(1, 7))
 
             for field in ("title", "summary", "analysis", "implication", "examples", "micro_scenario", "long_term_projection"):
                 value = fragment.get(field)
                 if not value:
                     continue
-                if field == "title":
-                    style_name = "Subtitle"
-                elif field == "summary":
-                    style_name = "SummaryLead"
-                else:
-                    style_name = "Body"
-
-                if field in {"micro_scenario", "long_term_projection"}:
+                style_name = "Subtitle" if field == "title" else ("SummaryLead" if field == "summary" else "Body")
+                value = str(value)
+                if lang_ko:
+                    value = _sanitize_customer_text_ko(chapter, value)
+                    if not value:
+                        continue
+                if field in {"micro_scenario", "long_term_projection"} and not lang_ko:
                     value = f"{field.replace('_', ' ').title()}: {value}"
-                elif field == "examples":
+                elif field == "examples" and not lang_ko:
                     value = f"Practice Note: {value}"
                 elements.append(_to_pdf_paragraph(value, styles[style_name]))
 
-            # Soft divider between narrative cards for magazine-like rhythm.
             fragment_rule = Table([[""]], colWidths=[content_width], rowHeights=[0.4])
             fragment_rule.setStyle(TableStyle([
                 ('LINEABOVE', (0, 0), (-1, -1), 0.35, separator_color),
@@ -601,77 +649,76 @@ def render_report_payload_to_pdf(report_payload: dict[str, Any], styles, config:
 
             choice_fork = fragment.get("choice_fork")
             if isinstance(choice_fork, str) and choice_fork.strip():
-                elements.append(_to_pdf_paragraph(choice_fork, styles["Body"]))
+                text = _sanitize_customer_text_ko(chapter, choice_fork) if lang_ko else choice_fork
+                if text:
+                    elements.append(_to_pdf_paragraph(text, styles["Body"]))
             elif isinstance(choice_fork, dict):
-                path_a = choice_fork.get("path_a", {}) if isinstance(choice_fork.get("path_a"), dict) else {}
-                path_b = choice_fork.get("path_b", {}) if isinstance(choice_fork.get("path_b"), dict) else {}
-                table_rows = [
-                    [_to_pdf_paragraph("Path", styles["TableHeaderCell"]), _to_pdf_paragraph("Trajectory", styles["TableHeaderCell"])],
-                    [
-                        _to_pdf_paragraph(f"A: {path_a.get('label', '-')}", styles["TableBodyCell"]),
-                        _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("trajectory", "-")), styles["TableBodyCell"]),
-                    ],
-                    [
-                        _to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]),
-                        _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("emotional_cost", "-")), styles["TableBodyCell"]),
-                    ],
-                    [
-                        _to_pdf_paragraph(f"B: {path_b.get('label', '-')}", styles["TableBodyCell"]),
-                        _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("trajectory", "-")), styles["TableBodyCell"]),
-                    ],
-                    [
-                        _to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]),
-                        _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("emotional_cost", "-")), styles["TableBodyCell"]),
-                    ],
-                ]
-                choice_table = Table(table_rows, colWidths=[table_label_col, table_value_col])
-                choice_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), choice_color),
-                    ('BACKGROUND', (0, 1), (-1, -1), panel_bg),
-                    ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
-                    ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
-                    ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ]))
-                elements.append(choice_table)
+                if lang_ko:
+                    for line in _KO_BRIDGE_BY_CHAPTER.get(chapter, _KO_BRIDGE_FALLBACK):
+                        elements.append(_to_pdf_paragraph(line, styles["Body"]))
+                else:
+                    path_a = choice_fork.get("path_a", {}) if isinstance(choice_fork.get("path_a"), dict) else {}
+                    path_b = choice_fork.get("path_b", {}) if isinstance(choice_fork.get("path_b"), dict) else {}
+                    table_rows = [
+                        [_to_pdf_paragraph("Path", styles["TableHeaderCell"]), _to_pdf_paragraph("Trajectory", styles["TableHeaderCell"])],
+                        [_to_pdf_paragraph(f"A: {path_a.get('label', '-')}", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("trajectory", "-")), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(path_a.get("emotional_cost", "-")), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph(f"B: {path_b.get('label', '-')}", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("trajectory", "-")), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Emotional Cost", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(path_b.get("emotional_cost", "-")), styles["TableBodyCell"])],
+                    ]
+                    choice_table = Table(table_rows, colWidths=[table_label_col, table_value_col])
+                    choice_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), choice_color),
+                        ('BACKGROUND', (0, 1), (-1, -1), panel_bg),
+                        ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                        ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                        ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ]))
+                    elements.append(choice_table)
             elements.append(Spacer(1, 10))
 
             predictive = fragment.get("predictive_compression")
             if isinstance(predictive, dict):
-                predictive_rows = [
-                    [_to_pdf_paragraph("Window", styles["TableHeaderCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("window", "-"), max_chars=120), styles["TableBodyCell"])],
-                    [_to_pdf_paragraph("Dominant Theme", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("dominant_theme", "-")), styles["TableBodyCell"])],
-                    [_to_pdf_paragraph("Probability", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("probability_strength", "-"), max_chars=120), styles["TableBodyCell"])],
-                    [_to_pdf_paragraph("Warning", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("structural_warning", "-")), styles["TableBodyCell"])],
-                    [_to_pdf_paragraph("Alignment", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("recommended_alignment", "-")), styles["TableBodyCell"])],
-                ]
-                predictive_table = Table(predictive_rows, colWidths=[table_label_col, table_value_col])
-                predictive_table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, 0), (-1, 0), predictive_color),
-                    ('BACKGROUND', (0, 1), (-1, -1), table_alt),
-                    ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
-                    ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
-                    ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
-                    ('VALIGN', (0, 0), (-1, -1), 'TOP'),
-                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-                    ('LEFTPADDING', (0, 0), (-1, -1), 6),
-                    ('RIGHTPADDING', (0, 0), (-1, -1), 6),
-                    ('TOPPADDING', (0, 0), (-1, -1), 4),
-                    ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
-                ]))
-                elements.append(predictive_table)
-                elements.append(Spacer(1, 12))
+                if lang_ko:
+                    for line in _KO_BRIDGE_BY_CHAPTER.get(chapter, _KO_BRIDGE_FALLBACK):
+                        elements.append(_to_pdf_paragraph(line, styles["Body"]))
+                    elements.append(Spacer(1, 12))
+                else:
+                    predictive_rows = [
+                        [_to_pdf_paragraph("Window", styles["TableHeaderCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("window", "-"), max_chars=120), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Dominant Theme", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("dominant_theme", "-")), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Probability", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("probability_strength", "-"), max_chars=120), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Warning", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("structural_warning", "-")), styles["TableBodyCell"])],
+                        [_to_pdf_paragraph("Alignment", styles["TableBodyCell"]), _to_pdf_paragraph(_clip_pdf_cell_text(predictive.get("recommended_alignment", "-")), styles["TableBodyCell"])],
+                    ]
+                    predictive_table = Table(predictive_rows, colWidths=[table_label_col, table_value_col])
+                    predictive_table.setStyle(TableStyle([
+                        ('BACKGROUND', (0, 0), (-1, 0), predictive_color),
+                        ('BACKGROUND', (0, 1), (-1, -1), table_alt),
+                        ('FONTNAME', (0, 0), (-1, 0), PDF_FONT_BOLD),
+                        ('FONTNAME', (0, 1), (-1, -1), PDF_FONT_REG),
+                        ('GRID', (0, 0), (-1, -1), 0.5, separator_color),
+                        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+                        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                        ('LEFTPADDING', (0, 0), (-1, -1), 6),
+                        ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+                        ('TOPPADDING', (0, 0), (-1, -1), 4),
+                        ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+                    ]))
+                    elements.append(predictive_table)
+                    elements.append(Spacer(1, 12))
 
         compact_forecasts = [line for line in dict.fromkeys(chapter_forecast_lines) if line]
         if compact_forecasts:
-            elements.append(Paragraph("Forecast Snapshot", styles["Subtitle"]))
+            elements.append(Paragraph("?? ??" if lang_ko else "Forecast Snapshot", styles["Subtitle"]))
             for line in compact_forecasts[:3]:
-                elements.append(_to_pdf_paragraph(f"• {line}", styles["Small"]))
+                elements.append(_to_pdf_paragraph(f"? {line}", styles["Small"]))
             elements.append(Spacer(1, 10))
 
     return elements
@@ -717,26 +764,68 @@ def convert_markdown_bold(text: str) -> str:
     return re.sub(r"\*\*(.+?)\*\*", r"<b>\1</b>", text)
 
 
+# ── A-3: Korean structural-label suppression ──────────────────────────────────
+# Matches "라벨명: 내용" lines produced by the LLM.
+# The label prefix is dropped; the trailing content is kept as a Body paragraph.
+_KO_STRUCTURAL_LABEL_RE = re.compile(
+    r"^(중심 주제|내적 줄다리기|지치기 쉬운 패턴|지금 흐름의 초점"
+    r"|전략 제안(?:\(최종\))?|주의|경고|권장 프로그램"
+    r"|에너지 소모|장기 포지셔닝|현재의 직업적 맹점"
+    r"|감정 연결 방식|반복되는 갈등 구조|행동적 인식|성숙의 전환점"
+    r"|행동 패턴|행동적 누수 포인트|시스템 통찰"
+    r"|핵심 내부 갈등|자기방해 패턴|방어 루프|구조적 재프레이밍"
+    r"|한 문장 경고)\s*:\s*(.*)"
+)
+# Repetitive chapter-closing formula: "이 X 구조가 당신의 Y를 직접 만들어냅니다."
+_KO_CHAPTER_CLOSING_RE = re.compile(
+    r"^(이\s+.{2,50}|당신의\s+.{2,30}이\s+.{2,20})"
+    r"(만들어냅니다|연결됩니다|결정합니다|이어집니다|미칩니다|형성합니다"
+    r"|규정합니다|바꿉니다|줍니다)\s*\.?\s*$"
+)
+# "Chapter N — English: Korean" navigation labels (redundant with ### headings)
+_KO_CHAPTER_NAV_RE = re.compile(r"^Chapter\s+\d+\s*[—\-]")
+# ─────────────────────────────────────────────────────────────────────────────
+
+
 def parse_markdown_to_flowables(text: str, styles):
     """Convert markdown-like text into ReportLab flowables."""
     flowables = []
     lines = text.split('\n')
-    
+
     for line in lines:
         line = line.strip()
         if not line:
             flowables.append(Spacer(1, 0.2*cm))
             continue
-        
+
+        # A-3: suppress "Chapter N —" navigation labels (### heading follows)
+        if _KO_CHAPTER_NAV_RE.match(line):
+            continue
+
+        # A-3: suppress repetitive chapter-closing formula
+        if _KO_CHAPTER_CLOSING_RE.match(line):
+            continue
+
+        # A-3: strip structural label prefix, keep content as plain body text
+        label_m = _KO_STRUCTURAL_LABEL_RE.match(line)
+        if label_m:
+            content = label_m.group(2).strip()
+            if content:
+                flowables.append(Paragraph(convert_markdown_bold(content), styles["Body"]))
+            continue
+
         # Heading
         if line.startswith('### '):
             clean_line = line[4:].replace('**', '')  # Remove bold markers from headings
+            clean_line = re.sub(r'^\s*\[[^\]]+\]\s*', '', clean_line)
             flowables.append(Paragraph(clean_line, styles['Subtitle']))
         elif line.startswith('## '):
             clean_line = line[3:].replace('**', '')
+            clean_line = re.sub(r'^\s*\[[^\]]+\]\s*', '', clean_line)
             flowables.append(Paragraph(clean_line, styles['ChapterTitle']))
         elif line.startswith('# '):
             clean_line = line[2:].replace('**', '')
+            clean_line = re.sub(r'^\s*\[[^\]]+\]\s*', '', clean_line)
             flowables.append(Paragraph(clean_line, styles['ReportTitle']))
         # Semantic blocks
         elif semantic_match := re.match(r'^\*\*\[(!?[A-Z_]+)\]\*\*\s+(.*)$', line):
@@ -842,7 +931,57 @@ def generate_pdf_report(
             ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
         ]))
         story.append(birth_table)
-        story.append(Spacer(1, 0.5*cm))
+        story.append(Spacer(1, 0.18*cm))
+
+        # Read-me-first glossary card (layout-safe, page-1 onboarding)
+        if str(language or "ko").lower().startswith("ko"):
+            glossary_title = "읽기 전에, 이것만 알면 훨씬 편해집니다"
+            glossary_lines = [
+                "라후(Rahu): 마음이 \"더, 더\"를 외칠 때가 있어요. 욕심이 아니라 확장 욕구입니다.",
+                "케투(Ketu): 어느 순간 \"이건 내 길이 아닌 것 같아\"가 와요. 정리 본능입니다.",
+                "다샤(Dasha): 인생의 챕터 전환이에요. 같은 나라도, 강조점이 바뀝니다.",
+                "9행성(그라하): 당신 안의 여러 버튼들. 생각/감정/의지/관계/인내 같은 반응의 습관.",
+                "하우스(영역): 삶의 분야 지도. 어디에서 일이 자주 벌어지는지 보여줍니다.",
+                "출생 차트: \"운명 확정\"이 아니라, 나를 이해하는 설명서에 가깝습니다.",
+            ]
+            glossary_close = [
+                "당신이 바뀌는 게 아니라,",
+                "당신이 왜 그런 선택을 해왔는지가 먼저 보이게 될 거예요.",
+            ]
+        else:
+            glossary_title = "Read me first: six terms that make this report easier"
+            glossary_lines = [
+                "Rahu: the inner \"more, more\" impulse; expansion drive rather than greed.",
+                "Ketu: the \"this is not my path\" impulse; a pruning instinct.",
+                "Dasha: chapter shifts in life timing; emphasis changes over time.",
+                "Nine grahas: response buttons inside you - thought, feeling, will, bonds, endurance.",
+                "Houses: a life-area map showing where patterns repeat most.",
+                "Birth chart: not fate fixed forever, but a map for self-understanding.",
+            ]
+            glossary_close = [
+                "You do not need to become someone else.",
+                "You first see why your choices have repeated.",
+            ]
+
+        glossary_body_html = "<br/>".join(
+            [f"<b>{glossary_title}</b>", ""]
+            + glossary_lines
+            + [""]
+            + glossary_close
+        )
+        glossary_paragraph = Paragraph(glossary_body_html, styles["Body"])
+        glossary_table = Table([[glossary_paragraph]], colWidths=[14.5 * cm])
+        glossary_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, -1), panel_bg),
+            ('BOX', (0, 0), (-1, -1), 0.7, separator_color),
+            ('LEFTPADDING', (0, 0), (-1, -1), 8),
+            ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+            ('TOPPADDING', (0, 0), (-1, -1), 6),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+            ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+        ]))
+        story.append(glossary_table)
+        story.append(Spacer(1, 0.18*cm))
 
         # D1 chart
         story.append(Paragraph("D1 Chart (Rasi)", styles['ChapterTitle']))
@@ -897,7 +1036,12 @@ def generate_pdf_report(
 
         deterministic_elements: list[Any] = []
         if narrative_source != "polished" and isinstance(narrative_report_payload, dict):
-            deterministic_elements = render_report_payload_to_pdf(narrative_report_payload, styles, layout_config)
+            deterministic_elements = render_report_payload_to_pdf(
+                narrative_report_payload,
+                styles,
+                layout_config,
+                language=language,
+            )
             if deterministic_elements:
                 story.append(PageBreak())
                 story.extend(deterministic_elements)

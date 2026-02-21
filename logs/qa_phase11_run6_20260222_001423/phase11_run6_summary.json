@@ -1,0 +1,34 @@
+{
+  "run": "qa_phase11_run6_20260222_001423",
+  "targets": [
+    "highest_stability",
+    "lowest_stability",
+    "most_balanced"
+  ],
+  "rows": [
+    {
+      "profile_name": "highest_stability",
+      "seed": 33,
+      "pdf_path": "logs\\qa_phase11_run6_20260222_001423\\01_highest_stability\\highest_stability_20260222_001448.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run6_20260222_001423\\01_highest_stability\\highest_stability_20260222_001448.ai_reading.json",
+      "audit_score": 0,
+      "text_path": "logs\\qa_phase11_run6_20260222_001423\\01_highest_stability\\highest_stability_20260222_001448.extracted.txt"
+    },
+    {
+      "profile_name": "lowest_stability",
+      "seed": 36,
+      "pdf_path": "logs\\qa_phase11_run6_20260222_001423\\02_lowest_stability\\lowest_stability_20260222_001511.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run6_20260222_001423\\02_lowest_stability\\lowest_stability_20260222_001511.ai_reading.json",
+      "audit_score": 0,
+      "text_path": "logs\\qa_phase11_run6_20260222_001423\\02_lowest_stability\\lowest_stability_20260222_001511.extracted.txt"
+    },
+    {
+      "profile_name": "most_balanced",
+      "seed": 44,
+      "pdf_path": "logs\\qa_phase11_run6_20260222_001423\\03_most_balanced\\most_balanced_20260222_001544.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run6_20260222_001423\\03_most_balanced\\most_balanced_20260222_001544.ai_reading.json",
+      "audit_score": 0,
+      "text_path": "logs\\qa_phase11_run6_20260222_001423\\03_most_balanced\\most_balanced_20260222_001544.extracted.txt"
+    }
+  ]
+}

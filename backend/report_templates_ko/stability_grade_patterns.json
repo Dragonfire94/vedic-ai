@@ -1,1 +1,208 @@
-[]
+[
+  {
+    "id": "stability_high",
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "A"
+      }
+    ],
+    "logic": "AND",
+    "priority": 80,
+    "content": {
+      "title": "안정성 등급: 높음",
+      "summary": "현재 구조적 안정성이 강하며 스트레스 상황에서도 회복 가능성이 확보되어 있다.",
+      "analysis": "기초 회복력이 장기적이고 신중한 확약을 지지한다. 이 국면은 도전적 목표를 실행하기에 구조적으로 유리한 시기다.",
+      "implication": "이 창을 활용하여 지속 가능한 시스템을 공고히 할 것. 안정성이 확보된 시기에 장기 기반을 다져야 불안정 국면에서의 손실을 최소화한다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "stability_moderate",
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "B"
+      }
+    ],
+    "logic": "AND",
+    "priority": 70,
+    "content": {
+      "title": "안정성 등급: 보통",
+      "summary": "이 프로필은 간헐적 변동성 창이 있는 기능적 안정성을 나타낸다.",
+      "analysis": "일관성은 가능하지만 누적된 부하에 민감하다. 한꺼번에 여러 전선을 동시에 열면 안정성이 빠르게 소진될 수 있다.",
+      "implication": "리듬 관리와 경계 위생이 핵심이다. 보통 안정성 구간에서는 새로운 확약을 최소화하고 기존 의무를 우선 정리하는 것이 권장된다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "stability_low",
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {
+        "field": "stability_metrics.grade",
+        "operator": "==",
+        "value": "C"
+      }
+    ],
+    "logic": "AND",
+    "priority": 60,
+    "content": {
+      "title": "안정성 등급: 취약",
+      "summary": "이 구조는 누적 압박 국면에서 취약해질 가능성이 있다.",
+      "analysis": "회복 능력은 지속적인 과부하 아래서 빠르게 저하될 수 있다. 취약 등급 구간은 에너지와 시스템 모두 신중하게 다뤄야 하는 시기다.",
+      "implication": "보수적 페이스와 에너지 예산 관리가 보호 기능을 한다. 지금은 확장보다 보존의 시기다.",
+      "examples": ""
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": []
+  },
+  {
+    "id": "high_stability_fall",
+    "chapter": "Stability Metrics",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 45
+      }
+    ],
+    "logic": "AND",
+    "priority": 92,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "content": {
+      "title": "안정성 저하 창",
+      "summary": "현재 지표가 누적 긴장 아래에서 회복력 용량의 의미 있는 하락을 나타내고 있다.",
+      "analysis": "구조적 안정성이 낮아지면 원래라면 관리 가능했을 스트레스 요인들이 증폭되고 교정 속도가 느려진다. 이 국면에서 발생하는 손실은 정상 국면보다 복구에 더 오랜 시간이 걸린다.",
+      "implication": "보수적 부하 관리와 조기 개입 프로토콜이 권장된다. 지금 이 신호를 무시하면, 회복에 필요한 비용이 훨씬 커진다.",
+      "examples": "피로 상태에서는 사소한 중단도 계획과 실행 모두에서 불균형적인 혼란을 일으킬 수 있다."
+    }
+  },
+  {
+    "id": "burnout_compounding_pattern",
+    "chapter": "Health & Body Patterns",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 50
+      },
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 70
+      }
+    ],
+    "logic": "AND",
+    "priority": 86,
+    "content": {
+      "title": "번아웃 복합 패턴",
+      "summary": "심리적 긴장과 낮은 회복 안정성이 결합되어 점진적 소진으로 복합화될 수 있다.",
+      "analysis": "조기 부하 교정 없이는 스트레스 부채가 회복보다 빠르게 누적되어 신체적, 인지적 회복력 모두를 좁힌다. 회복 없는 지속은 능력의 증거가 아니라 구조적 위험이다.",
+      "implication": "지속 가능한 성과는 동기가 아니라 능동적 회복 구조를 필요로 한다. 지금 회복 리듬을 구축하지 않으면, 훨씬 긴 강제 회복 기간이 뒤따를 수 있다.",
+      "examples": "경고 신호에도 불구하고 강요된 일관성 기간이 지난 후 에너지 급락이 나타날 수 있다.",
+      "shadow_pattern": "자기 가치가 저하되는 여유에도 불구하고 출력 연속성에 묶여 있다.",
+      "defense_mechanism": "피로 부정과 보상적 과잉 추진.",
+      "emotional_trigger": "뒤처지거나 기대를 실망시킬 것이라는 두려움.",
+      "repetition_cycle": "과잉 확장 → 미시 회복 → 새로운 과잉 확장 → 더 급격한 충돌.",
+      "integration_path": "협상 불가능한 회복 임계점을 설정하고, 고위험 실행을 생물학적 준비 지표와 연결할 것.",
+      "choice_fork": "회복을 무시하면 번아웃 위험이 복합화된다. 한계를 존중하면 지속 가능한 모멘텀이 회복된다."
+    },
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "chain_followups": [],
+    "scaling_variants": {
+      "moderate": {
+        "analysis_extension": "중간 수준에서 소진은 명백한 붕괴보다 회복 품질 저하로 먼저 나타나는 경향이 있다.",
+        "implication_extension": "조기 페이스 조정은 정체성과 성과가 융합되기 전에 추세를 역전시킬 수 있다.",
+        "example_extension": "불일치한 수면 후에 평소 워크로드가 비정상적으로 무겁게 느껴질 수 있다."
+      },
+      "high": {
+        "analysis_extension": "고강도에서 회복 부채는 비선형적으로 복합화되어 회복력 여유를 좁히고 반응성을 증가시킨다.",
+        "implication_extension": "이 단계에서 생물학적 한계를 무시하면 높은 노력에도 불구하고 장기적 저성과로 이어질 수 있다.",
+        "example_extension": "강요된 출력의 짧은 폭발이 더 깊은 충돌로 이어지고 더 느린 기준 회복을 낳는다.",
+        "micro_scenario": "험난한 한 주를 과잉 추진으로 버텨내고, 업무와 개인 생활 모두를 흔드는 갑작스러운 소진이 뒤따른다.",
+        "long_term_projection": "지속되면 사이클이 만성 번아웃 패턴으로 굳어져 연장된 회복 창을 필요로 하게 된다."
+      }
+    }
+  },
+  {
+    "id": "burnout_threshold_insight",
+    "chapter": "Health & Body Patterns",
+    "conditions": [
+      {
+        "field": "stability_metrics.stability_index",
+        "operator": "<=",
+        "value": 52
+      },
+      {
+        "field": "psychological_tension_axis.score",
+        "operator": ">=",
+        "value": 68
+      }
+    ],
+    "logic": "AND",
+    "priority": 89,
+    "intensity_tiers": [
+      { "threshold": 0.7, "modifier": "strong" },
+      { "threshold": 0.4, "modifier": "moderate" }
+    ],
+    "insight_spike": {
+      "text": "당신의 규율이 듣기를 거부할 때, 몸이 먼저 말하기 시작한다.",
+      "min_intensity": 0.75
+    },
+    "chain_followups": [],
+    "content": {
+      "title": "번아웃 임계점 인사이트",
+      "summary": "회복 없는 지속적 강도는 규율을 시스템적 소진으로 전환시킬 수 있다.",
+      "analysis": "스트레스 부채가 회복을 앞지를 때, 인지와 신체 모두 과부하 신호로 회복력 저하를 알린다. 이 신호를 규율의 증거가 아닌 구조적 경고로 읽을 필요가 있다.",
+      "implication": "회복이 선택적 보상이 아닌 필수 입력으로 처리될 때 성과 품질이 향상된다. 지금 회복 구조를 만들지 않으면 나중에 더 긴 회복 기간을 치르게 된다.",
+      "examples": "지속적인 피로, 수면 분절, 과민함이 가시적 붕괴 전에 먼저 나타날 수 있다.",
+      "shadow_pattern": "지구력이 취약하지 않음의 증거로 오해된다.",
+      "defense_mechanism": "경고 신호를 최소화하면서 노력을 확대하는 패턴.",
+      "emotional_trigger": "관련성 또는 모멘텀을 잃을 것이라는 두려움.",
+      "repetition_cycle": "과잉 확장 → 신호 억제 → 출력 저하 → 공황적 노력 → 더 깊은 소진.",
+      "integration_path": "고출력 기간을 필수 회복 체크포인트와 연결할 것."
+    }
+  },
+  {
+    "id": "burnout_risk_window",
+    "chapter": "Stability Metrics",
+    "priority": 97,
+    "content": {
+      "title": "에너지 붕괴 위험 창",
+      "summary": "번아웃 확률이 안전한 구조적 임계값을 초과하고 있다.",
+      "analysis": "낮은 안정성 지수와 상승한 소진 확률이 결합되어 있다.",
+      "predictive_compression": {
+        "window": "향후 2년",
+        "dominant_theme": "에너지 보존 필요",
+        "probability_strength": "상승",
+        "structural_warning": "휴식을 무시하면 구조적 붕괴가 증폭될 수 있다.",
+        "recommended_alignment": "업무량을 재균형하고 회복 사이클을 강제 적용할 것."
+      }
+    }
+  }
+]

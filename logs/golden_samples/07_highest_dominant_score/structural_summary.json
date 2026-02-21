@@ -30,16 +30,16 @@
   },
   "dominant_house_cluster": 4,
   "purushartha_profile": {
-    "Dharma": 39,
-    "Artha": 11,
+    "Dharma": 40,
+    "Artha": 12,
     "Kama": 0,
-    "Moksha": 50,
+    "Moksha": 49,
     "dominant_purushartha": "Moksha",
     "quadrant_tags": {
       "Dharma": "balanced",
       "Artha": "underdeveloped",
       "Kama": "underdeveloped",
-      "Moksha": "dominant"
+      "Moksha": "balanced"
     }
   },
   "behavioral_risk_profile": {
@@ -85,7 +85,7 @@
     "discipline_index": 66.7,
     "attachment_intensity": 37.5,
     "authority_orientation": 20.85,
-    "risk_appetite": 66.2
+    "risk_appetite": 66.4
   },
   "probability_forecast": {
     "marriage_5yr": 0.193,
@@ -178,7 +178,7 @@
       },
       "Jupiter": {
         "band": "medium",
-        "total": 0.6323,
+        "total": 0.6317,
         "evidence_tags": [
           "Balanced Expression",
           "Directional Strength"
@@ -389,7 +389,7 @@
           "kendra_house:+1"
         ],
         "shadbala": {
-          "total": 0.6323,
+          "total": 0.6317,
           "band": "medium",
           "components": {
             "sthana": 0.58,
@@ -397,7 +397,7 @@
             "kala": 0.45,
             "chesta": 0.55,
             "naisargika": 0.57,
-            "drik": 0.644
+            "drik": 0.64
           },
           "evidence_tags": [
             "Balanced Expression",
@@ -561,8 +561,8 @@
         "name": "Raja Yoga",
         "strength": 0.75,
         "planets_involved": [
-          "Mercury",
-          "Venus"
+          "Venus",
+          "Mars"
         ],
         "status": "active",
         "reason_tags": [],
@@ -613,18 +613,18 @@
         "Moon->Saturn": 1.38,
         "Moon->Rahu": 0.69,
         "Moon->Ketu": 0.62,
-        "Mars->Sun": 0.3,
-        "Mars->Moon": 0.83,
+        "Mars->Sun": 0.31,
+        "Mars->Moon": 0.85,
         "Mars->Mercury": 0.0,
         "Mars->Jupiter": 0.0,
         "Mars->Venus": 0.0,
-        "Mars->Saturn": 0.68,
-        "Mars->Rahu": 0.58,
-        "Mars->Ketu": 0.89,
+        "Mars->Saturn": 0.7,
+        "Mars->Rahu": 0.6,
+        "Mars->Ketu": 0.92,
         "Mercury->Sun": 0.0,
         "Mercury->Moon": 0.0,
         "Mercury->Mars": 0.0,
-        "Mercury->Jupiter": 0.24,
+        "Mercury->Jupiter": 0.23,
         "Mercury->Venus": 0.0,
         "Mercury->Saturn": 0.0,
         "Mercury->Rahu": 0.0,
@@ -681,7 +681,7 @@
         "1": 5.83,
         "2": 5.33,
         "3": 0.0,
-        "4": 18.17,
+        "4": 17.17,
         "5": 6.67,
         "6": 0.0,
         "7": 0.0,
@@ -695,7 +695,7 @@
         "1": 5.83,
         "2": 5.33,
         "3": 0.0,
-        "4": 4.54,
+        "4": 4.29,
         "5": 6.67,
         "6": 0.0,
         "7": 0.0,
@@ -726,16 +726,16 @@
       ]
     },
     "purushartha_profile": {
-      "Dharma": 39,
-      "Artha": 11,
+      "Dharma": 40,
+      "Artha": 12,
       "Kama": 0,
-      "Moksha": 50,
+      "Moksha": 49,
       "dominant_purushartha": "Moksha",
       "quadrant_tags": {
         "Dharma": "balanced",
         "Artha": "underdeveloped",
         "Kama": "underdeveloped",
-        "Moksha": "dominant"
+        "Moksha": "balanced"
       }
     },
     "behavioral_risks": {
@@ -772,7 +772,7 @@
       "discipline_index": 66.7,
       "attachment_intensity": 37.5,
       "authority_orientation": 20.85,
-      "risk_appetite": 66.2
+      "risk_appetite": 66.4
     },
     "probability_forecast": {
       "marriage_5yr": 0.193,
@@ -865,7 +865,7 @@
         },
         "Jupiter": {
           "band": "medium",
-          "total": 0.6323,
+          "total": 0.6317,
           "evidence_tags": [
             "Balanced Expression",
             "Directional Strength"

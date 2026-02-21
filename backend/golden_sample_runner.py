@@ -252,7 +252,12 @@ def select_profiles(candidates: list[dict[str, Any]]) -> list[tuple[str, dict[st
     return out
 
 
-async def _run_llm_for_profile(profile_name: str, candidate: dict[str, Any]) -> dict[str, Any]:
+async def _run_llm_for_profile(
+    profile_name: str,
+    candidate: dict[str, Any],
+    *,
+    max_tokens: int = 2000,
+) -> dict[str, Any]:
     structural_summary = candidate["structural_summary"]
     narrative_mode = _derive_narrative_mode(structural_summary)
     semantic_signals = build_semantic_signals(structural_summary)
@@ -285,7 +290,7 @@ async def _run_llm_for_profile(profile_name: str, candidate: dict[str, Any]) -> 
                     request_id=f"golden_{candidate['seed']:02d}_{profile_name}",
                     chart_hash=f"golden_seed_{candidate['seed']:02d}",
                     endpoint="golden_sample_runner",
-                    max_tokens=2000,
+                    max_tokens=max_tokens,
                 ),
                 timeout=90,
             )

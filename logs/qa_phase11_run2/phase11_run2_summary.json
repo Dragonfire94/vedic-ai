@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-02-21T22:38:12.522921",
+  "targets": [
+    "highest_stability",
+    "lowest_stability",
+    "most_balanced"
+  ],
+  "rows": [
+    {
+      "profile_name": "highest_stability",
+      "status": "OK",
+      "seed": 33,
+      "stability_index": 12.71,
+      "risk_factor": 0.1867,
+      "opportunity_factor": 0.6067,
+      "influence_score": 0.6217,
+      "pdf_path": "logs\\qa_phase11_run2\\01_high_stability\\highest_stability_20260221_223704.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run2\\01_high_stability\\highest_stability_20260221_223704.ai_reading.json",
+      "text_path": "logs\\qa_phase11_run2\\01_high_stability\\highest_stability_20260221_223704.extracted.txt",
+      "forbidden_hits": 0
+    },
+    {
+      "profile_name": "lowest_stability",
+      "status": "OK",
+      "seed": 36,
+      "stability_index": 0.76,
+      "risk_factor": 0.5144,
+      "opportunity_factor": 0.2744,
+      "influence_score": 0.275,
+      "pdf_path": "logs\\qa_phase11_run2\\02_low_stability\\lowest_stability_20260221_223741.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run2\\02_low_stability\\lowest_stability_20260221_223741.ai_reading.json",
+      "text_path": "logs\\qa_phase11_run2\\02_low_stability\\lowest_stability_20260221_223741.extracted.txt",
+      "forbidden_hits": 0
+    },
+    {
+      "profile_name": "most_balanced",
+      "status": "OK",
+      "seed": 44,
+      "stability_index": 6.05,
+      "risk_factor": 0.3422,
+      "opportunity_factor": 0.47,
+      "influence_score": 0.4704,
+      "pdf_path": "logs\\qa_phase11_run2\\03_balanced\\most_balanced_20260221_223812.pdf",
+      "ai_reading_path": "logs\\qa_phase11_run2\\03_balanced\\most_balanced_20260221_223812.ai_reading.json",
+      "text_path": "logs\\qa_phase11_run2\\03_balanced\\most_balanced_20260221_223812.extracted.txt",
+      "forbidden_hits": 0
+    }
+  ],
+  "forbidden_pattern": "Shadbala|Avastha|Evidence:|Strength Axis|\\b\\d{1,3}%\\b",
+  "forbidden_hits_total": 0
+}

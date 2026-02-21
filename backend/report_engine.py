@@ -32,25 +32,51 @@ Provided with structured interpretation blocks for each chapter,
 your job is not to compute astrology.
 You are only to stitch the provided text fragments into a cohesive narrative.
 
-Constraints:
+Core intent:
+- This is a paid, reader-friendly self-understanding report.
+- Translate structured signals into lived, human Korean prose that feels like "this is about me".
+
+Constraints (hard):
 - Do NOT invent new astrology interpretations.
 - Do NOT add new causes or facts.
-- You must only refine and improve readability of the provided deterministic astrology report. Do not add, infer, or invent new astrological interpretation.
-- Write in a professional, analytical and coherent style.
-- Produce full-length, publication-grade detail in every chapter.
-- Do not compress chapters into short summaries.
-- Each chapter should have:
-    Title
-    Intro paragraph
-    At least 4 substantial paragraphs discussing the block content
-    Practical implications and application guidance
-    A concluding sentence tying it to the person's journey.
+- You must only refine and improve readability of the provided deterministic astrology report.
+  Do not add, infer, or invent new astrological interpretation.
+
+Tone and flow (commercial narrative):
+- Default tone: warm, direct, human. Avoid consultant/report voice.
+- Use the flow: Observation -> Empathy -> Pattern -> Insight -> Options.
+- Keep sentences readable and rhythmic. Avoid repetitive rigid templates.
+- Within each chapter:
+  - Start with ONE of: a question, a crisp insight, a vivid metaphor, or a self-recognition line.
+  - Include at least one standalone 1-sentence paragraph.
+  - Include one self-recognition prompt (e.g., "혹시 이런 장면이 반복되나요?").
+  - Options/advice: at most 2 sentences. Prefer gentle suggestions over commands.
+
+Hard bans (never output these):
+- Do not expose internal structural vocabulary or meta labels such as:
+  structure, axis, activation, stability index, volatility, vector, modifier, amplification,
+  risk_factor, opportunity_factor, dominant axis, psychological tension axis, house pressure,
+  activation intensity, structural momentum, any "index/score/%" style metrics.
+- Do not output probabilities, percentages, or numeric scores.
+  Use frequency language instead (e.g., "자주/가끔/특히 ~할 때").
+
+Astro identity (light touch):
+- Use familiar Korean zodiac sign language/metaphors naturally (예: 물병자리 같은 이미지).
+- Vedic-only terms should be minimal. If used, translate immediately in plain Korean.
+  (Prefer: "돌파 욕구(라후)", "정리 본능(케투)", "시기 흐름(다샤)" - first mention only.)
+- Avoid heavy technical terms unless absolutely necessary.
+
+Safety and realism:
+- No concrete event prediction. No dates/years claims. No fear marketing.
+- Keep claims grounded only in the provided blocks.
+- If evidence for a claim is weak, keep it brief and neutral rather than force intensity.
 
 Output format contract (deterministic):
 - Output must be Markdown text (no JSON).
 - Preserve deterministic chapter boundaries using level-2 markdown headings exactly as `## <Chapter Name>`.
 - Use the chapter heading list below in exact order with no omissions or renaming.
-- Within each chapter, include semantic emphasis markers where appropriate (e.g., `**Key Insight**`, `*Caution*`, `**Action**`) while keeping claims grounded only in provided blocks.
+- Within each chapter, you may include light emphasis markers only when helpful
+  (e.g., `**핵심 통찰**`, `*주의할 점*`, `**실행 단서**`), but avoid label-heavy formatting.
 
 Chapters to include in exact order:
 Executive Summary
@@ -259,12 +285,13 @@ def _load_template_file(path: Path) -> list[dict[str, Any]]:
 
 
 def _localized_ko_content(chapter: str, block_id: str) -> dict[str, Any]:
+    del block_id
     return {
-        "title": f"{chapter} - {block_id}",
-        "summary": f"현재 `{block_id}` 블록에 대한 한국어 템플릿이 없어 기본 요약을 표시합니다.",
-        "analysis": "세부 해석 템플릿이 준비되지 않아 일반 분석 문구로 대체되었습니다. 템플릿 파일을 보강하면 보다 정밀한 표현으로 자동 대체됩니다.",
-        "implication": "이 문단은 임시 대체 텍스트이며, 실제 서비스 품질을 위해 대응되는 한국어 블록을 report_templates_ko에 추가하는 것을 권장합니다.",
-        "examples": "예시: 템플릿 누락 시 기본 설명이 표시됩니다. 템플릿 추가 후에는 해당 문단이 맞춤 해석으로 교체됩니다.",
+        "title": str(chapter or "해석"),
+        "summary": "지금 흐름에서는 같은 장면이 반복되기 쉬우니, 반응보다 선택의 순서를 먼저 살펴보는 편이 좋습니다.",
+        "analysis": "크게 단정하기보다 현재 리듬을 가볍게 점검하면 방향이 더 선명해집니다.",
+        "implication": "",
+        "examples": "",
     }
 
 
@@ -517,12 +544,11 @@ def _render_payload_fragment(block: dict[str, Any], chapter: str, intensity: flo
         elif field == "predictive_compression":
             if isinstance(value, dict):
                 payload_block["predictive_compression"] = value
-                probability = value.get("probability_strength")
                 dominant_theme = value.get("dominant_theme")
                 window = value.get("window")
-                if isinstance(probability, str) and probability.strip() and isinstance(dominant_theme, str) and dominant_theme.strip():
+                if isinstance(dominant_theme, str) and dominant_theme.strip():
                     forecast_window = f" ({window})" if isinstance(window, str) and window.strip() else ""
-                    payload_block.setdefault("key_forecast", f"{dominant_theme}{forecast_window} 쨌 probability {probability}")
+                    payload_block.setdefault("key_forecast", f"{dominant_theme}{forecast_window} 흐름이 겹치는 구간")
         else:
             payload_block[field] = str(value)
 
@@ -661,95 +687,9 @@ def _inject_scenario_compression(
 
 
 def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: str) -> dict[str, Any] | None:
-    shadbala_summary = structural_summary.get("shadbala_summary")
-    if not isinstance(shadbala_summary, dict):
-        return None
-
-    by_planet = shadbala_summary.get("by_planet")
-    if not isinstance(by_planet, dict) or not by_planet:
-        return None
-
-    top3 = shadbala_summary.get("top3_planets")
-    if not isinstance(top3, list):
-        top3 = []
-
-    lines: list[str] = []
-    for planet in top3[:3]:
-        entry = by_planet.get(planet, {})
-        if not isinstance(entry, dict):
-            continue
-        band = str(entry.get("band", "medium"))
-        total = entry.get("total", 0.5)
-        avastha = str(entry.get("avastha_state", "madhya"))
-        tags = entry.get("evidence_tags", [])
-        tags_text = ", ".join([str(t) for t in tags if isinstance(t, str) and t.strip()][:3]) or "No dominant tag"
-        try:
-            total_text = f"{float(total):.2f}"
-        except (TypeError, ValueError):
-            total_text = "0.50"
-        lines.append(f"{planet}: {band.upper()} ({total_text}) | Avastha: {avastha} | Evidence: {tags_text}")
-
-    if not lines:
-        return None
-
-    top_planets_text = ", ".join([str(p) for p in top3[:3] if isinstance(p, str) and p]) or "No clear top cluster"
-    analysis = (
-        "Shadbala approximate metrics and Avastha state viewed together:\n"
-        + "\n".join(lines)
-    )
-
-    if chapter == "Stability Metrics":
-        return {
-            "id": "shadbala_avastha_snapshot_stability",
-            "chapter": chapter,
-            "priority": 95,
-            "_intensity": 0.82,
-            "content": {
-                "title": "Shadbala & Avastha Snapshot",
-                "summary": f"Top stabilizing planets: {top_planets_text}.",
-                "analysis": analysis,
-                "implication": (
-                    "Use stronger planets as execution anchors for timing cycles, and treat weaker-planet domains "
-                    "with stabilization and recovery before expansion."
-                ),
-                "examples": (
-                    "Evidence tags include Directional Strength, Exalted, Own Sign, Combust, and Retrograde. "
-                    "Interpretation emphasizes relative planetary hierarchy over single scalar scores."
-                ),
-            },
-        }
-    if chapter == "Final Summary":
-        return {
-            "id": "shadbala_avastha_snapshot_final",
-            "chapter": chapter,
-            "priority": 94,
-            "_intensity": 0.8,
-            "content": {
-                "title": "Final Synthesis: Strength Axis",
-                "summary": f"The primary strength axis converges on {top_planets_text}.",
-                "analysis": (
-                    "Top planets act as the center of execution and resilience, while weak-planet domains become volatile "
-                    "under overextension. Recommendations should be prioritized by this strong-weak structure."
-                ),
-                "implication": "Align major decisions to strong axes first, and approach weaker axes with staged correction.",
-            },
-        }
-    if chapter == "Remedies & Program":
-        return {
-            "id": "shadbala_avastha_snapshot_remedy",
-            "chapter": chapter,
-            "priority": 94,
-            "_intensity": 0.8,
-            "content": {
-                "title": "Remedy Priority by Shadbala",
-                "summary": "Set remedy priority as weak-planet stabilization first, then strong-planet overload prevention.",
-                "analysis": (
-                    "Start weak-planet correction with sleep, rhythm, and behavioral consistency. For strong planets, "
-                    "distribute excessive responsibility concentration to preserve global chart balance."
-                ),
-                "examples": "Begin with a two-week check cycle and adjust intensity according to observed band shifts.",
-            },
-        }
+    del structural_summary
+    del chapter
+    # Phase 13: disable this injection source to prevent meta/report-word leakage.
     return None
 
 
@@ -759,35 +699,11 @@ def _inject_shadbala_insight(
     chapter_meta: dict[str, list[dict[str, Any]]],
     chapter_limits: dict[str, int],
 ) -> None:
-    for chapter in ["Stability Metrics", "Final Summary", "Remedies & Program"]:
-        block = _build_shadbala_insight_block(structural_summary, chapter)
-        if not block:
-            continue
-        if chapter not in chapter_blocks or chapter not in chapter_meta:
-            continue
-        if any(existing.get("id") == block.get("id") for existing in chapter_meta[chapter]):
-            continue
-
-        chapter_limit = max(0, int(chapter_limits.get(chapter, 5)))
-        if chapter_limit == 0:
-            continue
-
-        intensity = block.get("_intensity", 0.0)
-        rendered = _render_payload_fragment(block, chapter, float(intensity))
-        if not rendered:
-            continue
-
-        existing = chapter_blocks[chapter]
-        meta = chapter_meta[chapter]
-        if len(existing) < chapter_limit:
-            existing.insert(0, rendered)
-            meta.insert(0, block)
-            continue
-
-        lowest_idx = min(range(len(meta)), key=lambda idx: float(meta[idx].get("_intensity", 0.0)))
-        if float(intensity) > float(meta[lowest_idx].get("_intensity", 0.0)):
-            existing[lowest_idx] = rendered
-            meta[lowest_idx] = block
+    del structural_summary
+    del chapter_blocks
+    del chapter_meta
+    del chapter_limits
+    return None
 
 
 def _append_unique_block(
@@ -1030,15 +946,15 @@ def _chapter_depth_stats(chapter_blocks: list[dict[str, Any]]) -> tuple[int, int
 
 def _planet_meaning_text(planet: str, ko_mode: bool) -> str:
     ko = {
-        "Sun": "Sun 우세는 자아 의식과 리더십을 강화하며 스스로 방향을 정해 움직이려는 성향을 높입니다.",
-        "Moon": "Moon 우세는 정서 감수성과 공감 반응을 강화해 관계와 분위기에 민감하게 반응하게 만듭니다.",
-        "Mars": "Mars 우세는 추진력과 독립성을 강화해 목표 달성을 위해 빠르게 행동하는 경향을 만듭니다.",
-        "Mercury": "Mercury 우세는 분석력과 언어적 판단력을 강화해 전략적 의사결정 정확도를 높입니다.",
-        "Jupiter": "Jupiter 우세는 확장성과 성장 지향성을 강화해 장기 기회 포착 능력을 높입니다.",
-        "Venus": "Venus 우세는 조화 감각과 관계 품질을 강화해 균형 중심의 선택을 선호하게 만듭니다.",
-        "Saturn": "Saturn 우세는 규율과 책임감을 강화하며 성과는 늦더라도 축적형 결과로 수렴하게 합니다.",
-        "Rahu": "Rahu 우세는 급진적 변화 추구를 강화해 빠른 성장 가능성과 변동 리스크를 함께 키웁니다.",
-        "Ketu": "Ketu 우세는 분리와 내적 재구성을 강화해 단순화와 본질 추구를 촉진합니다.",
+        "Sun": "Sun 기운이 강하면 스스로 기준을 세우고 앞에서 끌고 가려는 성향이 또렷해집니다.",
+        "Moon": "Moon 기운이 강하면 마음결이 섬세해지고 주변 분위기에 빠르게 반응하는 편입니다.",
+        "Mars": "Mars 기운이 강하면 망설이기보다 먼저 움직이며 속도감 있는 선택을 자주 하게 됩니다.",
+        "Mercury": "Mercury 기운이 강하면 생각을 정리하고 말로 풀어내는 힘이 좋아집니다.",
+        "Jupiter": "Jupiter 기운이 강하면 크게 보고 길게 준비하는 감각이 살아납니다.",
+        "Venus": "Venus 기운이 강하면 관계의 균형과 조화를 먼저 챙기려는 성향이 두드러집니다.",
+        "Saturn": "Saturn 기운이 강하면 천천히 쌓아 올리는 방식이 맞고, 버티는 힘이 길게 이어집니다.",
+        "Rahu": "Rahu 기운이 강하면 새 시도에 끌리며 확장 욕구가 강해지는 흐름이 나타납니다.",
+        "Ketu": "Ketu 기운이 강하면 복잡한 것을 덜어내고 본질에 집중하려는 마음이 커집니다.",
     }
     en = {
         "Sun": "Sun dominance strengthens identity and leadership, increasing self-directed agency.",
@@ -1145,16 +1061,16 @@ def _integrate_atomic_with_signals(atomic_text: str, structural_summary: dict[st
     extensions: list[str] = []
     dominant_planet = purpose.get("dominant_planet")
     if isinstance(dominant_planet, str) and dominant_planet.strip():
-        extensions.append(f"현재 구조에서는 {dominant_planet.strip()} 성향이 실행 방식과 선택 우선순위에 강하게 영향을 줍니다.")
+        extensions.append(f"요즘은 {dominant_planet.strip()} 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다.")
     stability_grade = stability.get("stability_grade") or stability.get("grade")
     if isinstance(stability_grade, str) and stability_grade.strip():
-        extensions.append(f"안정성 등급({stability_grade.strip()})은 변화 구간에서 반응 폭과 회복 속도를 함께 규정합니다.")
+        extensions.append("변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.")
     tension_axis = tension.get("axis")
     if isinstance(tension_axis, str) and tension_axis.strip():
-        extensions.append(f"심리 긴장 축({tension_axis.strip()})과 결합되면 관계 및 의사결정 국면에서 반복 패턴이 강화될 수 있습니다.")
+        extensions.append("마음속 줄다리기가 강해질 때는 관계와 결정에서 같은 장면이 반복되기 쉽습니다.")
     discipline = personality.get("discipline_index")
     if isinstance(discipline, (int, float)):
-        extensions.append("규율 지수와 결합된 구조에서는 단기 반응보다 누적 성과를 만들도록 행동 리듬을 고정하는 것이 유리합니다.")
+        extensions.append("짧게 몰아붙이기보다 일정한 리듬을 지키면 결과가 더 오래 유지됩니다.")
 
     if not extensions:
         return base
@@ -1951,6 +1867,42 @@ def build_semantic_signals(structural_summary: dict[str, Any]) -> dict[str, str]
         "risk_pattern": risk_pattern,
         "stability_band": stability_band,
         "intensity_profile": intensity_profile,
+    }
+
+
+def build_dasha_narrative_context(structural_summary: dict[str, Any]) -> dict[str, Any]:
+    """
+    Safe timing context builder for prompt-time narrative modulation.
+    Read-only helper: no engine/schema mutation.
+    """
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    vector = source.get("current_dasha_vector", {})
+    if not isinstance(vector, dict):
+        vector = {}
+
+    def _safe_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    maha = vector.get("mahadasha_lord")
+    antar = vector.get("antardasha_lord")
+    opportunity = _safe_float(vector.get("opportunity_factor", 0.5), 0.5)
+    risk = _safe_float(vector.get("risk_factor", 0.5), 0.5)
+    axis = vector.get("dominant_axis")
+
+    has_classical = bool(isinstance(maha, str) and maha.strip() and isinstance(antar, str) and antar.strip())
+    intensity = "high" if opportunity > 0.75 else "moderate" if opportunity > 0.55 else "low"
+    pressure = "elevated" if risk > 0.7 else "contained"
+
+    return {
+        "has_classical_lords": has_classical,
+        "mahadasha": maha if isinstance(maha, str) and maha.strip() else None,
+        "antardasha": antar if isinstance(antar, str) and antar.strip() else None,
+        "activation_intensity": intensity,
+        "pressure_level": pressure,
+        "dominant_axis": axis if isinstance(axis, str) and axis.strip() else "general",
     }
 
 
