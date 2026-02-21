@@ -451,3 +451,88 @@ Engine marked production-safe.
 - Validation A: `python -m backend.stress_test_engine` PASS
 - Validation B (forced): temporary `ENGINE_VERSION = "9.9.9"` produced `ENGINE INTEGRITY FAILURE` as expected
 - Validation C (rollback): restored `ENGINE_VERSION = "1.0.1"`, stress test PASS
+## Semantic Narrative Layer (v1.1.0-pre)
+
+- Added `build_semantic_signals(structural_summary)` in `backend/report_engine.py`
+- Semantic signals are generated from activation proxy (`opportunity_factor`), `risk_factor`, and `stability_index`
+- Added safe numeric conversion fallback to prevent prompt-path runtime errors on non-numeric inputs
+- Integrated semantic signals into LLM-only path in `backend/llm_service.py`
+- Updated `build_llm_structural_prompt(..., semantic_signals=None)` with backward-compatible default
+- Injected `Semantic Narrative Modulation Signals` into prompt (internal modulation cues only)
+- No `astro_engine` logic changes, no API schema changes
+- Validation: `python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"` PASS
+- Validation: `python -c "from backend.main import app; print('OK')"` PASS
+- Validation: `python -m backend.stress_test_engine` PASS
+## Phase 5 - Narrative Control Layer Hardening (v1.1.0-pre)
+
+- Added `_derive_narrative_mode(structural_summary)` in `backend/llm_service.py`
+- Added `_build_structural_executive_summary(structural_summary)` in `backend/llm_service.py`
+- Updated `refine_reading_with_llm()` to derive `narrative_mode` and pass `executive_summary`
+- Added safe semantic signal handling: `raw_signals` -> dict-coerced `semantic_signals`
+- Added amplification bias mapping by narrative mode (`positive`/`cautionary`/`intense`/`balanced`)
+- Extended `build_llm_structural_prompt(..., narrative_mode=None, executive_summary=None)` with backward-compatible defaults
+- Inserted prompt control sections in order: Narrative Mode -> Structural Executive Overview -> Chapter Emphasis Guide -> Semantic Signals -> Raw Structural JSON
+- No changes to `backend/astro_engine.py`, `backend/stress_test_engine.py`, or `backend/engine_integrity.py`
+- Validation: `python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"` PASS
+- Validation: `python -c "from backend.main import app; print('OK')"` PASS
+- Validation: `python -m backend.stress_test_engine` PASS
+## Phase 6 - Narrative Consistency Lock (v1.1.0-pre)
+
+- Updated prompt control sections in `backend/llm_service.py` with enforced ordering
+- Added `GLOBAL NARRATIVE CONTINUITY RULE` to prevent chapter-to-chapter tone inversion
+- Added revised `STRUCTURAL ANCHOR REQUIREMENTS` with anti-repetition constraints and Korean numeric formatting guidance
+- Added `EXECUTIVE OVERVIEW ANCHOR RULE` to force first-chapter structural anchoring
+- Added `CHAPTER STRUCTURAL BINDING RULES` to bind chapter themes to structural signals
+- Added `LOGICAL CONSISTENCY GUARD` and `STRUCTURAL ECHO CONSTRAINT`
+- Renamed final structural section label to `Raw Structural JSON`
+- No changes to astro engine logic, schema, or distribution behavior
+- Validation: `python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"` PASS
+- Validation: `python -c "from backend.main import app; print('OK')"` PASS
+- Validation: `python -m backend.stress_test_engine` PASS
+## Phase 6.1 - Korean-Aware LLM Output Quality Auditor
+
+- Added `audit_llm_output(response_text, structural_summary)` in `backend/llm_service.py` (log-only)
+- Implemented Korean-aware checks for structural anchors, tone alignment, boilerplate, density, and repetition
+- Added dominant-axis fallback keyword `axis` to reduce false negatives in anchor detection
+- Integrated audit hook in `refine_reading_with_llm()` after text normalization
+- Added audit logging: `[LLM AUDIT] ...` and warning threshold at overall score < 75
+- No API response/schema changes and no text regeneration behavior added
+- Validation: `python -c "from backend.llm_service import audit_llm_output; print('OK')"` PASS
+- Validation: `python -c "from backend.main import app; print('OK')"` PASS
+- Validation: `python -m backend.stress_test_engine` PASS
+## Golden Sample Runner - Phase A (Structural Only)
+
+- Updated `backend/golden_sample_runner.py` to skip all LLM execution paths
+- Replaced per-profile LLM block with structural-only stub (`llm_status=SKIPPED_STRUCTURAL_ONLY`)
+- Removed LLM-related imports/functions from runner to prevent OpenAI call attempts in runner logic
+- Preserved structural outputs: `structural_summary.json`, `debug_metrics.json`, `summary_index.json`
+- Validation: `python -m backend.golden_sample_runner` completed with exit code 0
+- Validation: 12 profiles selected and all `llm_status` values are `SKIPPED_STRUCTURAL_ONLY`
+## Golden Runner Mode Split v1.2
+
+- Added CLI mode parsing in `backend/golden_sample_runner.py` with `--mode {structural,full}`
+- Updated runner signature to `run_golden_sample_generation(mode: str = "structural")`
+- Added mode-based profile branch:
+  - `structural`: skips all LLM calls, writes `llm_status=SKIPPED_STRUCTURAL_ONLY`
+  - `full`: preserves LLM + audit execution path
+- Preserved structural selection logic and summary schema
+- Added `Execution mode: <mode>` console output
+- Validation: structural mode run succeeded (12 profiles, LLM success 0)
+- Validation: full mode run succeeded (12 profiles, LLM success 12)
+## Prompt Compression v1.3.1 (Safe Mapping)
+
+- Updated `build_llm_structural_prompt()` in `backend/llm_service.py` only
+- Removed redundant long rule layers and replaced with compact unified instruction blocks
+- Added defensive compressed signal mapping with fallback chains
+- Added psychological axis normalization (`list` -> joined string) for stable prompt injection
+- Replaced full structural JSON injection with compact `compressed_signals` JSON
+- Preserved function signatures and runtime schema behavior
+- Validation: `python -c "from backend.llm_service import build_llm_structural_prompt; print('OK')"` PASS
+- Validation: `python -m backend.golden_sample_runner --mode full` PASS (12/12 LLM OK)
+- Observed audit average in this run: 82.0 (below prior >=85 target, requires prompt tuning)
+## Persona Lock 적용 (Prompt)
+- backend/llm_service.py build_llm_structural_prompt()에 VOICE & TONE 상단 PERSONA LOCK 추가
+- 중복 지시를 최소화하고 기존 전략 코치 규칙과 충돌 없이 통합
+- 순서 규칙은 '각 챕터 내 기본 흐름'으로 완화해 챕터 구조 지시와 충돌 방지
+- 검증: build_llm_structural_prompt import OK
+- 검증: golden_sample_runner structural 모드 실행 OK (LLM 호출 없음)

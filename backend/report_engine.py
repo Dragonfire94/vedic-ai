@@ -1888,6 +1888,72 @@ def _has_manual_template_override() -> bool:
     return (TEMPLATES is not cached_templates) or (DEFAULT_BLOCKS is not cached_defaults)
 
 
+def build_semantic_signals(structural_summary: dict[str, Any]) -> dict[str, str]:
+    """Build narrative modulation signals without changing engine outputs."""
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    vector = source.get("current_dasha_vector", {}) if isinstance(source.get("current_dasha_vector"), dict) else {}
+    stability_metrics = source.get("stability_metrics", {}) if isinstance(source.get("stability_metrics"), dict) else {}
+
+    def _safe_float(value: Any, default: float) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    activation = _safe_float(vector.get("opportunity_factor", 0.0), 0.0)
+    risk = _safe_float(vector.get("risk_factor", 0.0), 0.0)
+    stability = _safe_float(stability_metrics.get("stability_index", 50.0), 50.0)
+
+    if activation >= 0.85:
+        influence_band = "peak_alignment"
+    elif activation >= 0.65:
+        influence_band = "breakthrough_window"
+    elif activation >= 0.45:
+        influence_band = "high_activation"
+    elif activation >= 0.25:
+        influence_band = "activation"
+    else:
+        influence_band = "dormant"
+
+    if risk > 0.6 and activation > 0.6:
+        risk_pattern = "crucible_phase"
+    elif risk > 0.6:
+        risk_pattern = "stress_load"
+    elif activation > 0.6:
+        risk_pattern = "expansion_window"
+    else:
+        risk_pattern = "neutral_cycle"
+
+    if stability >= 75:
+        stability_band = "structural_strong"
+    elif stability >= 55:
+        stability_band = "structural_stable"
+    elif stability >= 40:
+        stability_band = "structural_fragile"
+    else:
+        stability_band = "structural_volatile"
+
+    intensity_score = (
+        activation * 0.5 +
+        risk * 0.3 +
+        (1.0 - stability / 100.0) * 0.2
+    )
+
+    if intensity_score >= 0.7:
+        intensity_profile = "high_drama"
+    elif intensity_score >= 0.5:
+        intensity_profile = "elevated"
+    else:
+        intensity_profile = "measured"
+
+    return {
+        "influence_band": influence_band,
+        "risk_pattern": risk_pattern,
+        "stability_band": stability_band,
+        "intensity_profile": intensity_profile,
+    }
+
+
 def select_template_blocks(structural_summary: dict[str, Any], language: str | None = None) -> dict[str, list[dict[str, Any]]]:
     if isinstance(language, str) and language.strip():
         _set_active_language(language)

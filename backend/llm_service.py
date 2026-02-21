@@ -1,11 +1,183 @@
 ﻿import os
 import logging
+import re
 from typing import Any, Optional
 
-from backend.report_engine import _get_atomic_chart_interpretations
+from backend.report_engine import _get_atomic_chart_interpretations, build_semantic_signals
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
 logger = logging.getLogger("vedic_ai")
+
+
+def _derive_narrative_mode(structural_summary: dict[str, Any]) -> str:
+    stability = structural_summary.get("stability_metrics", {}) if isinstance(structural_summary, dict) else {}
+    forecast = structural_summary.get("probability_forecast", {}) if isinstance(structural_summary, dict) else {}
+    tension_axis = structural_summary.get("psychological_tension_axis") if isinstance(structural_summary, dict) else None
+
+    try:
+        stability_index = float(stability.get("stability_index", 50))
+    except Exception:
+        stability_index = 50.0
+
+    try:
+        burnout = float(forecast.get("burnout_2yr", 0))
+    except Exception:
+        burnout = 0.0
+
+    try:
+        career_shift = float(forecast.get("career_shift_3yr", 0))
+    except Exception:
+        career_shift = 0.0
+
+    tension_strength = len(tension_axis) if isinstance(tension_axis, list) else 0
+
+    if stability_index >= 65 and burnout <= 0.4:
+        return "expansion_window"
+    if burnout >= 0.7 and stability_index <= 50:
+        return "pressure_window"
+    if tension_strength >= 2 and stability_index < 60:
+        return "high_drama"
+    if career_shift >= 0.65:
+        return "transition_window"
+    return "measured_growth"
+
+
+def _build_structural_executive_summary(structural_summary: dict[str, Any]) -> str:
+    stability = structural_summary.get("stability_metrics", {}) if isinstance(structural_summary, dict) else {}
+    purpose = structural_summary.get("life_purpose_vector", {}) if isinstance(structural_summary, dict) else {}
+    forecast = structural_summary.get("probability_forecast", {}) if isinstance(structural_summary, dict) else {}
+    tension_axis = structural_summary.get("psychological_tension_axis") if isinstance(structural_summary, dict) else None
+
+    dominant = purpose.get("dominant_planet", "N/A")
+    stability_index = stability.get("stability_index", "N/A")
+
+    if isinstance(tension_axis, list) and tension_axis:
+        tension_text = " ↔ ".join(str(x) for x in tension_axis)
+    else:
+        tension_text = "None"
+
+    try:
+        career_shift = float(forecast.get("career_shift_3yr", 0))
+        career_shift_pct = f"{int(career_shift * 100)}%"
+    except Exception:
+        career_shift_pct = "N/A"
+
+    try:
+        burnout = float(forecast.get("burnout_2yr", 0))
+        burnout_pct = f"{int(burnout * 100)}%"
+    except Exception:
+        burnout_pct = "N/A"
+
+    return f"""
+[Structural Executive Overview]
+
+Dominant Force: {dominant}
+Stability Index: {stability_index}
+Core Tension Axis: {tension_text}
+Career Shift Probability (3yr): {career_shift_pct}
+Burnout Risk (2yr): {burnout_pct}
+
+Use this overview as the primary narrative anchor.
+"""
+
+
+def audit_llm_output(response_text: str, structural_summary: dict[str, Any]) -> dict[str, Any]:
+    """Korean-aware structural audit for generated LLM output (log-only)."""
+    text = response_text if isinstance(response_text, str) else ""
+    summary = structural_summary if isinstance(structural_summary, dict) else {}
+    current_dasha = summary.get("current_dasha_vector", {}) if isinstance(summary.get("current_dasha_vector"), dict) else {}
+    dominant_axis = current_dasha.get("dominant_axis")
+
+    try:
+        risk_factor = float(current_dasha.get("risk_factor", 0.0))
+    except Exception:
+        risk_factor = 0.0
+    try:
+        opportunity_factor = float(current_dasha.get("opportunity_factor", 0.0))
+    except Exception:
+        opportunity_factor = 0.0
+
+    dominant_keywords = ["지배", "핵심 축", "주도 에너지", "강하게 작용", "중심 흐름", "axis"]
+    stability_keywords = ["안정성", "기반", "균형", "흐름의 안정", "기초 체력"]
+    risk_keywords = ["주의", "경고", "긴장", "압박", "위험"]
+    optimistic_keywords = ["호재", "확장", "성장", "기회", "상승"]
+    pessimistic_keywords = ["위기", "추락", "붕괴", "강한 충돌", "손실"]
+    boilerplate_markers = ["AI로서", "모든 사람은 다르다", "참고용입니다", "일반적인 해석"]
+    structural_refs = ["구조", "패턴", "흐름", "에너지", "축", "주기"]
+
+    dominant_present = True
+    if dominant_axis:
+        dominant_present = any(keyword in text for keyword in dominant_keywords)
+    stability_present = any(keyword in text for keyword in stability_keywords)
+
+    risk_ack = True
+    if risk_factor > 0.6:
+        risk_ack = any(keyword in text for keyword in risk_keywords)
+
+    missing_anchor = (not dominant_present) or (not stability_present)
+
+    optimistic_count = sum(text.count(keyword) for keyword in optimistic_keywords)
+    pessimistic_count = sum(text.count(keyword) for keyword in pessimistic_keywords)
+    tone_inconsistency = False
+    if opportunity_factor > 0.7 and pessimistic_count >= optimistic_count + 2:
+        tone_inconsistency = True
+    if risk_factor > 0.7 and optimistic_count >= pessimistic_count + 2:
+        tone_inconsistency = True
+    if not risk_ack:
+        tone_inconsistency = True
+
+    boilerplate_detected = any(marker in text for marker in boilerplate_markers)
+
+    heading_count = text.count("##")
+    text_length = len(text)
+    structural_ref_count = sum(1 for keyword in structural_refs if keyword in text)
+    low_density = (heading_count < 6) or (text_length < 3500) or (structural_ref_count < 3)
+
+    clean_text = re.sub(r"\s+", " ", text).strip()
+    sentences = [s.strip() for s in re.split(r"[.!?\n]+", clean_text) if s.strip()]
+    sentence_counts: dict[str, int] = {}
+    for sentence in sentences:
+        if len(sentence) <= 20:
+            continue
+        sentence_counts[sentence] = sentence_counts.get(sentence, 0) + 1
+    repetition_issue = any(count > 2 for count in sentence_counts.values())
+
+    structural_integrity_score = 100
+    if missing_anchor:
+        structural_integrity_score -= 40
+    if not risk_ack:
+        structural_integrity_score -= 20
+    structural_integrity_score = max(0, min(100, structural_integrity_score))
+
+    tone_alignment_score = 100 if not tone_inconsistency else 45
+    boilerplate_score = 100 if not boilerplate_detected else 35
+    density_score = 100 if not low_density else 40
+    repetition_score = 100 if not repetition_issue else 45
+
+    overall_score = int(round(
+        structural_integrity_score * 0.30
+        + tone_alignment_score * 0.25
+        + density_score * 0.20
+        + boilerplate_score * 0.15
+        + repetition_score * 0.10
+    ))
+
+    return {
+        "structural_integrity_score": int(structural_integrity_score),
+        "tone_alignment_score": int(tone_alignment_score),
+        "boilerplate_score": int(boilerplate_score),
+        "density_score": int(density_score),
+        "repetition_score": int(repetition_score),
+        "overall_score": int(max(0, min(100, overall_score))),
+        "flags": {
+            "missing_anchor": bool(missing_anchor),
+            "tone_inconsistency": bool(tone_inconsistency),
+            "boilerplate_detected": bool(boilerplate_detected),
+            "low_density": bool(low_density),
+            "repetition_issue": bool(repetition_issue),
+        },
+    }
+
 
 async def refine_reading_with_llm(
     *,
@@ -31,6 +203,18 @@ async def refine_reading_with_llm(
 
     validated = validate_blocks_fn(chapter_blocks if isinstance(chapter_blocks, dict) else {})
     structural_payload = build_ai_input_fn({"structural_summary": structural_summary})
+    raw_signals = build_semantic_signals(structural_summary if isinstance(structural_summary, dict) else {})
+    semantic_signals = dict(raw_signals) if isinstance(raw_signals, dict) else {}
+    narrative_mode = _derive_narrative_mode(structural_summary if isinstance(structural_summary, dict) else {})
+    if narrative_mode in ("expansion_window", "transition_window"):
+        semantic_signals["amplification_bias"] = "positive"
+    elif narrative_mode == "pressure_window":
+        semantic_signals["amplification_bias"] = "cautionary"
+    elif narrative_mode == "high_drama":
+        semantic_signals["amplification_bias"] = "intense"
+    else:
+        semantic_signals["amplification_bias"] = "balanced"
+    executive_summary = _build_structural_executive_summary(structural_summary if isinstance(structural_summary, dict) else {})
     atomic_interpretations = _get_atomic_chart_interpretations(structural_summary if isinstance(structural_summary, dict) else {})
     system_message = "Follow the user prompt exactly."
     user_message = build_llm_structural_prompt(
@@ -38,6 +222,9 @@ async def refine_reading_with_llm(
         language=language,
         atomic_interpretations=atomic_interpretations,
         chapter_blocks=validated,
+        semantic_signals=semantic_signals,
+        narrative_mode=narrative_mode,
+        executive_summary=executive_summary,
     )
     chapter_blocks_hash = compute_hash_fn(validated)
     selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
@@ -82,6 +269,10 @@ async def refine_reading_with_llm(
                     f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
                 )
             response_text = normalize_paragraphs_fn(response_text, max_chars=300)
+            audit_report = audit_llm_output(response_text, structural_summary)
+            logger.info("[LLM AUDIT] score=%s flags=%s", audit_report.get("overall_score"), audit_report.get("flags"))
+            if int(audit_report.get("overall_score", 0)) < 75:
+                logger.warning("[LLM AUDIT WARNING] Quality below threshold.")
             model_used = f"openai/{candidate_model}"
             emit_audit_fn(
                 request_id=request_id,
@@ -120,104 +311,167 @@ def build_llm_structural_prompt(
     language: str,
     atomic_interpretations: dict[str, str] | None = None,
     chapter_blocks: dict | None = None,
+    semantic_signals: dict[str, Any] | None = None,
+    narrative_mode: str | None = None,
+    executive_summary: str | None = None,
 ) -> str:
     import json
 
     atomic = atomic_interpretations if isinstance(atomic_interpretations, dict) else {}
+    signals = dict(semantic_signals) if isinstance(semantic_signals, dict) else {}
+    mode = str(narrative_mode).strip() if isinstance(narrative_mode, str) and narrative_mode.strip() else "measured_growth"
+    overview = executive_summary if isinstance(executive_summary, str) else ""
     asc_text = str(atomic.get("asc", "")).strip()
     sun_text = str(atomic.get("sun", "")).strip()
     moon_text = str(atomic.get("moon", "")).strip()
     blocks_json = json.dumps(chapter_blocks, indent=2, ensure_ascii=False) if chapter_blocks else "{}"
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    current_vector = source.get("current_dasha_vector") or {}
+    if not isinstance(current_vector, dict):
+        current_vector = {}
+    psych_axis = source.get("psychological_tension_axis")
+    if isinstance(psych_axis, list):
+        psych_axis_norm = " ↔ ".join(str(x) for x in psych_axis if str(x).strip())
+    else:
+        psych_axis_norm = psych_axis
+    dominant_axis = (
+        current_vector.get("dominant_axis")
+        or source.get("dominant_axis")
+        or psych_axis_norm
+    )
+    compressed_signals = {
+        "dominant_axis": dominant_axis,
+        "current_theme": current_vector.get("current_theme"),
+        "risk_signal": signals.get("risk_pattern") or signals.get("risk_band") or None,
+        "influence_signal": signals.get("influence_band") or signals.get("activation_band") or None,
+        "stability_signal": signals.get("stability_band") or signals.get("stability_profile") or None,
+    }
 
     return f"""
-You are a wise, warm, and brutally honest Korean astrologer, like a brilliant older sibling who truly cares and
-is not afraid to tell the truth.
+STRATEGIC ASTROLOGICAL COACH SYSTEM
 
-Your task is to read the structural data below and write a deeply personal, story-driven Vedic astrology report in
-Korean. This is NOT a consulting report. It should read like a heartfelt and insightful conversation.
+VOICE & TONE
 
-VOICE & TONE (CRITICAL):
-- Write in natural, flowing Korean. Casual but sincere, closer to "솔직히 말할게요" than "분석 결과".
-- Address the reader directly as "당신" throughout.
-- Use vivid Korean metaphors and analogies (e.g., "밑 빠진 독에 물 붓기", "엔진은 좋은데 핸들이 없는 차").
-- Be honest about weaknesses, but always with warmth and a realistic path forward.
-- Predictions must be strong and specific: include timeframes (e.g., "앞으로 1~2년"), concrete patterns, and what to watch.
-- Never use empty lines like "기회와 위험이 공존합니다".
-- In chapter openings, naturally weave astrology-linked identity cues in plain Korean.
-  Example style: "전갈자리 기질이 강한 당신은...", "달의 결이 예민한 당신은..."
-  Do this naturally in multiple chapters so the text clearly feels like an astrology report.
-- Prefer structure-first language over direct zodiac marketing tone.
-  Use direct zodiac labels sparingly, and only when they clearly match the chart logic.
-  Better style: "전통에 반응하는 사고 구조", "기존 질서에 질문을 던지는 경향".
-- You MAY reference chart placements, but ONLY as everyday
-  language - never as jargon.
-  Good: "전갈자리 기질이 강한 당신은 본능적으로 상대의 숨겨진 면을 감지한다"
-  Good: "태양이 감수성 강한 자리에 있어서, 당신은 칭찬보다 인정에 더 목말라 있다"
-  Good: "달의 위치가 말과 정보 쪽이라 감정을 글이나 대화로 풀어야 편안해진다"
-  Bad:  "태양이 게자리 9하우스에 위치하여 종교적 성향이 강합니다" (jargon)
-  Bad:  "라후가 전갈자리 1하우스에 있어 정체성 혼란이 있습니다" (jargon)
-- Use chart signals to make the reader feel "이게 나 얘기잖아"
-  - not to educate them about astrology.
+### PERSONA LOCK
+당신은 감성 위로형 상담사가 아니다.
+당신은 카르마 구조를 분석하고
+현실적인 선택 전략을 제시하는 전략 코치형 점성가다.
 
-STRUCTURE:
-- Write exactly 15 chapters.
-- Each chapter must be substantial: minimum 3 paragraphs,
-  each paragraph minimum 4~6 sentences.
-- Total report length must be at least 4,000 Korean characters.
-  The life timeline, career, and love chapters must each be
-  at least 600 characters on their own.
-- Do NOT compress or summarize. Expand every point fully.
-- Each chapter must start with a creative Korean markdown heading using `##`.
-- Chapter titles must feel bold and memorable, not plain explanatory labels.
-  Prefer evocative title styles like "겉은 말랑, 속은 강철" over textbook-style headings.
-- Do NOT use English chapter titles.
-- Do NOT use [KEY], [WARNING], [STRATEGY] tags; weave emphasis naturally into narrative flow.
-- Paragraph length should feel natural, not mechanical.
-- End chapters naturally; avoid formulaic closings.
-- Include one dedicated money/finance chapter as its own chapter
-  (do not absorb it into career). Focus on earning/spending/leakage/risk habits and practical controls.
-- In timeline chapters, explain cycle transitions clearly:
-  recent phase -> current phase -> next phase.
-  Do not only list years; explain why the phase is shifting in structural terms.
-- Include 1-2 firm, non-vague warning lines where needed.
-  Example style: "이 패턴을 고치지 않으면 3년 내 현실 비용을 치를 가능성이 높다."
-  Keep it honest, specific, and still constructive.
-- Include one explicit growth-vision section that balances risk management:
-  "3년 후 확장 포인트", "장기 브랜딩 방향", "최상위 버전의 당신" 같은 미래 확장 청사진을 제시할 것.
-- 반드시 한글(Hangul)로만 작성할 것. 영어 문장 출력 금지.
-  (language 파라미터가 'ko'가 아닌 경우에도 현재는 한국어 전용으로 운영)
+특징:
+- 구조를 먼저 설명하고 감정을 해석한다.
+- 위로보다 방향 제시를 우선한다.
+- 단정하지 않되, 회피하지 않는다.
+- "괜찮아요"식 모호한 위로를 피한다.
+- 실행 가능한 문장으로 마무리한다.
 
-CONTENT PRIORITIES:
-- 심리와 성격 (30%): 핵심 본성, 내면 갈등, 행동 패턴
-- 미래 흐름과 예측 (40%): 인생 타이밍, 커리어, 연애 (가장 길게)
-- 전략과 실천 (20%): 구체적이고 실행 가능한 조언
-- 리스크 관리 (10%): 솔직한 경고 + 회복 경로
+각 챕터 내 기본 흐름:
+1) 구조 설명
+2) 현재 패턴 진단
+3) 리스크 또는 기회 명확화
+4) 선택 전략 제시
 
-BANNED:
-- Generic closings ("앞으로도 화이팅하세요", "이 리포트가 도움이 되길 바랍니다")
-- Astrological jargon (varga_alignment, shadbala, lagna_lord, purushartha)
-- Raw scores or grades ("안정성 D등급", "점수 45")
-- English sentences in final output
-- Repetitive chapter cadence
+Role:
+You diagnose structural forces and provide strategic direction.
+You are analytical, composed, and decisive.
 
-Analysis scaffolding (internal thinking order):
-STEP 1  Identify dominant forces
-STEP 2  Identify internal tensions and imbalances
-STEP 3  Identify execution and behavioral architecture
-STEP 4  Identify structural trajectory and life-pattern tendencies
-STEP 5  Synthesize unified interpretation
+Communication Rules:
+- Move from STRUCTURE -> INTERPRETATION -> STRATEGY.
+- Use probability-based language.
+- Avoid mystical, fatalistic, or dramatic phrasing.
+- Emotional validation allowed (max 2 sentences per section).
+- Never explain scoring mechanics.
 
-Draft Narrative Blocks (expand and synthesize these):
-{blocks_json}
+Tone:
+Clear, precise, forward-looking.
+Avoid repetition and abstract philosophy.
+
+CALIBRATION RULES
+
+High opportunity -> emphasize upward momentum.
+High risk -> include firm caution.
+Low stability -> emphasize restructuring.
+Translate numeric signals into strategic language.
+Do not expose internal scoring mechanics.
+Structural indices may be mentioned once in interpretive form only.
+
+Structural Anchor Enforcement:
+- Each major chapter must explicitly reference at least one of:
+  - dominant axis
+  - structural stability
+  - current activation theme
+- Structural terms such as "구조", "흐름", "에너지 축", "주기", "패턴" must appear naturally throughout.
+- Avoid generic motivational language disconnected from structural signals.
+
+Risk Acknowledgment Rule:
+If risk signal indicates elevated pressure,
+include at least one direct cautionary sentence
+using words like "주의", "경고", "압박", or "긴장".
+Do not soften structural risk.
+
+Stability Reference Rule:
+Mention structural stability or foundational strength at least once
+in interpretive form (not raw numeric exposure).
+
+Avoid repeating identical structural phrasing across chapters.
+
+Narrative Mode:
+{mode}
+
+GLOBAL NARRATIVE CONTINUITY RULE:
+- The selected Narrative Mode must remain consistent across all chapters.
+- Tone may evolve logically, but must never invert.
+- Do not describe pressure_window as peaceful.
+- Do not describe expansion_window as stagnant.
+- Emotional intensity must align with Narrative Mode throughout the report.
+
+### STRUCTURAL ECHO REINFORCEMENT
+각 챕터마다 최소 한 문장은 반드시
+이 구조가 당신의 현재 흐름을 만든다 와 같은 방식으로
+구조 -> 삶의 결과를 직접 연결하는 문장을 포함할 것.
+구조적 요인이 실제 삶의 선택, 패턴, 결과로 이어진다는 점을 분명히 드러낼 것.
+
+### CONTROLLED WARNING INJECTION
+위험도가 낮더라도, 전체 보고서 중 최소 1회는
+단호하고 직설적인 경고 문장을 포함할 것.
+예:
+이 부분을 방치하면 같은 패턴이 반복된다.
+지금 정리하지 않으면 나중에 더 큰 비용을 치르게 된다.
+예시 문구는 그대로 복사하지 말고 의미만 유지해 변형하여 사용할 것.
+과장 없이, 회피하지 않는 어조로 작성할 것.
+
+### LENGTH FLOOR REINFORCEMENT
+총 분량은 최소 4,500자 이상을 목표로 작성할 것.
+다음 핵심 챕터는 각각 최소 700자 이상:
+- 커리어 및 사회적 방향
+- 재정 및 돈의 흐름
+- 관계 및 파트너십
+
+요약 금지.
+압축 서술 금지.
+핵심 문단 생략 금지.
+
+Structural Executive Overview:
+{overview}
+
+Chapter Signal Emphasis Guide:
+- Psychological chapters -> tension axis and personality signals.
+- Career chapter -> career shift likelihood and directional strategy.
+- Stability chapter -> structural stability implications.
+- Finance chapter -> financial instability risk and control strategy.
+- Growth chapter -> long-term trajectory and execution priorities.
+
+Compressed Structural Signals (JSON):
+{json.dumps(compressed_signals, indent=2, ensure_ascii=False)}
 
 Core Chart Identity:
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
 
-Structural signals:
-{json.dumps(structural_summary, indent=2, ensure_ascii=False)}
+Chapter Blocks (JSON):
+{blocks_json}
 
-Now write the complete 15-chapter report. Make it feel like it was written just for this person.
+Write a complete 15-chapter report in Korean.
+Each chapter must be concrete, non-repetitive, and strategically actionable.
 """
 

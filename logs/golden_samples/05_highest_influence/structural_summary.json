@@ -1,0 +1,921 @@
+{
+  "ascendant_sign": "Virgo",
+  "sun_sign": "Leo",
+  "moon_sign": "Cancer",
+  "chart_signature": {
+    "ascendant_sign": "Virgo",
+    "sun_sign": "Leo",
+    "moon_sign": "Cancer"
+  },
+  "planet_power_ranking": [
+    "Mercury",
+    "Jupiter",
+    "Sun",
+    "Moon",
+    "Venus",
+    "Rahu",
+    "Saturn",
+    "Ketu",
+    "Mars"
+  ],
+  "psychological_tension_axis": [
+    "Rahu",
+    "Ketu"
+  ],
+  "dominant_purushartha": "Kama",
+  "life_purpose_vector": {
+    "dominant_planet": "Mercury",
+    "dominant_purushartha": "Kama",
+    "primary_axis": "self_identity_axis"
+  },
+  "dominant_house_cluster": 11,
+  "purushartha_profile": {
+    "Dharma": 32,
+    "Artha": 17,
+    "Kama": 34,
+    "Moksha": 16,
+    "dominant_purushartha": "Kama",
+    "quadrant_tags": {
+      "Dharma": "balanced",
+      "Artha": "underdeveloped",
+      "Kama": "balanced",
+      "Moksha": "underdeveloped"
+    }
+  },
+  "behavioral_risk_profile": {
+    "ego_instability": 4.9,
+    "emotional_volatility": 4.6,
+    "financial_instability": 3.69,
+    "relationship_break_risk": 3.27,
+    "authority_conflict_risk": 5.15,
+    "burnout_risk": 4.06,
+    "obsession_tendency": 4.15,
+    "self_sabotage_risk": 0.71,
+    "impulsivity_risk": 27.16,
+    "overcontrol_risk": 43.6,
+    "primary_risk": "overcontrol"
+  },
+  "interaction_risks": {
+    "narcissistic_instability": 0.0,
+    "authority_breakdown_risk": 0.0,
+    "impulsive_sabotage_risk": 0.0,
+    "chronic_stress_amplification": 0.0,
+    "emotional_oscillation": 0.0
+  },
+  "enhanced_behavioral_risks": {
+    "authority_conflict_risk": 5.15,
+    "emotional_volatility": 4.6,
+    "self_sabotage_risk": 0.71,
+    "burnout_risk": 4.06,
+    "emotional_volatility_amplified": 4.6
+  },
+  "stability_metrics": {
+    "stability_index": 12.61,
+    "stability_grade": "D",
+    "mean_planet_strength": 5.0,
+    "tension_index": 0.0782,
+    "yoga_support_index": 0.2,
+    "risk_index": 3.82,
+    "grade": "D"
+  },
+  "personality_vector": {
+    "ego_power": 54.9,
+    "emotional_regulation": 50.0,
+    "aggression_drive": 100.0,
+    "discipline_index": 41.7,
+    "attachment_intensity": 50.0,
+    "authority_orientation": 35.42,
+    "risk_appetite": 65.8
+  },
+  "probability_forecast": {
+    "marriage_5yr": 0.297,
+    "career_shift_3yr": 0.3222,
+    "burnout_2yr": 0.0439,
+    "financial_instability_3yr": 0.2563
+  },
+  "varga_alignment": {
+    "relationship_alignment": {
+      "score": 0.0,
+      "level": "low"
+    },
+    "career_alignment": {
+      "score": null,
+      "level": "unknown"
+    },
+    "creativity_progeny_alignment": {
+      "score": null,
+      "level": "unknown"
+    },
+    "family_lineage_alignment": {
+      "score": null,
+      "level": "unknown"
+    },
+    "overall_alignment": {
+      "score": 0.0,
+      "level": "low"
+    },
+    "available_vargas": [
+      "d9"
+    ]
+  },
+  "shadbala_summary": {
+    "top3_planets": [
+      "Mercury",
+      "Sun",
+      "Moon"
+    ],
+    "by_planet": {
+      "Sun": {
+        "band": "strong",
+        "total": 0.8096,
+        "evidence_tags": [
+          "Own Sign",
+          "Temporal Strength",
+          "Aspect Support"
+        ],
+        "avastha_state": "madhya",
+        "avastha_tags": [
+          "Own Sign"
+        ]
+      },
+      "Moon": {
+        "band": "strong",
+        "total": 0.8082,
+        "evidence_tags": [
+          "Own Sign",
+          "Aspect Support"
+        ],
+        "avastha_state": "madhya",
+        "avastha_tags": [
+          "Own Sign"
+        ]
+      },
+      "Mars": {
+        "band": "medium",
+        "total": 0.5056,
+        "evidence_tags": [
+          "Combust"
+        ],
+        "avastha_state": "asta",
+        "avastha_tags": [
+          "Combust"
+        ]
+      },
+      "Mercury": {
+        "band": "strong",
+        "total": 0.9208,
+        "evidence_tags": [
+          "Exalted",
+          "Own Sign",
+          "Directional Strength",
+          "Aspect Support"
+        ],
+        "avastha_state": "deepta",
+        "avastha_tags": [
+          "Exalted",
+          "Own Sign"
+        ]
+      },
+      "Jupiter": {
+        "band": "strong",
+        "total": 0.7117,
+        "evidence_tags": [
+          "Exalted",
+          "Temporal Strength",
+          "Aspect Support"
+        ],
+        "avastha_state": "deepta",
+        "avastha_tags": [
+          "Exalted"
+        ]
+      },
+      "Venus": {
+        "band": "strong",
+        "total": 0.7818,
+        "evidence_tags": [
+          "Own Sign",
+          "Aspect Support"
+        ],
+        "avastha_state": "madhya",
+        "avastha_tags": [
+          "Own Sign"
+        ]
+      },
+      "Saturn": {
+        "band": "medium",
+        "total": 0.5833,
+        "evidence_tags": [
+          "Balanced Expression",
+          "Temporal Strength",
+          "Aspect Support"
+        ],
+        "avastha_state": "madhya",
+        "avastha_tags": [
+          "Balanced Expression"
+        ]
+      },
+      "Rahu": {
+        "band": "medium",
+        "total": 0.63,
+        "evidence_tags": [
+          "Retrograde Motion",
+          "Aspect Support"
+        ],
+        "avastha_state": "chesta",
+        "avastha_tags": [
+          "Retrograde Motion"
+        ]
+      },
+      "Ketu": {
+        "band": "medium",
+        "total": 0.6167,
+        "evidence_tags": [
+          "Retrograde Motion",
+          "Aspect Support"
+        ],
+        "avastha_state": "madhya",
+        "avastha_tags": [
+          "Retrograde Motion"
+        ]
+      }
+    }
+  },
+  "karmic_pattern_profile": {
+    "delayed_success_pattern": 0.7,
+    "authority_conflict_pattern": 0.25,
+    "primary_pattern": "correction"
+  },
+  "current_dasha_vector": {
+    "current_theme": "learning, transactions, and decision quality",
+    "dominant_axis": "self_identity_axis",
+    "risk_factor": 0.0,
+    "opportunity_factor": 1.0
+  },
+  "dominant_life_theme": "delayed_success_pattern",
+  "psychological_axis": "self_identity_axis",
+  "relationship_vector": "stability_oriented",
+  "career_vector": "skill_consolidation_phase",
+  "karmic_axis": "Sun",
+  "engine": {
+    "analysis_mode": "standard",
+    "planet_strength": {
+      "Sun": {
+        "score": 5.0,
+        "strength_level": "medium",
+        "factors": [
+          "own_sign:+2"
+        ],
+        "shadbala": {
+          "total": 0.8096,
+          "band": "strong",
+          "components": {
+            "sthana": 0.65,
+            "dig": 0.6,
+            "kala": 0.8,
+            "chesta": 0.55,
+            "naisargika": 1.0,
+            "drik": 0.8
+          },
+          "evidence_tags": [
+            "Own Sign",
+            "Temporal Strength",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "madhya",
+          "evidence_tags": [
+            "Own Sign"
+          ]
+        }
+      },
+      "Moon": {
+        "score": 5.0,
+        "strength_level": "medium",
+        "factors": [
+          "own_sign:+2"
+        ],
+        "shadbala": {
+          "total": 0.8082,
+          "band": "strong",
+          "components": {
+            "sthana": 0.75,
+            "dig": 0.6,
+            "kala": 0.45,
+            "chesta": 0.55,
+            "naisargika": 0.85,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Own Sign",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "madhya",
+          "evidence_tags": [
+            "Own Sign"
+          ]
+        }
+      },
+      "Mars": {
+        "score": 1.67,
+        "strength_level": "very_weak",
+        "factors": [
+          "combust:-2"
+        ],
+        "shadbala": {
+          "total": 0.5056,
+          "band": "medium",
+          "components": {
+            "sthana": 0.4,
+            "dig": 0.6,
+            "kala": 0.45,
+            "chesta": 0.55,
+            "naisargika": 0.28,
+            "drik": 0.55
+          },
+          "evidence_tags": [
+            "Combust"
+          ]
+        },
+        "avastha": {
+          "state": "asta",
+          "evidence_tags": [
+            "Combust"
+          ]
+        }
+      },
+      "Mercury": {
+        "score": 10.0,
+        "strength_level": "very_strong",
+        "factors": [
+          "exalted:+3",
+          "own_sign:+2",
+          "trine_house:+2",
+          "kendra_house:+1"
+        ],
+        "shadbala": {
+          "total": 0.9208,
+          "band": "strong",
+          "components": {
+            "sthana": 0.93,
+            "dig": 1.0,
+            "kala": 0.65,
+            "chesta": 0.55,
+            "naisargika": 0.43,
+            "drik": 0.95
+          },
+          "evidence_tags": [
+            "Exalted",
+            "Own Sign",
+            "Directional Strength",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "deepta",
+          "evidence_tags": [
+            "Exalted",
+            "Own Sign"
+          ]
+        }
+      },
+      "Jupiter": {
+        "score": 5.83,
+        "strength_level": "medium",
+        "factors": [
+          "exalted:+3"
+        ],
+        "shadbala": {
+          "total": 0.7117,
+          "band": "strong",
+          "components": {
+            "sthana": 0.85,
+            "dig": 0.6,
+            "kala": 0.8,
+            "chesta": 0.55,
+            "naisargika": 0.57,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Exalted",
+            "Temporal Strength",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "deepta",
+          "evidence_tags": [
+            "Exalted"
+          ]
+        }
+      },
+      "Venus": {
+        "score": 5.0,
+        "strength_level": "medium",
+        "factors": [
+          "own_sign:+2"
+        ],
+        "shadbala": {
+          "total": 0.7818,
+          "band": "strong",
+          "components": {
+            "sthana": 0.75,
+            "dig": 0.6,
+            "kala": 0.45,
+            "chesta": 0.55,
+            "naisargika": 0.72,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Own Sign",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "madhya",
+          "evidence_tags": [
+            "Own Sign"
+          ]
+        }
+      },
+      "Saturn": {
+        "score": 4.17,
+        "strength_level": "medium",
+        "factors": [
+          "kendra_house:+1"
+        ],
+        "shadbala": {
+          "total": 0.5833,
+          "band": "medium",
+          "components": {
+            "sthana": 0.5,
+            "dig": 0.6,
+            "kala": 0.8,
+            "chesta": 0.55,
+            "naisargika": 0.15,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Balanced Expression",
+            "Temporal Strength",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "madhya",
+          "evidence_tags": [
+            "Balanced Expression"
+          ]
+        }
+      },
+      "Rahu": {
+        "score": 5.0,
+        "strength_level": "medium",
+        "factors": [
+          "trine_house:+2"
+        ],
+        "shadbala": {
+          "total": 0.63,
+          "band": "medium",
+          "components": {
+            "sthana": 0.58,
+            "dig": 0.5,
+            "kala": 0.45,
+            "chesta": 0.85,
+            "naisargika": 0.5,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "chesta",
+          "evidence_tags": [
+            "Retrograde Motion"
+          ]
+        }
+      },
+      "Ketu": {
+        "score": 3.33,
+        "strength_level": "weak",
+        "factors": [],
+        "shadbala": {
+          "total": 0.6167,
+          "band": "medium",
+          "components": {
+            "sthana": 0.5,
+            "dig": 0.5,
+            "kala": 0.45,
+            "chesta": 0.85,
+            "naisargika": 0.5,
+            "drik": 0.9
+          },
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ]
+        },
+        "avastha": {
+          "state": "madhya",
+          "evidence_tags": [
+            "Retrograde Motion"
+          ]
+        }
+      }
+    },
+    "dispositor_analysis": {
+      "loops": [],
+      "parivartana": [],
+      "chain_lengths": {
+        "Sun": 1,
+        "Moon": 1,
+        "Mars": 2,
+        "Mercury": 1,
+        "Jupiter": 2,
+        "Venus": 1,
+        "Saturn": 2,
+        "Rahu": 2,
+        "Ketu": 3
+      },
+      "final_dispositors": {
+        "Sun": "Sun",
+        "Moon": "Moon",
+        "Mars": "Sun",
+        "Mercury": "Mercury",
+        "Jupiter": "Moon",
+        "Venus": "Venus",
+        "Saturn": "Mercury",
+        "Rahu": "Venus",
+        "Ketu": "Sun"
+      },
+      "dominant_final_dispositor": "Sun"
+    },
+    "yogas": [
+      {
+        "name": "Vipareeta Raja Yoga",
+        "strength": 0.68,
+        "planets_involved": [
+          "Mars",
+          "Sun"
+        ],
+        "status": "active",
+        "reason_tags": [],
+        "rule_key": "vipareeta_raja_yoga"
+      },
+      {
+        "name": "Gaja Kesari Yoga",
+        "strength": 0.8,
+        "planets_involved": [
+          "Moon",
+          "Jupiter"
+        ],
+        "status": "active",
+        "reason_tags": [],
+        "rule_key": "gaja_kesari_yoga"
+      }
+    ],
+    "yogas_all": [],
+    "karmic_patterns": {
+      "delayed_success_pattern": 0.7,
+      "authority_conflict_pattern": 0.25,
+      "primary_pattern": "correction"
+    },
+    "influence_matrix": {
+      "matrix": {
+        "Sun->Moon": 0.84,
+        "Sun->Mars": 0.0,
+        "Sun->Mercury": 0.56,
+        "Sun->Jupiter": 0.33,
+        "Sun->Venus": 0.0,
+        "Sun->Saturn": 0.0,
+        "Sun->Rahu": 1.17,
+        "Sun->Ketu": 1.01,
+        "Moon->Sun": 0.75,
+        "Moon->Mars": 0.0,
+        "Moon->Mercury": 0.58,
+        "Moon->Jupiter": 1.09,
+        "Moon->Venus": 0.0,
+        "Moon->Saturn": 0.0,
+        "Moon->Rahu": 0.81,
+        "Moon->Ketu": 1.18,
+        "Mars->Sun": 0.0,
+        "Mars->Moon": 0.0,
+        "Mars->Mercury": 0.12,
+        "Mars->Jupiter": 0.17,
+        "Mars->Venus": 0.05,
+        "Mars->Saturn": 0.08,
+        "Mars->Rahu": 0.0,
+        "Mars->Ketu": 0.0,
+        "Mercury->Sun": 0.89,
+        "Mercury->Moon": 1.02,
+        "Mercury->Mars": 0.57,
+        "Mercury->Jupiter": 1.31,
+        "Mercury->Venus": 0.0,
+        "Mercury->Saturn": 0.0,
+        "Mercury->Rahu": 1.46,
+        "Mercury->Ketu": 0.73,
+        "Jupiter->Sun": 0.34,
+        "Jupiter->Moon": 1.28,
+        "Jupiter->Mars": 0.53,
+        "Jupiter->Mercury": 0.87,
+        "Jupiter->Venus": 0.0,
+        "Jupiter->Saturn": 0.0,
+        "Jupiter->Rahu": 0.28,
+        "Jupiter->Ketu": 0.55,
+        "Venus->Sun": 0.0,
+        "Venus->Moon": 0.0,
+        "Venus->Mars": 0.13,
+        "Venus->Mercury": 0.0,
+        "Venus->Jupiter": 0.0,
+        "Venus->Saturn": 1.55,
+        "Venus->Rahu": 0.0,
+        "Venus->Ketu": 0.0,
+        "Saturn->Sun": 0.0,
+        "Saturn->Moon": 0.0,
+        "Saturn->Mars": 0.33,
+        "Saturn->Mercury": 0.0,
+        "Saturn->Jupiter": 0.0,
+        "Saturn->Venus": 1.11,
+        "Saturn->Rahu": 0.0,
+        "Saturn->Ketu": 0.0,
+        "Rahu->Sun": 0.92,
+        "Rahu->Moon": 0.71,
+        "Rahu->Mars": 0.0,
+        "Rahu->Mercury": 0.73,
+        "Rahu->Jupiter": 0.21,
+        "Rahu->Venus": 0.0,
+        "Rahu->Saturn": 0.0,
+        "Rahu->Ketu": 1.57,
+        "Ketu->Sun": 0.61,
+        "Ketu->Moon": 0.81,
+        "Ketu->Mars": 0.0,
+        "Ketu->Mercury": 0.28,
+        "Ketu->Jupiter": 0.24,
+        "Ketu->Venus": 0.0,
+        "Ketu->Saturn": 0.0,
+        "Ketu->Rahu": 1.22
+      },
+      "dominant_planet": "Mercury",
+      "most_conflicted_axis": [
+        "Rahu",
+        "Ketu"
+      ]
+    },
+    "house_clusters": {
+      "cluster_scores": {
+        "1": 10.0,
+        "2": 5.0,
+        "3": 5.33,
+        "4": 0.0,
+        "5": 0.0,
+        "6": 0.0,
+        "7": 0.0,
+        "8": 0.0,
+        "9": 7.0,
+        "10": 4.17,
+        "11": 12.83,
+        "12": 8.67
+      },
+      "cluster_intensity": {
+        "1": 10.0,
+        "2": 5.0,
+        "3": 5.33,
+        "4": 0.0,
+        "5": 0.0,
+        "6": 0.0,
+        "7": 0.0,
+        "8": 0.0,
+        "9": 7.0,
+        "10": 4.17,
+        "11": 6.42,
+        "12": 4.33
+      },
+      "planet_counts": {
+        "1": 1,
+        "2": 1,
+        "3": 1,
+        "4": 0,
+        "5": 0,
+        "6": 0,
+        "7": 0,
+        "8": 0,
+        "9": 1,
+        "10": 1,
+        "11": 2,
+        "12": 2
+      },
+      "dominant_house": 11,
+      "overloaded_axis": [
+        5,
+        11
+      ]
+    },
+    "purushartha_profile": {
+      "Dharma": 32,
+      "Artha": 17,
+      "Kama": 34,
+      "Moksha": 16,
+      "dominant_purushartha": "Kama",
+      "quadrant_tags": {
+        "Dharma": "balanced",
+        "Artha": "underdeveloped",
+        "Kama": "balanced",
+        "Moksha": "underdeveloped"
+      }
+    },
+    "behavioral_risks": {
+      "ego_instability": 4.9,
+      "emotional_volatility": 4.6,
+      "financial_instability": 3.69,
+      "relationship_break_risk": 3.27,
+      "authority_conflict_risk": 5.15,
+      "burnout_risk": 4.06,
+      "obsession_tendency": 4.15,
+      "self_sabotage_risk": 0.71,
+      "impulsivity_risk": 27.16,
+      "overcontrol_risk": 43.6,
+      "primary_risk": "overcontrol"
+    },
+    "interaction_summary": {
+      "top_risks": [],
+      "amplifiers": [],
+      "mitigators": []
+    },
+    "stability_metrics": {
+      "stability_index": 12.61,
+      "stability_grade": "D",
+      "mean_planet_strength": 5.0,
+      "tension_index": 0.0782,
+      "yoga_support_index": 0.2,
+      "risk_index": 3.82,
+      "grade": "D"
+    },
+    "personality_vector": {
+      "ego_power": 54.9,
+      "emotional_regulation": 50.0,
+      "aggression_drive": 100.0,
+      "discipline_index": 41.7,
+      "attachment_intensity": 50.0,
+      "authority_orientation": 35.42,
+      "risk_appetite": 65.8
+    },
+    "probability_forecast": {
+      "marriage_5yr": 0.297,
+      "career_shift_3yr": 0.3222,
+      "burnout_2yr": 0.0439,
+      "financial_instability_3yr": 0.2563
+    },
+    "varga_alignment": {
+      "relationship_alignment": {
+        "score": 0.0,
+        "level": "low"
+      },
+      "career_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "creativity_progeny_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "family_lineage_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "overall_alignment": {
+        "score": 0.0,
+        "level": "low"
+      },
+      "available_vargas": [
+        "d9"
+      ]
+    },
+    "shadbala_summary": {
+      "top3_planets": [
+        "Mercury",
+        "Sun",
+        "Moon"
+      ],
+      "by_planet": {
+        "Sun": {
+          "band": "strong",
+          "total": 0.8096,
+          "evidence_tags": [
+            "Own Sign",
+            "Temporal Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Own Sign"
+          ]
+        },
+        "Moon": {
+          "band": "strong",
+          "total": 0.8082,
+          "evidence_tags": [
+            "Own Sign",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Own Sign"
+          ]
+        },
+        "Mars": {
+          "band": "medium",
+          "total": 0.5056,
+          "evidence_tags": [
+            "Combust"
+          ],
+          "avastha_state": "asta",
+          "avastha_tags": [
+            "Combust"
+          ]
+        },
+        "Mercury": {
+          "band": "strong",
+          "total": 0.9208,
+          "evidence_tags": [
+            "Exalted",
+            "Own Sign",
+            "Directional Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "deepta",
+          "avastha_tags": [
+            "Exalted",
+            "Own Sign"
+          ]
+        },
+        "Jupiter": {
+          "band": "strong",
+          "total": 0.7117,
+          "evidence_tags": [
+            "Exalted",
+            "Temporal Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "deepta",
+          "avastha_tags": [
+            "Exalted"
+          ]
+        },
+        "Venus": {
+          "band": "strong",
+          "total": 0.7818,
+          "evidence_tags": [
+            "Own Sign",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Own Sign"
+          ]
+        },
+        "Saturn": {
+          "band": "medium",
+          "total": 0.5833,
+          "evidence_tags": [
+            "Balanced Expression",
+            "Temporal Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Balanced Expression"
+          ]
+        },
+        "Rahu": {
+          "band": "medium",
+          "total": 0.63,
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ],
+          "avastha_state": "chesta",
+          "avastha_tags": [
+            "Retrograde Motion"
+          ]
+        },
+        "Ketu": {
+          "band": "medium",
+          "total": 0.6167,
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Retrograde Motion"
+          ]
+        }
+      }
+    },
+    "current_dasha": "Mercury"
+  }
+}
