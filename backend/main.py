@@ -39,7 +39,6 @@ if __package__ is None or __package__ == "":
 from backend.astro_engine import build_structural_summary
 from backend.report_engine import (
     build_report_payload,
-    REPORT_CHAPTERS,
     build_gpt_user_content,
     SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
     _get_atomic_chart_interpretations,
@@ -96,14 +95,15 @@ _load_env_file(REPO_ROOT / ".env")
 
 # ------------------------------------------------------------------------------
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 READING_PIPELINE_VERSION = "chapter_blocks_v2"
 AI_PROMPT_VERSION = "ko_only_v2"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
-AI_MAX_TOKENS_AI_READING = 8000
+AI_MAX_TOKENS_AI_READING = 18000
 AI_MAX_TOKENS_PDF = 8000
-AI_MAX_TOKENS_HARD_LIMIT = 16000
+AI_MAX_TOKENS_HARD_LIMIT = 22000
+PDF_DISABLED = str(os.getenv("PDF_DISABLED", "1")).strip().lower() in {"1", "true", "yes", "on"}
 
 
 def _utc_iso_now() -> str:
@@ -248,14 +248,9 @@ def _normalize_long_paragraphs(text: str, max_chars: int = 300) -> str:
 
 
 def _candidate_openai_models(primary_model: str) -> list[str]:
-    """Return de-duplicated model fallback order for chat completions."""
-    candidates = [primary_model, "gpt-4o-mini", "gpt-4o"]
-    out: list[str] = []
-    for model in candidates:
-        normalized = (model or "").strip()
-        if normalized and normalized not in out:
-            out.append(normalized)
-    return out
+    """Return de-duplicated model list for chat completions (single-model mode)."""
+    normalized = (primary_model or "").strip()
+    return [normalized] if normalized else []
 
 
 def _normalize_analysis_mode(raw_mode: str) -> str:
@@ -329,6 +324,23 @@ CHAPTER_DISPLAY_NAME_KO = {
     "Final Summary": "마지막 정리",
     "Appendix (Optional)": "Appendix (Optional)",
 }
+
+PREMIUM_10_CHAPTER_ORDER = [
+    "Executive Summary",
+    "Life Timeline Interpretation",
+    "Career & Success",
+    "Stability Metrics",
+    "Love & Relationships",
+    "Karmic Patterns",
+    "Health & Body Patterns",
+    "Confidence & Forecast",
+    "Psychological Architecture",
+    "Final Summary",
+]
+
+
+def _active_chapter_order_for_style() -> list[str]:
+    return list(PREMIUM_10_CHAPTER_ORDER)
 
 STRONG_META_LINE_PATTERNS = [
     re.compile(r"\bpredictive_compression\b", re.IGNORECASE),
@@ -505,7 +517,7 @@ def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any], languag
     qa_removed_lines_total = 0
     qa_forbidden_hits = 0
     lang_norm = str(language or "ko").strip().lower()
-    for idx, chapter in enumerate(REPORT_CHAPTERS, start=1):
+    for idx, chapter in enumerate(_active_chapter_order_for_style(), start=1):
         title_legacy = chapter_name_ko.get(chapter, chapter)
         display_title = (
             CHAPTER_DISPLAY_NAME_KO.get(chapter, title_legacy or chapter)
@@ -1111,14 +1123,15 @@ def _extract_paragraphs_for_style(text: str) -> list[str]:
 
 
 def _chapter_order_matches_from_meta(text: str) -> bool:
-    keys = re.findall(r"<!--\s*chapter_key:\s*(.*?)\s*-->", text or "")
+    expected = _active_chapter_order_for_style()
+    # Prefer heading-level keys for current output mode.
+    keys = re.findall(r"(?m)^##\s*\[([^\]]+)\]\s*", text or "")
     if not keys:
-        # Fallback: accept heading-level chapter keys if present.
-        # Example: ## [Executive Summary] ...
-        keys = re.findall(r"(?m)^##\s*\[([^\]]+)\]\s*", text or "")
+        # Fallback to legacy chapter_key comments.
+        keys = re.findall(r"<!--\s*chapter_key:\s*(.*?)\s*-->", text or "")
     if not keys:
         return True
-    # Validate order against canonical REPORT_CHAPTERS using subsequence matching.
+    # Validate order against canonical active chapter order using subsequence matching.
     pos = 0
     seen: set[str] = set()
     for key in keys:
@@ -1126,7 +1139,7 @@ def _chapter_order_matches_from_meta(text: str) -> bool:
             return False
         seen.add(key)
         try:
-            idx = REPORT_CHAPTERS.index(key, pos)
+            idx = expected.index(key, pos)
         except ValueError:
             return False
         pos = idx + 1
@@ -1140,7 +1153,8 @@ def _reading_style_error_codes(text: str) -> list[str]:
 
     errors: list[str] = []
     headings = re.findall(r"(?m)^##\s+(.+?)\s*$", normalized)
-    if len(headings) < 15:
+    min_headings = 10
+    if len(headings) < min_headings:
         errors.append("headline_count_invalid")
 
     if not _chapter_order_matches_from_meta(normalized):
@@ -1193,9 +1207,9 @@ def _reading_style_error_codes(text: str) -> list[str]:
 
 
 def _is_low_quality_reading(text: str) -> bool:
-    normalized = normalize_llm_layout_strict(text or "")
-    remediated = _apply_style_remediation(normalized)
-    return bool(_reading_style_error_codes(remediated))
+    # Disabled by product decision:
+    # do not force fallback to deterministic text based on style heuristics.
+    return False
 
 from backend import pdf_service
 from backend.pdf_service import init_fonts
@@ -2292,7 +2306,8 @@ def _extract_structured_blocks(context_data: str) -> dict[str, Any]:
 def _validate_deterministic_llm_blocks(chapter_blocks: dict[str, Any]) -> dict[str, list[dict[str, Any]]]:
     if not isinstance(chapter_blocks, dict):
         raise ValueError("chapter_blocks must be an object.")
-    if set(chapter_blocks.keys()) != set(REPORT_CHAPTERS):
+    expected_chapters = _active_chapter_order_for_style()
+    if set(chapter_blocks.keys()) != set(expected_chapters):
         raise ValueError("chapter_blocks must contain exactly the deterministic report chapters.")
 
     allowed_fragment_keys = {
@@ -2326,7 +2341,7 @@ def _validate_deterministic_llm_blocks(chapter_blocks: dict[str, Any]) -> dict[s
     }
 
     normalized: dict[str, list[dict[str, Any]]] = {}
-    for chapter in REPORT_CHAPTERS:
+    for chapter in expected_chapters:
         fragments = chapter_blocks.get(chapter)
         if not isinstance(fragments, list):
             raise ValueError(f"chapter_blocks['{chapter}'] must be a list.")
@@ -2394,6 +2409,31 @@ from backend.llm_service import normalize_llm_layout_strict, refine_reading_with
 # ------------------------------------------------------------------------------
 # API endpoints: AI Reading
 # ------------------------------------------------------------------------------
+def _apply_ai_reading_debug_payload_policy(payload: dict[str, Any], debug_payload_enabled: bool) -> dict[str, Any]:
+    """Keep response lean by default while preserving opt-in debug payloads."""
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    if debug_payload_enabled:
+        return out
+
+    # Keep summary context for client UX, but trim heavy internals.
+    summary = out.get("summary")
+    if isinstance(summary, dict):
+        summary_out = dict(summary)
+        ss = summary_out.get("structured_summary")
+        if isinstance(ss, dict):
+            ss_out = dict(ss)
+            ss_out.pop("engine", None)
+            summary_out["structured_summary"] = ss_out
+        out["summary"] = summary_out
+
+    # Remove duplicated heavy payloads by default.
+    out.pop("structured_summary", None)
+    out.pop("chapter_blocks", None)
+    return out
+
+
 @app.get("/ai_reading")
 async def get_ai_reading(
     request: Request,
@@ -2416,6 +2456,7 @@ async def get_ai_reading(
     analysis_mode: str = Query("standard"),
     detail_level: str = Query("full"),
     llm_max_tokens: int = Query(AI_MAX_TOKENS_AI_READING, include_in_schema=False),
+    debug_payload: int = Query(0),
     audit_debug: int = Query(0),
     request_id: Optional[str] = Query(None, include_in_schema=False),
     audit_endpoint: str = Query("/ai_reading", include_in_schema=False),
@@ -2434,6 +2475,7 @@ async def get_ai_reading(
         include_audit_debug = bool(audit_debug)
     else:
         include_audit_debug = False
+    include_debug_payload = bool(debug_payload)
     events_json_norm = _normalize_json_for_cache(events_json)
 
     cache_key = (
@@ -2461,7 +2503,7 @@ async def get_ai_reading(
                     "endpoint": endpoint_name,
                 }
                 cached_response["audit"] = audit_payload
-            return cached_response
+            return _apply_ai_reading_debug_payload_policy(cached_response, include_debug_payload)
 
     if production_mode:
         if not BTR_ENGINE_AVAILABLE:
@@ -2553,7 +2595,7 @@ async def get_ai_reading(
                 "report_text": final_text,
                 "reading": final_text,
                 "polished_reading": final_polished,
-                "chapter_count": len(REPORT_CHAPTERS),
+                "chapter_count": len(_active_chapter_order_for_style()),
                 "analysis_mode": analysis_mode_norm,
                 "detail_level": detail_level_norm,
                 "llm_input_source": "report_engine.chapter_blocks",
@@ -2571,7 +2613,7 @@ async def get_ai_reading(
                 }
             if use_cache:
                 cache.set(cache_key, production_result, ttl=AI_CACHE_TTL)
-            return production_result
+            return _apply_ai_reading_debug_payload_policy(production_result, include_debug_payload)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
@@ -2667,7 +2709,7 @@ async def get_ai_reading(
             }
         if use_cache:
             cache.set(cache_key, result, ttl=AI_CACHE_TTL)
-        return result
+        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
 
     try:
         polished_reading = load_polished_reading_from_cache(
@@ -2753,7 +2795,7 @@ async def get_ai_reading(
         if use_cache:
             cache.set(cache_key, result, ttl=AI_CACHE_TTL)
 
-        return result
+        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
 
     except HTTPException:
         raise
@@ -2797,7 +2839,7 @@ async def get_ai_reading(
                 "chapter_blocks_hash": chapter_blocks_hash,
                 "endpoint": endpoint_name,
             }
-        return result
+        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
 
 def _extract_chapter_blocks_from_ai_reading(ai_reading: Any) -> dict[str, Any]:
     if not isinstance(ai_reading, dict):
@@ -2903,6 +2945,12 @@ async def generate_pdf(
     cache_only: int = Query(0)
 ):
     """Generate PDF report."""
+    if PDF_DISABLED:
+        raise HTTPException(
+            status_code=503,
+            detail="PDF temporarily disabled during reading tuning",
+        )
+
     analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
     detail_level_norm = str(detail_level or "full").strip().lower()
     if detail_level_norm != "full":

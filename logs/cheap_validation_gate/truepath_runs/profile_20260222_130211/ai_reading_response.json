@@ -1,0 +1,295 @@
+{
+  "cached": false,
+  "fallback": false,
+  "model": "gpt-5-mini",
+  "summary": {
+    "language": "ko",
+    "analysis_mode": "standard",
+    "readability_mode": "banded_explanation",
+    "readability_snapshot": {
+      "ego_power": "medium",
+      "emotional_regulation": "low",
+      "stability_index": "very_low",
+      "self_sabotage_risk": "medium"
+    },
+    "structured_summary": {
+      "ascendant_sign": "Aries",
+      "sun_sign": "Leo",
+      "moon_sign": "Pisces",
+      "chart_signature": {
+        "ascendant_sign": "Aries",
+        "sun_sign": "Leo",
+        "moon_sign": "Pisces"
+      },
+      "planet_power_ranking": [
+        "Sun",
+        "Jupiter",
+        "Venus",
+        "Mars",
+        "Saturn",
+        "Moon",
+        "Mercury",
+        "Rahu",
+        "Ketu"
+      ],
+      "psychological_tension_axis": [
+        "Rahu",
+        "Ketu"
+      ],
+      "dominant_purushartha": "Moksha",
+      "life_purpose_vector": {
+        "dominant_planet": "Jupiter",
+        "dominant_purushartha": "Moksha",
+        "primary_axis": "growth_execution_axis"
+      },
+      "dominant_house_cluster": 5,
+      "purushartha_profile": {
+        "Dharma": 29,
+        "Artha": 11,
+        "Kama": 25,
+        "Moksha": 35,
+        "dominant_purushartha": "Moksha",
+        "quadrant_tags": {
+          "Dharma": "underdeveloped",
+          "Artha": "underdeveloped",
+          "Kama": "underdeveloped",
+          "Moksha": "balanced"
+        }
+      },
+      "behavioral_risk_profile": {
+        "ego_instability": 5.18,
+        "emotional_volatility": 7.02,
+        "financial_instability": 5.04,
+        "relationship_break_risk": 3.73,
+        "authority_conflict_risk": 5.3,
+        "burnout_risk": 5.33,
+        "obsession_tendency": 3.21,
+        "self_sabotage_risk": 5.58,
+        "impulsivity_risk": 48.62,
+        "overcontrol_risk": 41.18,
+        "primary_risk": "impulsivity"
+      },
+      "interaction_risks": {
+        "narcissistic_instability": 0.0,
+        "authority_breakdown_risk": 0.0,
+        "impulsive_sabotage_risk": 0.0,
+        "chronic_stress_amplification": 0.0,
+        "emotional_oscillation": 14.72
+      },
+      "enhanced_behavioral_risks": {
+        "authority_conflict_risk": 5.3,
+        "emotional_volatility": 10.0,
+        "self_sabotage_risk": 5.58,
+        "burnout_risk": 5.33,
+        "emotional_volatility_amplified": 10.0
+      },
+      "stability_metrics": {
+        "stability_index": 8.52,
+        "stability_grade": "D",
+        "mean_planet_strength": 4.54,
+        "tension_index": 0.0629,
+        "yoga_support_index": 0.3,
+        "risk_index": 5.05,
+        "grade": "D"
+      },
+      "personality_vector": {
+        "ego_power": 55.5,
+        "emotional_regulation": 22.3,
+        "aggression_drive": 77.4,
+        "discipline_index": 41.7,
+        "attachment_intensity": 45.8,
+        "authority_orientation": 33.35,
+        "risk_appetite": 35.7
+      },
+      "probability_forecast": {
+        "marriage_5yr": 0.6029,
+        "career_shift_3yr": 0.2466,
+        "burnout_2yr": 0.1784,
+        "financial_instability_3yr": 0.144
+      },
+      "varga_alignment": {
+        "relationship_alignment": {
+          "score": 0.0,
+          "level": "low"
+        },
+        "career_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "creativity_progeny_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "family_lineage_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "overall_alignment": {
+          "score": 0.0,
+          "level": "low"
+        },
+        "available_vargas": [
+          "d9"
+        ]
+      },
+      "shadbala_summary": {
+        "top3_planets": [
+          "Venus",
+          "Sun",
+          "Moon"
+        ],
+        "by_planet": {
+          "Sun": {
+            "band": "strong",
+            "total": 0.8012,
+            "evidence_tags": [
+              "Own Sign"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Own Sign"
+            ]
+          },
+          "Moon": {
+            "band": "strong",
+            "total": 0.7434,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Mars": {
+            "band": "medium",
+            "total": 0.605,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Mercury": {
+            "band": "medium",
+            "total": 0.617,
+            "evidence_tags": [
+              "Combust"
+            ],
+            "avastha_state": "asta",
+            "avastha_tags": [
+              "Combust"
+            ]
+          },
+          "Jupiter": {
+            "band": "strong",
+            "total": 0.729,
+            "evidence_tags": [
+              "Exalted",
+              "Aspect Support"
+            ],
+            "avastha_state": "deepta",
+            "avastha_tags": [
+              "Exalted"
+            ]
+          },
+          "Venus": {
+            "band": "strong",
+            "total": 0.8496,
+            "evidence_tags": [
+              "Own Sign",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Own Sign"
+            ]
+          },
+          "Saturn": {
+            "band": "medium",
+            "total": 0.5133,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Rahu": {
+            "band": "medium",
+            "total": 0.6417,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          },
+          "Ketu": {
+            "band": "medium",
+            "total": 0.6417,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          }
+        }
+      },
+      "karmic_pattern_profile": {
+        "authority_conflict_pattern": 0.25,
+        "primary_pattern": "correction"
+      },
+      "current_dasha_vector": {
+        "current_theme": "leadership calibration and purpose consolidation",
+        "dominant_axis": "growth_execution_axis",
+        "risk_factor": 0.0,
+        "opportunity_factor": 0.95
+      },
+      "dominant_life_theme": "authority_conflict_pattern",
+      "psychological_axis": "growth_execution_axis",
+      "relationship_vector": "stability_oriented",
+      "career_vector": "skill_consolidation_phase",
+      "karmic_axis": "Sun"
+    }
+  },
+  "reading": "## [Executive Summary] 당신의 흐름\n\n당신은 한 번 마음이 움직이면 곧바로 행동으로 옮기는 유형입니다. 속도는 장점이지만, 빠르게 달릴수록 마음이 먼저 지치는 패턴이 반복됩니다.\n\n지금은 힘의 초점이 바뀌는 구간이라, 에너지 소모가 적은 선택을 우선하는 쪽이 더 오래 갈 가능성이 큽니다. 당신에게 힘을 모아주는 버튼은 목성(Jupiter) 쪽에 닿아 있어, 확장·신념·관대함을 활용할 때 잘 풀립니다.\n\n지금 구간에서는 속도보다 리듬을 맞추는 선택이 더 안정적입니다.\n\n## [Life Timeline Interpretation] 시간의 흐름\n\n시기 흐름(다샤)을 기준으로 보면 현재의 주기 자체는 현재 진행 중입니다.\n\n가까운 창(2026 상반기~2027 상반기)은 재구성(restructure)이 주제이며, 그다음 경로에서 2027 하반기~2028 상반기에는 직업 쪽 재조정(recalibration)이 잔잔하게 오고, 2028 하반기~2029 상반기에는 금전 쪽 안정화(stabilization)가 비교적 서서히 다가옵니다.\n\n한 번의 강한 결정보다 작은 조정의 누적이 더 큰 차이를 만듭니다.\n\n## [Career & Success] 일과 성취\n\n경력 축은 확장 가능성이 크지 않고, 권위와의 마찰이 중간 정도로 작용합니다.\n\n당신은 주도적으로 나서려는 성향이 강하지만 조직이나 상사와의 방향 차이가 종종 에너지를 깎습니다. 번아웃 신호도 중간 수준으로 올라오기 쉬우니, 속도 조절이 필요합니다.\n\n당장 정답을 찾기보다 반복되는 장면을 먼저 알아차리는 것이 도움이 됩니다.\n\n## [Stability Metrics] 버티는 힘\n\n기본 힘은 중간, 변동성은 중간 정도입니다. 대신 회복 속도가 빠른 편이라 흔들려도 다시 일어나는 탄력성이 있습니다.\n\n금전 쪽 불안정 압력은 낮은 편이라 큰 폭의 위기는 적습니다. 다만 통제 반응이 중간 수준이라 변화가 생기면 반응이 과하거나 소극적으로 흐를 수 있습니다.\n\n지금은 크게 확정하기보다 흔들리는 지점을 먼저 정리하는 편이 낫습니다.\n\n## [Love & Relationships] 관계의 결\n\n애착의 강도는 중간, 갈등 촉발 수준도 중간입니다.\n\n수리 능력(repair capacity)은 낮아, 충돌이 생기면 풀어내는 데 시간이 걸립니다. 당신은 가까움과 자기보호 사이에서 자주 선택의 딜레마를 겪습니다—더 붙고 싶다가도 급히 물러나는 패턴이 반복됩니다.\n\n한 번에 크게 바꾸기보다 작은 확인을 쌓아가면 방향이 선명해집니다.\n\n## [Karmic Patterns] 반복 패턴\n\n라후와 케투의 주제가 강하게 배경에 깔려 있습니다.\n\n과거의 선택이 비슷한 모양으로 반복될 가능성이 크고, 특히 '붙잡기 vs 놓기'의 루프가 자주 나타납니다. 당신은 새로운 것을 끌어들이려는 욕구와 동시에 그로 인해 감정적으로 과소비되는 상황을 걱정하는 경향이 번갈아 옵니다.\n\n지금 단계에서는 확신보다 점검이 먼저일 때 흐름이 덜 흔들립니다.\n\n## [Health & Body Patterns] 몸의 리듬\n\n행동이 빠르고 즉각적인 편이라 에너지 폭발과 소진이 교대로 옵니다.\n\n태양과 상승의 전형적 기질은 시작력과 주도력을 주지만, 지속적 과업에서는 인내가 떨어질 수 있습니다. 달의 민감성은 스트레스가 쌓이면 수면·소화·정서적 불편으로 이어질 가능성이 있으니, 규칙적 회복 루틴이 중요합니다.\n\n무리해서 밀어붙이기보다 덜 소모되는 방식으로 조정해도 충분합니다.\n\n## [Confidence & Forecast] 앞으로의 흐름\n\n당신의 중심 동력은 목성 쪽에서 나오므로, 신념을 확장하는 경험을 통해 자신감이 회복됩니다.\n\n다만 자기 일관성이 낮아 확신이 흔들릴 때가 잦습니다. 가까운 몇 년은 '재정적·직업적 안정화'로 가는 과정이어서 큰 도약보다는 체력을 비축하고 포트폴리오를 정리하는 전략이 더 현실적입니다.\n\n빠른 결론보다 반복되는 장면의 패턴을 붙잡는 편이 유리합니다.\n\n## [Psychological Architecture] 마음이 움직이는 방식\n\n중심에는 확장과 보호의 충돌이 있습니다.\n\n목성이 강한 기질이면서 라후·케투가 긴장을 만들어내므로, 당신은 '다가감'의 반복을 통해 정체성을 시험합니다. 자기 일관성은 낮아 순간의 욕구에 따라 방향이 바뀌기 쉽고, 그로 인해 내부의 접근-회피 루프가 자주 작동합니다.\n\n복잡하게 해석하기보다 지금 반복되는 선택을 가볍게 확인해 보세요.\n\n## [Final Summary] 마지막 정리\n\n당신은 빠르게 시작하고, 때로는 그 속도 때문에 먼저 지치는 사람입니다.\n\n지금은 변화를 밀어붙이기보다 구조를 정비하고 에너지를 효율적으로 배분하는 시기입니다. 목성의 기운을 활용해 신념과 관대함으로 움직이되, 라후·케투가 만드는 반복의 함정을 인지하고 작은 행동으로 루프를 바꾸세요.\n\n당장 완벽해지기보다 흔들리는 순간을 빨리 알아차리는 편이 도움이 됩니다.",
+  "polished_reading": "## [Executive Summary] 당신의 흐름\n\n당신은 한 번 마음이 움직이면 곧바로 행동으로 옮기는 유형입니다. 속도는 장점이지만, 빠르게 달릴수록 마음이 먼저 지치는 패턴이 반복됩니다.\n\n지금은 힘의 초점이 바뀌는 구간이라, 에너지 소모가 적은 선택을 우선하는 쪽이 더 오래 갈 가능성이 큽니다. 당신에게 힘을 모아주는 버튼은 목성(Jupiter) 쪽에 닿아 있어, 확장·신념·관대함을 활용할 때 잘 풀립니다.\n\n지금 구간에서는 속도보다 리듬을 맞추는 선택이 더 안정적입니다.\n\n## [Life Timeline Interpretation] 시간의 흐름\n\n시기 흐름(다샤)을 기준으로 보면 현재의 주기 자체는 현재 진행 중입니다.\n\n가까운 창(2026 상반기~2027 상반기)은 재구성(restructure)이 주제이며, 그다음 경로에서 2027 하반기~2028 상반기에는 직업 쪽 재조정(recalibration)이 잔잔하게 오고, 2028 하반기~2029 상반기에는 금전 쪽 안정화(stabilization)가 비교적 서서히 다가옵니다.\n\n한 번의 강한 결정보다 작은 조정의 누적이 더 큰 차이를 만듭니다.\n\n## [Career & Success] 일과 성취\n\n경력 축은 확장 가능성이 크지 않고, 권위와의 마찰이 중간 정도로 작용합니다.\n\n당신은 주도적으로 나서려는 성향이 강하지만 조직이나 상사와의 방향 차이가 종종 에너지를 깎습니다. 번아웃 신호도 중간 수준으로 올라오기 쉬우니, 속도 조절이 필요합니다.\n\n당장 정답을 찾기보다 반복되는 장면을 먼저 알아차리는 것이 도움이 됩니다.\n\n## [Stability Metrics] 버티는 힘\n\n기본 힘은 중간, 변동성은 중간 정도입니다. 대신 회복 속도가 빠른 편이라 흔들려도 다시 일어나는 탄력성이 있습니다.\n\n금전 쪽 불안정 압력은 낮은 편이라 큰 폭의 위기는 적습니다. 다만 통제 반응이 중간 수준이라 변화가 생기면 반응이 과하거나 소극적으로 흐를 수 있습니다.\n\n지금은 크게 확정하기보다 흔들리는 지점을 먼저 정리하는 편이 낫습니다.\n\n## [Love & Relationships] 관계의 결\n\n애착의 강도는 중간, 갈등 촉발 수준도 중간입니다.\n\n수리 능력(repair capacity)은 낮아, 충돌이 생기면 풀어내는 데 시간이 걸립니다. 당신은 가까움과 자기보호 사이에서 자주 선택의 딜레마를 겪습니다—더 붙고 싶다가도 급히 물러나는 패턴이 반복됩니다.\n\n한 번에 크게 바꾸기보다 작은 확인을 쌓아가면 방향이 선명해집니다.\n\n## [Karmic Patterns] 반복 패턴\n\n라후와 케투의 주제가 강하게 배경에 깔려 있습니다.\n\n과거의 선택이 비슷한 모양으로 반복될 가능성이 크고, 특히 '붙잡기 vs 놓기'의 루프가 자주 나타납니다. 당신은 새로운 것을 끌어들이려는 욕구와 동시에 그로 인해 감정적으로 과소비되는 상황을 걱정하는 경향이 번갈아 옵니다.\n\n지금 단계에서는 확신보다 점검이 먼저일 때 흐름이 덜 흔들립니다.\n\n## [Health & Body Patterns] 몸의 리듬\n\n행동이 빠르고 즉각적인 편이라 에너지 폭발과 소진이 교대로 옵니다.\n\n태양과 상승의 전형적 기질은 시작력과 주도력을 주지만, 지속적 과업에서는 인내가 떨어질 수 있습니다. 달의 민감성은 스트레스가 쌓이면 수면·소화·정서적 불편으로 이어질 가능성이 있으니, 규칙적 회복 루틴이 중요합니다.\n\n무리해서 밀어붙이기보다 덜 소모되는 방식으로 조정해도 충분합니다.\n\n## [Confidence & Forecast] 앞으로의 흐름\n\n당신의 중심 동력은 목성 쪽에서 나오므로, 신념을 확장하는 경험을 통해 자신감이 회복됩니다.\n\n다만 자기 일관성이 낮아 확신이 흔들릴 때가 잦습니다. 가까운 몇 년은 '재정적·직업적 안정화'로 가는 과정이어서 큰 도약보다는 체력을 비축하고 포트폴리오를 정리하는 전략이 더 현실적입니다.\n\n빠른 결론보다 반복되는 장면의 패턴을 붙잡는 편이 유리합니다.\n\n## [Psychological Architecture] 마음이 움직이는 방식\n\n중심에는 확장과 보호의 충돌이 있습니다.\n\n목성이 강한 기질이면서 라후·케투가 긴장을 만들어내므로, 당신은 '다가감'의 반복을 통해 정체성을 시험합니다. 자기 일관성은 낮아 순간의 욕구에 따라 방향이 바뀌기 쉽고, 그로 인해 내부의 접근-회피 루프가 자주 작동합니다.\n\n복잡하게 해석하기보다 지금 반복되는 선택을 가볍게 확인해 보세요.\n\n## [Final Summary] 마지막 정리\n\n당신은 빠르게 시작하고, 때로는 그 속도 때문에 먼저 지치는 사람입니다.\n\n지금은 변화를 밀어붙이기보다 구조를 정비하고 에너지를 효율적으로 배분하는 시기입니다. 목성의 기운을 활용해 신념과 관대함으로 움직이되, 라후·케투가 만드는 반복의 함정을 인지하고 작은 행동으로 루프를 바꾸세요.\n\n당장 완벽해지기보다 흔들리는 순간을 빨리 알아차리는 편이 도움이 됩니다.",
+  "detail_level": "full",
+  "ai_cache_key": "1978_9_17_20.75_19.076_72.8777_W_ko_male_0_[]_None_standard_full_8000_ko_only_v2_chapter_blocks_v2",
+  "request_id": "1960cc7b-efc8-4a44-b3fb-6e30b525fa12",
+  "chart_hash": "5b623fc0f2c0fd21c15a2ecb0aa932fb211bd5c1b186a0728323edfb99986a34",
+  "chapter_blocks_hash": "35175c116a9b0aa33963d3bb950ded7c96ba2b6e14d9bda7340c1579481548e4",
+  "debug_info": {
+    "api_key_configured": true,
+    "api_key_length": 164,
+    "model_requested": "gpt-5-mini",
+    "model_used": "gpt-5-mini",
+    "client_initialized": true,
+    "pipeline_version": "chapter_blocks_v2",
+    "retry_used": false,
+    "fallback_used": false,
+    "interpretations_loaded": true,
+    "interpretations_load_error": null,
+    "analysis_mode_requested": "standard",
+    "analysis_mode_resolved": "standard",
+    "analysis_mode_fallback": false,
+    "llm_input_source": "report_engine.chapter_blocks"
+  }
+}

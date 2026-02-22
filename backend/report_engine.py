@@ -11,20 +11,15 @@ from typing import Any
 
 REPORT_CHAPTERS = [
     "Executive Summary",
-    "Purushartha Profile",
-    "Psychological Architecture",
-    "Behavioral Risks",
-    "Karmic Patterns",
-    "Stability Metrics",
-    "Personality Vector",
     "Life Timeline Interpretation",
     "Career & Success",
+    "Stability Metrics",
     "Love & Relationships",
+    "Karmic Patterns",
     "Health & Body Patterns",
     "Confidence & Forecast",
-    "Remedies & Program",
+    "Psychological Architecture",
     "Final Summary",
-    "Appendix (Optional)",
 ]
 
 SYSTEM_PROMPT = """You are a master narrative editor.
@@ -80,20 +75,16 @@ Output format contract (deterministic):
 
 Chapters to include in exact order:
 Executive Summary
-Purushartha Profile
-Psychological Architecture
-Behavioral Risks
-Karmic Patterns
-Stability Metrics
-Personality Vector
 Life Timeline Interpretation
 Career & Success
+Stability Metrics
 Love & Relationships
+Karmic Patterns
 Health & Body Patterns
 Confidence & Forecast
-Remedies & Program
+Psychological Architecture
 Final Summary
-Appendix (Optional)"""
+"""
 
 _TEMPLATE_FILES = [
     "purushartha_patterns.json",

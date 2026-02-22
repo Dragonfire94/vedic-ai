@@ -1,0 +1,51 @@
+{
+  "profile_name": "most_balanced",
+  "selected_model_env": "gpt-5-mini",
+  "static": {
+    "prompt_hash": "79aef3db4cc35a2815b5a6dd5325efaf68bc7ec8293e6e7acd2deeebb7ac3422",
+    "prompt_length": 12251,
+    "required_markers": {
+      "OUTPUT CONTRACT (STRICT)": true,
+      "DASHA INTEGRITY": true,
+      "HARD BANS": false,
+      "SHOCK ARCHITECTURE": false
+    }
+  },
+  "dry": {
+    "text_length": 5257,
+    "heading_count": 10,
+    "hard_style_errors": [],
+    "warn_style_errors": [],
+    "forbidden_hits": 0
+  },
+  "hash_guard": {
+    "previous_hash": "b0558a3306c6fee4391a100809edbed7dedaf1dc0a9eb0f48f985a783a96cd5e",
+    "same_hash": false,
+    "should_run_truepath": true
+  },
+  "truepath": {
+    "ok": true,
+    "status_code": 200,
+    "fallback": true,
+    "llm_input_source": "report_engine.chapter_blocks",
+    "selected_model": "gpt-5-mini",
+    "model_used": "gpt-5-mini",
+    "ai_cache_key": "1978_9_17_20.75_19.076_72.8777_W_ko_male_0_[]_None_standard_full_18000_ko_only_v2_chapter_blocks_v2",
+    "chapter_blocks_hash": "2ca50af16ceb1f55f790990736663db11cbff25703562d5ceb161dc13f29f6bc",
+    "audit_overall": 0,
+    "audit_flags": null,
+    "reading_length": 6464,
+    "heading_count": 0,
+    "forbidden_hits": 0,
+    "error": null,
+    "analysis_mode_fallback": null,
+    "run_dir": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260222_170054",
+    "reading_path": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260222_170054\\reading.md",
+    "pdf_status": 503,
+    "pdf_path": null,
+    "pdf_include_ai": 1,
+    "pdf_disabled": true,
+    "pdf_error": "PDF disabled by PDF_DISABLED flag",
+    "fallback_reason_hint": null
+  }
+}

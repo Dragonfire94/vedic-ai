@@ -1,0 +1,23 @@
+{
+  "pdf_path": "logs\\single_balanced_pdf_20260222_205513\\most_balanced_20260222_205513.pdf",
+  "seed": 44,
+  "birth_input": {
+    "seed": 44,
+    "label": "candidate_44",
+    "year": 1978,
+    "month": 9,
+    "day": 17,
+    "hour": 20.75,
+    "lat": 19.076,
+    "lon": 72.8777,
+    "timezone": null,
+    "house_system": "W",
+    "include_nodes": 1,
+    "include_d9": 1,
+    "include_vargas": "",
+    "gender": "male",
+    "location_name": "mumbai",
+    "analysis_mode": "standard",
+    "language": "ko"
+  }
+}

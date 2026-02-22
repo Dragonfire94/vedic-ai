@@ -3,17 +3,18 @@ import logging
 import re
 import asyncio
 import hashlib
+import json
+from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
 
 from backend.report_engine import (
-    REPORT_CHAPTERS,
     _get_atomic_chart_interpretations,
     build_dasha_narrative_context,
     build_semantic_signals,
 )
 
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
 logger = logging.getLogger("vedic_ai")
 
@@ -34,6 +35,445 @@ _SHORT_TITLE_BY_KEY = {
     "Final Summary": "마지막 정리",
     "Appendix (Optional)": "보충 메모",
 }
+
+_PREMIUM_10_KEYS = [
+    "Executive Summary",                 # 본질/방향성
+    "Life Timeline Interpretation",      # 큰 흐름/사이클
+    "Career & Success",                  # 커리어
+    "Stability Metrics",                 # 재물 구조(프레이밍)
+    "Love & Relationships",              # 연애/배우자
+    "Karmic Patterns",                   # 결혼 후/가족 카르마
+    "Health & Body Patterns",            # 건강/체질
+    "Confidence & Forecast",             # 해외/이동(타이밍형)
+    "Psychological Architecture",        # 영성/내면
+    "Final Summary",                     # 시험/돌파구
+]
+
+_ACTIONABLE_CHAPTER_KEYS = {
+    "Career & Success",
+    "Stability Metrics",
+    "Love & Relationships",
+    "Karmic Patterns",
+    "Health & Body Patterns",
+    "Psychological Architecture",
+    "Confidence & Forecast",
+}
+_BULLET_EXEMPT_CHAPTER_KEYS = {
+    "Executive Summary",
+    "Life Timeline Interpretation",
+    "Final Summary",
+}
+_BULLET_LINE_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+).+")
+_INTERPRETATIONS_PATH = Path("assets/data/interpretations.kr_final.json")
+_INTERPRETATIONS_INDEX_CACHE: dict[str, dict[str, str]] | None = None
+_EVIDENCE_FALLBACK_PATTERNS = {
+    "Executive Summary": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:upachaya_emphasis"],
+    "Career & Success": ["pat:strong_10th_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
+    "Stability Metrics": ["pat:strong_moon", "pat:afflicted_moon", "pat:combust_emphasis"],
+    "Love & Relationships": ["pat:benefic_support", "pat:malefic_overload"],
+    "Karmic Patterns": ["pat:dusthana_focus", "pat:scattered_energy"],
+    "Health & Body Patterns": ["pat:malefic_overload", "pat:combust_emphasis"],
+    "Psychological Architecture": ["pat:scattered_energy", "pat:kendra_emphasis"],
+}
+CHAPTER_EVIDENCE_RULES: dict[str, dict[str, int]] = {
+    "Executive Summary": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Life Timeline Interpretation": {"patterns": 2, "yogas": 0, "lagna_lord": 2},
+    "Career & Success": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Stability Metrics": {"patterns": 3, "yogas": 0, "lagna_lord": 0},
+    "Love & Relationships": {"patterns": 2, "yogas": 1, "lagna_lord": 0},
+    "Karmic Patterns": {"patterns": 3, "yogas": 1, "lagna_lord": 1},
+    "Health & Body Patterns": {"patterns": 2, "yogas": 0, "lagna_lord": 1},
+    "Confidence & Forecast": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Psychological Architecture": {"patterns": 3, "yogas": 0, "lagna_lord": 1},
+    "Final Summary": {"reuse_top": 3},
+}
+_EVIDENCE_LOW_PRIORITY_CHAPTERS = [
+    "Executive Summary",
+    "Final Summary",
+    "Confidence & Forecast",
+]
+
+
+def _active_report_chapters() -> list[str]:
+    return list(_PREMIUM_10_KEYS)
+
+
+def _flatten_interpretation_section(section: Any) -> dict[str, str]:
+    out: dict[str, str] = {}
+    if not isinstance(section, dict):
+        return out
+    for key, value in section.items():
+        if isinstance(value, dict):
+            text = str(value.get("text", "")).strip()
+        else:
+            text = str(value).strip()
+        if text:
+            out[str(key).strip()] = text
+    return out
+
+
+def _load_interpretations_index() -> dict[str, dict[str, str]]:
+    global _INTERPRETATIONS_INDEX_CACHE
+    if isinstance(_INTERPRETATIONS_INDEX_CACHE, dict):
+        return _INTERPRETATIONS_INDEX_CACHE
+    try:
+        if not _INTERPRETATIONS_PATH.exists():
+            logger.error("interpretations file missing: %s", _INTERPRETATIONS_PATH)
+            _INTERPRETATIONS_INDEX_CACHE = {"atomic": {}, "lagna_lord": {}, "yogas": {}, "patterns": {}}
+            return _INTERPRETATIONS_INDEX_CACHE
+        payload = json.loads(_INTERPRETATIONS_PATH.read_text(encoding="utf-8"))
+        ko = payload.get("ko", {}) if isinstance(payload, dict) else {}
+        _INTERPRETATIONS_INDEX_CACHE = {
+            "atomic": _flatten_interpretation_section(ko.get("atomic")),
+            "lagna_lord": _flatten_interpretation_section(ko.get("lagna_lord")),
+            "yogas": _flatten_interpretation_section(ko.get("yogas")),
+            "patterns": _flatten_interpretation_section(ko.get("patterns")),
+        }
+        return _INTERPRETATIONS_INDEX_CACHE
+    except Exception as e:
+        logger.error("interpretations load failed path=%s error=%s", _INTERPRETATIONS_PATH, e)
+        _INTERPRETATIONS_INDEX_CACHE = {"atomic": {}, "lagna_lord": {}, "yogas": {}, "patterns": {}}
+        return _INTERPRETATIONS_INDEX_CACHE
+
+
+def _evidence_text_trim(text: str, max_chars: int) -> str:
+    t = str(text or "").strip()
+    if len(t) <= max_chars:
+        return t
+    return t[:max_chars].rstrip() + "..."
+
+
+def _evidence_chars(items: list[dict[str, str]]) -> int:
+    return sum(len(str(x.get("text", ""))) for x in items if isinstance(x, dict))
+
+
+def _append_evidence_item(
+    *,
+    items: list[dict[str, str]],
+    seen_ids: set[str],
+    item_id: str,
+    text: str,
+    max_item_chars: int,
+) -> None:
+    iid = str(item_id or "").strip()
+    if not iid or iid in seen_ids:
+        return
+    t = _evidence_text_trim(text, max_item_chars)
+    if not t:
+        return
+    seen_ids.add(iid)
+    items.append({"id": iid, "text": t})
+
+
+def build_evidence_packs(
+    structured_summary: dict[str, Any],
+    chapter_keys: list[str],
+    *,
+    chapter_chars_min: int = 600,
+    chapter_chars_max: int = 1200,
+    global_chars_max: int = 1500,
+    global_chars_hard_max: int = 2500,
+    total_chars_hard_max: int = 15000,
+    chapter_items_min: int = 2,
+    chapter_items_max: int = 4,
+) -> dict[str, Any]:
+    source = structured_summary if isinstance(structured_summary, dict) else {}
+    idx = _load_interpretations_index()
+    atomic = idx.get("atomic", {})
+    patterns = idx.get("patterns", {})
+    yogas = idx.get("yogas", {})
+    lagna_lord = idx.get("lagna_lord", {})
+
+    def _norm_pat_id(value: str) -> str:
+        v = str(value or "").strip()
+        if not v:
+            return ""
+        return v if v.startswith("pat:") else f"pat:{v}"
+
+    def _norm_yoga_id(value: str) -> str:
+        v = str(value or "").strip()
+        if not v:
+            return ""
+        return v if v.startswith("yoga:") else f"yoga:{v}"
+
+    detected_yoga_ids = [_norm_yoga_id(v) for v in (source.get("detected_yogas") or []) if isinstance(v, str)]
+    detected_pattern_ids = [_norm_pat_id(v) for v in (source.get("pattern_flags") or []) if isinstance(v, str)]
+    ll_state = str(source.get("lagna_lord_state") or "").strip()
+    ll_place = str(source.get("lagna_lord_placement_group") or "").strip()
+    ll_ids = [f"ll:state:{ll_state}" if ll_state else "", f"ll:placement:{ll_place}" if ll_place else ""]
+    ll_ids = [v for v in ll_ids if v]
+
+    global_items: list[dict[str, str]] = []
+    global_seen: set[str] = set()
+    missing_ids: list[str] = []
+
+    for key in (
+        (f"asc:{str(source.get('ascendant_sign') or '').strip()}" if str(source.get("ascendant_sign") or "").strip() else ""),
+        (f"ps:Sun:{str(source.get('sun_sign') or '').strip()}" if str(source.get("sun_sign") or "").strip() else ""),
+        (f"ps:Moon:{str(source.get('moon_sign') or '').strip()}" if str(source.get("moon_sign") or "").strip() else ""),
+    ):
+        if not key:
+            continue
+        txt = atomic.get(key)
+        if txt:
+            _append_evidence_item(items=global_items, seen_ids=global_seen, item_id=key, text=txt, max_item_chars=420)
+        else:
+            missing_ids.append(key)
+
+    while _evidence_chars(global_items) > global_chars_max and len(global_items) > 1:
+        global_items.pop()
+    if _evidence_chars(global_items) > global_chars_hard_max and global_items:
+        global_items = global_items[:1]
+    global_ids = {str(it.get("id", "")) for it in global_items if isinstance(it, dict)}
+
+    chapter_evidence_raw: dict[str, list[dict[str, Any]]] = {}
+    fallback_used_by_chapter: dict[str, bool] = {}
+    reuse_in_final_ids: list[str] = []
+
+    def _try_add(
+        target: list[dict[str, Any]],
+        seen: set[str],
+        chapter: str,
+        item_id: str,
+        text_pool: dict[str, str],
+        kind: str,
+        score: int,
+        max_item_chars: int,
+    ) -> bool:
+        iid = str(item_id or "").strip()
+        if not iid:
+            return False
+        if iid in global_ids:
+            return False
+        if iid in seen:
+            return False
+        txt = text_pool.get(iid)
+        if not txt:
+            missing_ids.append(iid)
+            return False
+        t = _evidence_text_trim(txt, max_item_chars)
+        if not t:
+            return False
+        seen.add(iid)
+        target.append(
+            {
+                "id": iid,
+                "text": t,
+                "_kind": kind,
+                "_score": score,
+                "_chapter": chapter,
+            }
+        )
+        return True
+
+    normal_chapters = [ck for ck in chapter_keys if ck != "Final Summary"]
+    for chapter in normal_chapters:
+        rule = CHAPTER_EVIDENCE_RULES.get(chapter, {"patterns": 2, "yogas": 1, "lagna_lord": 1})
+        items: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        used_fallback = False
+
+        y_added = 0
+        for yid in detected_yoga_ids:
+            if y_added >= int(rule.get("yogas", 0)):
+                break
+            if _try_add(items, seen, chapter, yid, yogas, "yoga", 100, 360):
+                y_added += 1
+
+        p_added = 0
+        for pid in detected_pattern_ids:
+            if p_added >= int(rule.get("patterns", 0)):
+                break
+            if _try_add(items, seen, chapter, pid, patterns, "pattern", 80, 360):
+                p_added += 1
+
+        ll_added = 0
+        for lid in ll_ids:
+            if ll_added >= int(rule.get("lagna_lord", 0)):
+                break
+            if _try_add(items, seen, chapter, lid, lagna_lord, "lagna_lord", 60, 320):
+                ll_added += 1
+
+        for pid in _EVIDENCE_FALLBACK_PATTERNS.get(chapter, []):
+            if len(items) >= chapter_items_max:
+                break
+            if _try_add(items, seen, chapter, pid, patterns, "fallback", 20, 360):
+                used_fallback = True
+
+        while _evidence_chars(items) > chapter_chars_max and len(items) > 1:
+            drop_idx = -1
+            for idx_i, candidate in enumerate(items):
+                if str(candidate.get("_kind")) == "fallback":
+                    drop_idx = idx_i
+                    break
+            if drop_idx < 0:
+                drop_idx = len(items) - 1
+            items.pop(drop_idx)
+
+        if _evidence_chars(items) > chapter_chars_max and items:
+            for item in items:
+                item["text"] = _evidence_text_trim(item.get("text", ""), 300)
+                if _evidence_chars(items) <= chapter_chars_max:
+                    break
+
+        chapter_evidence_raw[chapter] = items
+        fallback_used_by_chapter[chapter] = used_fallback
+
+    # Final Summary: process last using strongest evidence from other chapters.
+    if "Final Summary" in chapter_keys:
+        pool: list[dict[str, Any]] = []
+        for chapter in normal_chapters:
+            for item in chapter_evidence_raw.get(chapter, []):
+                if isinstance(item, dict):
+                    pool.append(item)
+        pool.sort(
+            key=lambda x: (
+                int(x.get("_score", 0)),
+                len(str(x.get("text", ""))),
+            ),
+            reverse=True,
+        )
+        final_items: list[dict[str, Any]] = []
+        seen_final: set[str] = set()
+        reuse_top = int(CHAPTER_EVIDENCE_RULES.get("Final Summary", {}).get("reuse_top", 3))
+        for item in pool:
+            iid = str(item.get("id", "")).strip()
+            if not iid or iid in seen_final:
+                continue
+            seen_final.add(iid)
+            reuse_in_final_ids.append(iid)
+            final_items.append(
+                {
+                    "id": iid,
+                    "text": str(item.get("text", "")).strip(),
+                    "_kind": "reused",
+                    "_score": int(item.get("_score", 0)),
+                    "_chapter": "Final Summary",
+                }
+            )
+            if len(final_items) >= reuse_top:
+                break
+        chapter_evidence_raw["Final Summary"] = final_items
+        fallback_used_by_chapter["Final Summary"] = False
+
+    chapter_evidence: dict[str, list[dict[str, str]]] = {}
+    chapter_evidence_count: dict[str, int] = {}
+    chapter_evidence_char_count: dict[str, int] = {}
+    no_evidence_keys: list[str] = []
+    low_density_keys: list[str] = []
+
+    for chapter in chapter_keys:
+        items = chapter_evidence_raw.get(chapter, [])
+        safe_items = [{"id": str(i.get("id", "")), "text": str(i.get("text", ""))} for i in items if isinstance(i, dict)]
+        chapter_evidence[chapter] = safe_items
+        chapter_evidence_count[chapter] = len(safe_items)
+        chapter_evidence_char_count[chapter] = _evidence_chars(safe_items)
+        if len(safe_items) == 0:
+            no_evidence_keys.append(chapter)
+        if chapter != "Final Summary" and len(safe_items) < 3:
+            low_density_keys.append(chapter)
+
+    def _recompute_total() -> int:
+        return _evidence_chars(global_items) + sum(_evidence_chars(chapter_evidence.get(k, [])) for k in chapter_keys)
+
+    def _pop_one_by_kind(chapter: str, allowed_kinds: set[str] | None) -> bool:
+        raw = chapter_evidence_raw.get(chapter, [])
+        if not raw:
+            return False
+        for i, item in enumerate(raw):
+            kind = str(item.get("_kind", ""))
+            if allowed_kinds is None or kind in allowed_kinds:
+                raw.pop(i)
+                chapter_evidence_raw[chapter] = raw
+                chapter_evidence[chapter] = [{"id": str(x.get("id", "")), "text": str(x.get("text", ""))} for x in raw]
+                chapter_evidence_count[chapter] = len(chapter_evidence[chapter])
+                chapter_evidence_char_count[chapter] = _evidence_chars(chapter_evidence[chapter])
+                return True
+        return False
+
+    evidence_trim_level = 0
+    total_chars = _recompute_total()
+    while total_chars > total_chars_hard_max:
+        changed = False
+        # 1) remove reused evidence in Final Summary
+        if _pop_one_by_kind("Final Summary", {"reused"}):
+            evidence_trim_level = max(evidence_trim_level, 1)
+            changed = True
+        # 2) remove fallback evidence
+        if not changed:
+            for chapter in chapter_keys:
+                if _pop_one_by_kind(chapter, {"fallback"}):
+                    evidence_trim_level = max(evidence_trim_level, 2)
+                    changed = True
+                    break
+        # 3) remove yogas
+        if not changed:
+            for chapter in chapter_keys:
+                if _pop_one_by_kind(chapter, {"yoga"}):
+                    evidence_trim_level = max(evidence_trim_level, 3)
+                    changed = True
+                    break
+        # 4) remove lagna_lord
+        if not changed:
+            for chapter in chapter_keys:
+                if _pop_one_by_kind(chapter, {"lagna_lord"}):
+                    evidence_trim_level = max(evidence_trim_level, 4)
+                    changed = True
+                    break
+        # 5) truncate text
+        if not changed:
+            truncated = False
+            for chapter in chapter_keys:
+                safe_items = chapter_evidence.get(chapter, [])
+                for item in safe_items:
+                    old = str(item.get("text", ""))
+                    new = _evidence_text_trim(old, max(180, len(old) - 80))
+                    if new != old:
+                        item["text"] = new
+                        truncated = True
+                        break
+                if truncated:
+                    chapter_evidence_char_count[chapter] = _evidence_chars(safe_items)
+                    evidence_trim_level = max(evidence_trim_level, 5)
+                    changed = True
+                    break
+        # 6) remove one item from low-priority chapters
+        if not changed:
+            for chapter in _EVIDENCE_LOW_PRIORITY_CHAPTERS:
+                items = chapter_evidence.get(chapter, [])
+                if items:
+                    items.pop()
+                    chapter_evidence[chapter] = items
+                    chapter_evidence_count[chapter] = len(items)
+                    chapter_evidence_char_count[chapter] = _evidence_chars(items)
+                    evidence_trim_level = max(evidence_trim_level, 6)
+                    changed = True
+                    break
+        if not changed:
+            break
+        total_chars = _recompute_total()
+
+    # Re-sync density keys after trimming
+    no_evidence_keys = [k for k in chapter_keys if len(chapter_evidence.get(k, [])) == 0]
+    low_density_keys = [k for k in chapter_keys if k != "Final Summary" and len(chapter_evidence.get(k, [])) < 3]
+
+    return {
+        "global_evidence": global_items,
+        "chapter_evidence": chapter_evidence,
+        "stats": {
+            "global_items": len(global_items),
+            "global_chars": _evidence_chars(global_items),
+            "total_chars": total_chars,
+            "missing_ids": missing_ids[:50],
+            "chapter_evidence_count": chapter_evidence_count,
+            "chapter_evidence_char_count": chapter_evidence_char_count,
+            "fallback_used": fallback_used_by_chapter,
+            "reused_in_final": reuse_in_final_ids[:10],
+            "no_evidence_keys": no_evidence_keys,
+            "low_evidence_density_keys": low_density_keys,
+            "evidence_trim_level": evidence_trim_level,
+        },
+    }
 
 _FALLBACK_PARAGRAPH_POOL = [
     "지금은 결론을 서두르기보다 흐름을 차분히 살펴보는 편이 좋습니다.",
@@ -70,6 +510,73 @@ _FALLBACK_TAIL_POOL = [
     "흐름을 읽는 쪽이 더 안정적입니다.",
     "지금은 정리의 리듬이 우선입니다.",
 ]
+
+
+def _select_chapter_blocks_source(chapter_blocks: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(chapter_blocks, dict):
+        return {}
+    v2 = chapter_blocks.get("chapter_blocks_v2")
+    if isinstance(v2, dict):
+        return v2
+    legacy = chapter_blocks.get("chapter_blocks")
+    if isinstance(legacy, dict):
+        return legacy
+    return chapter_blocks
+
+
+def _compact_chapter_blocks_for_prompt(
+    chapter_blocks: dict[str, Any],
+    *,
+    max_blocks_per_chapter: int = 3,
+    summary_max_chars: int = 420,
+    global_budget_chars: int = 12000,
+) -> dict[str, Any]:
+    """Build a compact but content-dense chapter_blocks snapshot for prompt assembly."""
+    source = _select_chapter_blocks_source(chapter_blocks)
+    if not isinstance(source, dict):
+        return {}
+
+    candidate_fields = ("summary", "analysis", "implication", "examples", "shadow_pattern")
+    out: dict[str, Any] = {}
+    text_budget = 0
+
+    for key, blocks in source.items():
+        if not isinstance(blocks, list) or not blocks:
+            continue
+
+        compact_items: list[dict[str, Any]] = []
+        for block in blocks:
+            if len(compact_items) >= max_blocks_per_chapter:
+                break
+            if not isinstance(block, dict):
+                continue
+
+            title = str(block.get("title", "")).strip()
+            parts: list[str] = []
+            for field in candidate_fields:
+                raw = block.get(field)
+                text = str(raw).strip() if raw is not None else ""
+                if text:
+                    parts.append(text)
+            content = " ".join(parts).strip()
+            if not content:
+                continue
+            if len(content) > summary_max_chars:
+                content = content[:summary_max_chars].rstrip() + "..."
+
+            item = {"title": title, "content": content}
+            compact_items.append(item)
+            text_budget += len(content) + len(title)
+
+            if text_budget >= global_budget_chars:
+                break
+
+        if compact_items:
+            out[str(key)] = compact_items
+        if text_budget >= global_budget_chars:
+            break
+
+    return out
 
 
 def _derive_narrative_mode(structural_summary: dict[str, Any]) -> str:
@@ -115,13 +622,353 @@ def _build_structural_executive_summary(structural_summary: dict[str, Any]) -> s
 
 - 당신은 한 번 마음이 움직이면 빠르게 실행으로 옮기는 편입니다.
 - 다만 속도가 붙을수록 마음이 먼저 지칠 수 있어, 몰입과 단절이 번갈아 나타날 때가 있습니다.
-- 이 리포트는 사건을 단정하는 예언이 아니라, 반복되는 선택의 리듬을 정리해주는 글입니다.
+- 반복되는 선택의 리듬을 먼저 보면, 지금 필요한 방향이 더 선명해집니다.
 - 요즘은 시기 흐름(다샤)에서 힘의 초점이 바뀌는 구간이니, 덜 소모되는 선택을 먼저 찾는 것이 중요합니다.
 - 당신의 힘이 모이는 버튼은 {dominant} 기질과 닿아 있습니다.
 
 Use this anchor to keep the report human and resonant.
 Never output metrics, indices, axes, probabilities, or percent values.
 """
+
+
+def _safe_float(value: Any, default: float) -> float:
+    try:
+        return float(value)
+    except Exception:
+        return default
+
+
+def _band3(value: float, low: float, high: float) -> str:
+    if value >= high:
+        return "high"
+    if value <= low:
+        return "low"
+    return "medium"
+
+
+def _timing_state_from_vector(vector: dict[str, Any], stability_index: float) -> str:
+    opportunity = _safe_float(vector.get("opportunity_factor", 0.5), 0.5)
+    risk = _safe_float(vector.get("risk_factor", 0.5), 0.5)
+    delta = opportunity - risk
+    if stability_index < 45 or abs(delta) >= 0.3:
+        return "volatile"
+    if stability_index < 60 or abs(delta) >= 0.15:
+        return "shifting"
+    return "stable"
+
+
+def _derive_cross_dynamics(
+    structural_summary: dict[str, Any],
+    semantic_signals: dict[str, Any],
+) -> list[dict[str, str]]:
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    signals = semantic_signals if isinstance(semantic_signals, dict) else {}
+    dynamics: dict[str, dict[str, str]] = {}
+
+    influence = source.get("engine", {}).get("influence_matrix", {}) if isinstance(source.get("engine"), dict) else {}
+    risks = source.get("behavioral_risk_profile", {}) if isinstance(source.get("behavioral_risk_profile"), dict) else {}
+    forecast = source.get("probability_forecast", {}) if isinstance(source.get("probability_forecast"), dict) else {}
+    tension = source.get("psychological_tension_axis")
+    tension_count = len(tension) if isinstance(tension, list) else (1 if tension else 0)
+    saturn_conflict = _safe_float(influence.get("saturn_conflict_score", 0.0), 0.0)
+    authority_conflict = _safe_float(risks.get("authority_conflict_risk", 0.0), 0.0)
+    burnout = _safe_float(risks.get("burnout_risk", 0.0), 0.0)
+    relationship_break = _safe_float(risks.get("relationship_break_risk", 0.0), 0.0)
+    financial_instability = _safe_float(forecast.get("financial_instability_3yr", 0.0), 0.0)
+    career_shift = _safe_float(forecast.get("career_shift_3yr", 0.0), 0.0)
+
+    # Deterministic engine-derived dynamics only.
+    def _priority_for_between(between: str, intensity: str) -> str:
+        if between == "relationship-identity":
+            return "must"
+        if between == "career-identity":
+            return "should"
+        if between == "money-career":
+            return "should" if intensity == "high" else "optional"
+        return "optional"
+
+    def upsert(between: str, pattern: str, score: float) -> None:
+        existing = dynamics.get(between)
+        intensity = _band3(score, 0.35, 0.65)
+        priority = _priority_for_between(between, intensity)
+        if existing is None:
+            dynamics[between] = {"between": between, "pattern": pattern, "intensity": intensity, "priority": priority}
+            return
+        # Keep stronger signal deterministically.
+        rank = {"low": 0, "medium": 1, "high": 2}
+        if rank.get(intensity, 0) > rank.get(str(existing.get("intensity", "low")), 0):
+            dynamics[between] = {"between": between, "pattern": pattern, "intensity": intensity, "priority": priority}
+
+    # Primary deterministic interactions from engine-derived risks/signals.
+    upsert(
+        "career-identity",
+        "authority_friction_vs_self_direction",
+        max(authority_conflict / 10.0, saturn_conflict / 5.0),
+    )
+    upsert(
+        "relationship-identity",
+        "closeness_vs_self_protection",
+        max(relationship_break / 10.0, float(tension_count) / 3.0),
+    )
+    upsert(
+        "money-career",
+        "income_pressure_vs_energy_recovery",
+        max(financial_instability, burnout / 10.0),
+    )
+    if career_shift > 0.45 and relationship_break > 4.0:
+        upsert(
+            "career-relationship",
+            "priority_conflict_under_transition",
+            (career_shift + relationship_break / 10.0) / 2.0,
+        )
+
+    # Ensure minimum 3 baseline interactions (requested).
+    baseline = [
+        ("career-identity", "ambition_vs_self_doubt", 0.45 + min(max(saturn_conflict / 10.0, 0.0), 0.25)),
+        ("relationship-identity", "connection_vs_self_protection", 0.45 + min(max(relationship_break / 20.0, 0.0), 0.25)),
+        ("money-career", "security_vs_growth_timing", 0.45 + min(max(financial_instability / 2.0, 0.0), 0.25)),
+    ]
+    for between, pattern, score in baseline:
+        if between not in dynamics:
+            intensity = _band3(score, 0.35, 0.65)
+            dynamics[between] = {
+                "between": between,
+                "pattern": pattern,
+                "intensity": intensity,
+                "priority": _priority_for_between(between, intensity),
+            }
+
+    ordered = [dynamics[k] for k in sorted(dynamics.keys())]
+    return ordered[:6]
+
+
+def _derive_internal_conflict_type(structural_summary: dict[str, Any]) -> str:
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    tension = source.get("psychological_tension_axis")
+    vector = source.get("current_dasha_vector", {}) if isinstance(source.get("current_dasha_vector"), dict) else {}
+    risk = _safe_float(vector.get("risk_factor", 0.5), 0.5)
+    opportunity = _safe_float(vector.get("opportunity_factor", 0.5), 0.5)
+    if isinstance(tension, list) and len(tension) >= 2:
+        if risk > opportunity + 0.1:
+            return "self_protection_vs_forward_drive"
+        if opportunity > risk + 0.1:
+            return "expansion_vs_internal_doubt"
+        return "approach_avoidance_loop"
+    if risk > 0.7:
+        return "caution_vs_expression"
+    if opportunity > 0.7:
+        return "speed_vs_stability"
+    return "consistency_vs_variation"
+
+
+def _build_chapter_tone_hints() -> dict[str, str]:
+    return {
+        "executive_summary": "high-clarity high-recognition",
+        "purushartha_profile": "reflective priority-balance",
+        "psychological_architecture": "inner-motion plain-language",
+        "behavioral_risks": "pattern-warning concise",
+        "karmic_patterns": "repeat-loop emotionally-direct",
+        "stability_metrics": "steadying practical",
+        "personality_vector": "reaction-style grounded",
+        "life_timeline_interpretation": "time-arc concrete",
+        "career_and_success": "expansion-with-friction",
+        "love_and_relationships": "attachment-with-boundary",
+        "health_and_body_patterns": "body-rhythm calming",
+        "confidence_and_forecast": "forward-clarity tempered",
+        "remedies_and_program": "small-actions low-friction",
+        "final_summary": "firm-close warm-depth",
+        "appendix_optional": "minimal-supportive",
+    }
+
+
+def _build_timing_windows_safe_a(
+    dasha_context: dict[str, Any],
+    current_vector: dict[str, Any],
+    stability_state: str,
+) -> list[dict[str, str]] | None:
+    ctx = dasha_context if isinstance(dasha_context, dict) else {}
+    vector = current_vector if isinstance(current_vector, dict) else {}
+    years = ctx.get("year_horizon")
+    if not isinstance(years, list) or len(years) < 2:
+        current_year = _safe_float(ctx.get("current_year", datetime.now().year), float(datetime.now().year))
+        years = [int(current_year), int(current_year) + 1, int(current_year) + 2, int(current_year) + 3]
+    try:
+        years = [int(y) for y in years[:4]]
+    except Exception:
+        return None
+    if len(years) < 2:
+        return None
+
+    opportunity = _safe_float(vector.get("opportunity_factor", 0.5), 0.5)
+    risk = _safe_float(vector.get("risk_factor", 0.5), 0.5)
+    dominant = str(vector.get("dominant_axis") or "").lower()
+    dominant_theme = str(vector.get("current_theme") or "").lower()
+    pressure_level = str(vector.get("pressure_level") or "").lower()
+    activation = str(vector.get("activation_intensity") or "").lower()
+
+    base_domain = "general"
+    if any(k in dominant for k in ("career", "authority", "work")) or any(k in dominant_theme for k in ("career", "authority")):
+        base_domain = "career"
+    elif any(k in dominant for k in ("relationship", "partner", "marriage")) or any(k in dominant_theme for k in ("relationship", "partner")):
+        base_domain = "relationship"
+    elif any(k in dominant for k in ("money", "resource", "finance")) or any(k in dominant_theme for k in ("money", "resource", "finance")):
+        base_domain = "money"
+    elif any(k in dominant for k in ("health", "body", "stress")) or any(k in dominant_theme for k in ("health", "body", "stress")):
+        base_domain = "health"
+
+    if opportunity - risk > 0.15:
+        primary_theme = "expansion-recalibration"
+    elif risk - opportunity > 0.15:
+        primary_theme = "pressure-management"
+    elif stability_state == "volatile":
+        primary_theme = "restructure"
+    else:
+        primary_theme = "stabilization"
+
+    primary_intensity = "high" if activation == "high" or pressure_level == "elevated" else "medium"
+    secondary_intensity = "medium" if primary_intensity == "high" else "low"
+    secondary_theme = "recalibration" if primary_theme in {"pressure-management", "restructure"} else "stabilization"
+
+    windows: list[dict[str, str]] = [
+        {
+            "window": f"{years[0]}_H1~{years[1]}_H1",
+            "domain": base_domain,
+            "theme": primary_theme,
+            "intensity": primary_intensity,
+        },
+        {
+            "window": f"{years[1]}_H2~{years[2]}_H1",
+            "domain": "general" if base_domain != "general" else "career",
+            "theme": secondary_theme,
+            "intensity": secondary_intensity,
+        },
+    ]
+    if len(years) >= 4 and stability_state in {"shifting", "volatile"}:
+        windows.append(
+            {
+                "window": f"{years[2]}_H2~{years[3]}_H1",
+                "domain": "money" if base_domain != "money" else "relationship",
+                "theme": "stabilization" if risk <= opportunity else "restructure",
+                "intensity": "low" if primary_intensity == "medium" else "medium",
+            }
+        )
+
+    # Deterministic ordering:
+    # intensity(high > medium > low) -> domain priority -> nearest window start
+    intensity_rank = {"high": 0, "medium": 1, "low": 2}
+    domain_rank = {"career": 0, "relationship": 1, "money": 2, "health": 3, "general": 4}
+
+    def _start_year(window_text: str) -> int:
+        m = re.search(r"(20\d{2})", window_text or "")
+        if m:
+            try:
+                return int(m.group(1))
+            except Exception:
+                return 9999
+        return 9999
+
+    windows = sorted(
+        windows,
+        key=lambda w: (
+            intensity_rank.get(str(w.get("intensity", "low")).lower(), 9),
+            domain_rank.get(str(w.get("domain", "general")).lower(), 9),
+            _start_year(str(w.get("window", ""))),
+        ),
+    )
+    return windows[:4] if windows else None
+
+
+def build_relationship_signal_context(
+    structural_summary: dict[str, Any],
+    semantic_signals: dict[str, Any] | None,
+    dasha_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    signals = semantic_signals if isinstance(semantic_signals, dict) else {}
+    timing = dasha_context if isinstance(dasha_context, dict) else {}
+
+    stability = source.get("stability_metrics", {}) if isinstance(source.get("stability_metrics"), dict) else {}
+    risks = source.get("behavioral_risk_profile", {}) if isinstance(source.get("behavioral_risk_profile"), dict) else {}
+    forecast = source.get("probability_forecast", {}) if isinstance(source.get("probability_forecast"), dict) else {}
+    purpose = source.get("life_purpose_vector", {}) if isinstance(source.get("life_purpose_vector"), dict) else {}
+    vector = source.get("current_dasha_vector", {}) if isinstance(source.get("current_dasha_vector"), dict) else {}
+    engine = source.get("engine", {}) if isinstance(source.get("engine"), dict) else {}
+    influence = engine.get("influence_matrix", {}) if isinstance(engine.get("influence_matrix"), dict) else {}
+    house_clusters = engine.get("house_clusters", {}) if isinstance(engine.get("house_clusters"), dict) else {}
+    cluster_scores = house_clusters.get("cluster_scores", {}) if isinstance(house_clusters.get("cluster_scores"), dict) else {}
+
+    stability_index = _safe_float(stability.get("stability_index", 50.0), 50.0)
+    risk_factor = _safe_float(vector.get("risk_factor", 0.5), 0.5)
+    opportunity_factor = _safe_float(vector.get("opportunity_factor", 0.5), 0.5)
+    burnout_risk = _safe_float(risks.get("burnout_risk", 5.0), 5.0)
+    emotional_volatility = _safe_float(risks.get("emotional_volatility", 5.0), 5.0)
+    saturn_conflict = _safe_float(influence.get("saturn_conflict_score", 0.0), 0.0)
+    dusthana_pressure = max(
+        _safe_float(cluster_scores.get(6, 0.0), 0.0),
+        _safe_float(cluster_scores.get(8, 0.0), 0.0),
+        _safe_float(cluster_scores.get(12, 0.0), 0.0),
+    )
+    activation_intensity = (
+        vector.get("activation_intensity")
+        or ("high" if opportunity_factor > 0.75 else "moderate" if opportunity_factor > 0.55 else "low")
+    )
+    pressure_level = (
+        vector.get("pressure_level")
+        or ("elevated" if risk_factor > 0.7 else "contained")
+    )
+    timing_state = _timing_state_from_vector(vector, stability_index)
+    timing_windows = _build_timing_windows_safe_a(timing, vector, timing_state)
+    timing_axis: dict[str, Any] = {
+        "current_phase": timing.get("timeframe_label") or timing.get("current_dasha_theme") or timing.get("label") or "current_cycle",
+        "activation_intensity": activation_intensity,
+        "pressure_level": pressure_level,
+        "dominant_theme": vector.get("current_theme") or vector.get("dominant_axis") or source.get("psychological_tension_axis"),
+        "stability_vs_change": timing_state,
+    }
+    if timing_windows:
+        timing_axis["timing_windows"] = timing_windows
+
+    context = {
+        "identity_axis": {
+            "dominant_force": purpose.get("dominant_planet") or source.get("planetary_dominance"),
+            "tension_core": source.get("psychological_tension_axis"),
+            "self_consistency": _band3(stability_index / 100.0, 0.45, 0.65),
+            "internal_conflict_type": _derive_internal_conflict_type(source),
+        },
+        "career_axis": {
+            "expansion_potential": _band3(_safe_float(forecast.get("career_shift_3yr", 0.5), 0.5), 0.4, 0.7),
+            "authority_friction": _band3(_safe_float(risks.get("authority_conflict_risk", 5.0), 5.0) / 10.0, 0.35, 0.65),
+            "burnout_pressure": _band3(_safe_float(risks.get("burnout_risk", 5.0), 5.0) / 10.0, 0.35, 0.65),
+        },
+        "relationship_axis": {
+            "attachment_intensity": _band3(_safe_float(signals.get("attachment_score", 0.5), 0.5), 0.35, 0.65),
+            "conflict_trigger_level": _band3(_safe_float(risks.get("relationship_break_risk", 5.0), 5.0) / 10.0, 0.35, 0.65),
+            "repair_capacity": _band3(stability_index / 100.0, 0.45, 0.7),
+        },
+        "money_axis": {
+            "instability_pressure": _band3(_safe_float(forecast.get("financial_instability_3yr", 0.5), 0.5), 0.35, 0.65),
+            "control_reactivity": _band3(_safe_float(signals.get("money_control_score", 0.5), 0.5), 0.35, 0.65),
+            "growth_readiness": _band3(max(opportunity_factor - risk_factor + 0.5, 0.0), 0.4, 0.7),
+        },
+        "stability_axis": {
+            "base_strength": _band3((stability_index / 100.0 + max(0.0, 1.0 - saturn_conflict / 5.0)) / 2.0, 0.45, 0.65),
+            "volatility": _band3((risk_factor + emotional_volatility / 10.0 + dusthana_pressure / 10.0) / 3.0, 0.35, 0.65),
+            "recovery_speed": _band3(max(0.0, 1.0 - ((burnout_risk / 10.0 + saturn_conflict / 5.0) / 2.0)), 0.35, 0.65),
+        },
+        "timing_axis": timing_axis,
+        "cross_dynamics": _derive_cross_dynamics(source, signals),
+        "chapter_tone_hints": _build_chapter_tone_hints(),
+    }
+    return context
+
+
+def build_relationship_compact_context(
+    structural_summary: dict[str, Any],
+    semantic_signals: dict[str, Any] | None,
+    dasha_context: dict[str, Any] | None,
+) -> dict[str, Any]:
+    # Backward-compatible alias.
+    return build_relationship_signal_context(structural_summary, semantic_signals, dasha_context)
 
 
 def audit_llm_output(response_text: str, structural_summary: dict[str, Any]) -> dict[str, Any]:
@@ -230,6 +1077,21 @@ def _sanitize_percent_phrasing_ko(text: str) -> str:
     return text
 
 
+def _sanitize_meta_report_phrasing_ko(text: str) -> str:
+    """Replace report-meta phrases with narrative-safe phrasing (no deletion)."""
+    if not isinstance(text, str) or not text:
+        return text
+    replacements = {
+        "이 리포트는": "이 흐름은",
+        "본 해석은": "지금의 흐름은",
+        "이 보고서는": "당신의 삶은",
+    }
+    out = text
+    for src, dst in replacements.items():
+        out = out.replace(src, dst)
+    return out
+
+
 def _split_sentences_ko(text: str) -> list[str]:
     raw = (text or "").strip()
     if not raw:
@@ -242,29 +1104,30 @@ def _split_sentences_ko(text: str) -> list[str]:
 
 
 def _normalize_chapter_key(token: str, title: str, section_index: int) -> str:
+    active = _active_report_chapters()
     token_raw = (token or "").strip()
     title_raw = (title or "").strip()
     if token_raw:
         if token_raw.isdigit():
             idx = int(token_raw) - 1
-            if 0 <= idx < len(REPORT_CHAPTERS):
-                return REPORT_CHAPTERS[idx]
-        for key in REPORT_CHAPTERS:
+            if 0 <= idx < len(active):
+                return active[idx]
+        for key in active:
             if token_raw.lower() == key.lower():
                 return key
     if title_raw:
         title_l = title_raw.lower()
-        for key in REPORT_CHAPTERS:
+        for key in active:
             if title_l == key.lower() or key.lower() in title_l or title_l in key.lower():
                 return key
         m = re.match(r"^\s*(\d+)\.\s*", title_raw)
         if m:
             idx = int(m.group(1)) - 1
-            if 0 <= idx < len(REPORT_CHAPTERS):
-                return REPORT_CHAPTERS[idx]
-    if 0 <= section_index < len(REPORT_CHAPTERS):
-        return REPORT_CHAPTERS[section_index]
-    return REPORT_CHAPTERS[-1]
+            if 0 <= idx < len(active):
+                return active[idx]
+    if 0 <= section_index < len(active):
+        return active[section_index]
+    return active[-1]
 
 
 def _fallback_three_paragraphs() -> list[str]:
@@ -454,9 +1317,116 @@ def _ensure_first_paragraph_three_sentences(key: str, paragraphs: list[str]) -> 
     return paragraphs
 
 
+def _resolve_min_chars_by_phase() -> int:
+    phase = (os.getenv("LLM_LEN_PHASE", "1") or "1").strip()
+    if phase == "2":
+        return int(os.getenv("LLM_MIN_CHARS_PER_CHAPTER_PHASE2", "900"))
+    return int(os.getenv("LLM_MIN_CHARS_PER_CHAPTER_PHASE1", "700"))
+
+
+def _extract_tail_bullet_block(body_text: str, chapter_key: str) -> tuple[str, str]:
+    """Extract only end-of-chapter bullet block; keep mid-body lists in prose."""
+    if not isinstance(body_text, str) or not body_text.strip():
+        return "", body_text or ""
+    if chapter_key not in _ACTIONABLE_CHAPTER_KEYS:
+        return "", body_text
+
+    lines = body_text.splitlines()
+    if not lines:
+        return "", body_text
+    tail_start = int(len(lines) * 0.70)  # last 30%
+    tail = lines[tail_start:]
+    bullet_positions = [i for i, ln in enumerate(tail) if _BULLET_LINE_RE.match((ln or "").strip())]
+    if len(bullet_positions) < 3:
+        return "", body_text
+
+    start = bullet_positions[0]
+    end = bullet_positions[-1]
+    block_lines = tail[start : end + 1]
+    bullet_lines = [ln for ln in block_lines if _BULLET_LINE_RE.match((ln or "").strip())]
+    if len(bullet_lines) < 3:
+        return "", body_text
+
+    bullet_block = "\n".join([ln.rstrip() for ln in block_lines if ln.strip()]).strip()
+    if not bullet_block:
+        return "", body_text
+
+    # remove extracted range from original tail, keep remaining prose
+    rebuilt_tail = tail[:start] + tail[end + 1 :]
+    prose_lines = lines[:tail_start] + rebuilt_tail
+    prose_body = "\n".join(prose_lines).strip()
+    return bullet_block, prose_body
+
+
+def _chapter_nonspace_lengths(text: str) -> dict[str, int]:
+    if not isinstance(text, str) or not text.strip():
+        return {}
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    heading_positions: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        m = re.match(r"^\s*##\s*\[([^\]]+)\]\s*", line)
+        if m:
+            heading_positions.append((idx, m.group(1).strip()))
+    out: dict[str, int] = {}
+    for i, (start, key) in enumerate(heading_positions):
+        end = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(lines)
+        body = "\n".join(lines[start + 1 : end]).strip()
+        out[key] = len(re.sub(r"\s+", "", body))
+    return out
+
+
+def _chapter_prose_nonspace_lengths(text: str) -> dict[str, int]:
+    if not isinstance(text, str) or not text.strip():
+        return {}
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    heading_positions: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        m = re.match(r"^\s*##\s*\[([^\]]+)\]\s*", line)
+        if m:
+            heading_positions.append((idx, m.group(1).strip()))
+    out: dict[str, int] = {}
+    for i, (start, key) in enumerate(heading_positions):
+        end = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(lines)
+        body_lines = lines[start + 1 : end]
+        prose_lines = [ln for ln in body_lines if not _BULLET_LINE_RE.match((ln or "").strip())]
+        body = "\n".join(prose_lines).strip()
+        out[key] = len(re.sub(r"\s+", "", body))
+    return out
+
+
+def _length_violation_keys(text: str, min_chars: int) -> list[str]:
+    lengths = _chapter_nonspace_lengths(text)
+    return [k for k, v in lengths.items() if isinstance(v, int) and v < int(min_chars)]
+
+
+def _actionable_bullet_coverage(text: str) -> tuple[int, int]:
+    """Return (covered_actionable_chapters, total_actionable_chapters_present)."""
+    if not isinstance(text, str) or not text.strip():
+        return 0, 0
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    heading_positions: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        m = re.match(r"^\s*##\s*\[([^\]]+)\]\s*", line)
+        if m:
+            heading_positions.append((idx, m.group(1).strip()))
+    covered = 0
+    total = 0
+    for i, (start, key) in enumerate(heading_positions):
+        if key not in _ACTIONABLE_CHAPTER_KEYS:
+            continue
+        total += 1
+        end = heading_positions[i + 1][0] if i + 1 < len(heading_positions) else len(lines)
+        body = "\n".join(lines[start + 1 : end]).strip()
+        _, prose = _extract_tail_bullet_block(body, key)
+        if prose != body:
+            covered += 1
+    return covered, total
+
+
 def normalize_llm_layout_strict(text: str) -> str:
     if not isinstance(text, str) or not text.strip():
         return text or ""
+    active_chapters = _active_report_chapters()
 
     normalized_text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = normalized_text.split("\n")
@@ -474,8 +1444,11 @@ def normalize_llm_layout_strict(text: str) -> str:
             prologue = " ".join(prologue_sentences[:4]).strip()
 
     section_map: dict[str, str] = {}
+    title_map: dict[str, str] = {}
     used_fallback_indices: set[int] = set()
     used_fallback_texts: set[str] = set()
+    evidence_mode = os.getenv("LLM_EVIDENCE_MODE", "off").strip().lower()
+    is_evidence_mode = evidence_mode == "on"
     fallback_salt = hashlib.sha256((normalized_text or "").encode("utf-8", errors="ignore")).hexdigest()[:16]
     for sec_idx, start in enumerate(heading_positions):
         end = heading_positions[sec_idx + 1] if sec_idx + 1 < len(heading_positions) else len(lines)
@@ -488,6 +1461,8 @@ def normalize_llm_layout_strict(text: str) -> str:
             token = m.group(1).strip()
             title = m.group(2).strip()
         key = _normalize_chapter_key(token, title, sec_idx)
+        if key and key not in title_map:
+            title_map[key] = title or _SHORT_TITLE_BY_KEY.get(key, key)
 
         body_text = "\n".join(lines[start + 1 : end]).strip()
         if key in section_map and section_map[key].strip():
@@ -500,14 +1475,21 @@ def normalize_llm_layout_strict(text: str) -> str:
         output_lines.append(prologue)
         output_lines.append("")
 
-    for key in REPORT_CHAPTERS:
-        title = _SHORT_TITLE_BY_KEY.get(key, key)
+    for key in active_chapters:
+        title = title_map.get(key) or _SHORT_TITLE_BY_KEY.get(key, key)
         output_lines.append(f"## [{key}] {title}")
         output_lines.append("")
+        body_text = section_map.get(key, "")
+        bullet_block, prose_body = _extract_tail_bullet_block(body_text, key)
         if LLM_RELAX_MODE == "phase15":
+            dynamic_min_paragraphs = 1 if is_evidence_mode else 2
+            # In evidence mode, keep parser from injecting fallback filler.
+            if is_evidence_mode:
+                used_fallback_indices.clear()
+                used_fallback_texts.clear()
             paragraphs = _ensure_min_paragraphs(
-                section_map.get(key, ""),
-                min_paragraphs=3,
+                prose_body,
+                min_paragraphs=dynamic_min_paragraphs,
                 max_paragraphs=4,
                 chapter_key=key,
                 fallback_salt=fallback_salt,
@@ -515,12 +1497,15 @@ def normalize_llm_layout_strict(text: str) -> str:
                 used_fallback_texts=used_fallback_texts,
             )
         else:
-            paragraphs = _enforce_three_paragraphs(section_map.get(key, ""))
+            paragraphs = _enforce_three_paragraphs(prose_body)
             paragraphs = _ensure_first_paragraph_three_sentences(key, paragraphs)
         for p_idx, paragraph in enumerate(paragraphs):
             output_lines.append(paragraph)
             if p_idx < len(paragraphs) - 1:
                 output_lines.append("")
+        if bullet_block and key not in _BULLET_EXEMPT_CHAPTER_KEYS:
+            output_lines.append("")
+            output_lines.append(bullet_block)
         output_lines.append("")
 
     final_text = "\n".join(output_lines).strip()
@@ -531,6 +1516,7 @@ def _structural_layout_error_codes(text: str) -> list[str]:
     """Structural-only layout errors used for regeneration gating."""
     if not isinstance(text, str) or not text.strip():
         return ["chapter_boundary_error", "heading_missing", "empty_chapter"]
+    active_chapters = _active_report_chapters()
 
     errors: list[str] = []
     lines = text.splitlines()
@@ -540,11 +1526,11 @@ def _structural_layout_error_codes(text: str) -> list[str]:
         if m:
             heading_positions.append((idx, m.group(1).strip()))
 
-    if len(heading_positions) < len(REPORT_CHAPTERS):
+    if len(heading_positions) < len(active_chapters):
         errors.append("chapter_boundary_error")
 
     heading_keys = [k for _, k in heading_positions]
-    if any(key not in heading_keys for key in REPORT_CHAPTERS):
+    if any(key not in heading_keys for key in active_chapters):
         errors.append("heading_missing")
 
     empty_found = False
@@ -612,63 +1598,38 @@ def build_life_timeline_prompt(
     source = structural_summary if isinstance(structural_summary, dict) else {}
     signals = semantic_signals if isinstance(semantic_signals, dict) else {}
     timing = dasha_context if isinstance(dasha_context, dict) else {}
-    current_vector = source.get("current_dasha_vector", {})
-    if not isinstance(current_vector, dict):
-        current_vector = {}
+    compact = build_relationship_signal_context(source, signals, timing)
+    timing_axis = compact.get("timing_axis", {}) if isinstance(compact, dict) else {}
+    windows = timing_axis.get("timing_windows") if isinstance(timing_axis, dict) else None
+    if not isinstance(windows, list):
+        windows = None
 
     compressed = {
-        "dominant_axis": current_vector.get("dominant_axis"),
-        "current_theme": current_vector.get("current_theme"),
-        "opportunity_factor": current_vector.get("opportunity_factor"),
-        "risk_factor": current_vector.get("risk_factor"),
-        "stability_index": ((source.get("stability_metrics") or {}).get("stability_index")),
-        "semantic_signals": signals,
-        "dasha_context": timing,
+        "timing_axis": timing_axis,
+        "cross_dynamics": compact.get("cross_dynamics", []) if isinstance(compact, dict) else [],
+        "chapter_tone_hints": compact.get("chapter_tone_hints", {}) if isinstance(compact, dict) else {},
+        "timing_windows_available": bool(windows),
+        "timing_windows_count": len(windows) if windows else 0,
     }
 
     return f"""
 Write ONLY the body content for the chapter "Life Timeline Interpretation" in Korean.
 Do NOT output any heading or bullet labels.
 
-Dasha Logical Integrity Rule:
-- Narrative must strictly reflect the provided dasha_context and structural signals.
-- Do NOT invent planetary cycles.
-- Do NOT fabricate Mahadasha or Antardasha if absent.
-- If classical lords are missing, use activation-vector framing only.
-- Do NOT create artificial dramatic arcs.
-- Tension or resolution must emerge only from structural signals.
-- Do NOT make deterministic event claims.
-
-Shock Timing Rules:
-- Create up to two major impact windows.
-- If strong timing signals exist, create exactly two windows.
-- If signals are weaker, create one primary and one lighter secondary window.
-- Each window must include:
-  1) year or year range
-  2) named planet
-  3) house number
-  4) affected life domain
-  5) one short standalone quotable line
-- Keep each window concise: one short paragraph plus one standalone line at most.
-- Avoid repeating the same planet-house phrasing structure across windows.
-
-Dynamic Year Safety:
-- Always calculate years relative to current_year from context.
-- Never reference years fully in the past.
-- If a cycle already started, frame it as currently unfolding.
-- If a cycle already ended, exclude it.
+Dasha Integrity + SAFE_A:
+- Use provided timing_axis signals only.
+- Do not invent planets, houses, or technical mechanics.
+- Do not make deterministic event claims.
+- If timing_axis.timing_windows exists, use only top 2 windows.
+- If timing_axis.timing_windows is missing, do not force timing predictions.
+- Describe windows as trend/activation/pressure, not guaranteed outcomes.
 - For year ranges, start year must be >= current_year.
 
 Output constraints:
-- Use 2-4 paragraphs (no headings). A 2-paragraph structure is allowed.
+- Use 2-4 paragraphs (no headings).
 - Keep one blank line between paragraphs.
-- Avoid repetitive padding or forced length expansion.
-- Avoid Executive Summary phrasing reuse.
-- Keep narrative concise and commercially readable.
-- Avoid astrology jargon overload.
-
-Safety fallback:
-- If timing data is weak, use neutral developmental framing and avoid forced windows.
+- Keep text concise and human-readable.
+- Avoid Shock-style token stacking (year + planet + house in one line).
 
 Context (read-only):
 {json.dumps(compressed, ensure_ascii=False, indent=2)}
@@ -795,6 +1756,26 @@ Rules:
 - Paragraphs should feel layered: observation naturally blends with pattern and direction.
 - Do not enumerate analytic components explicitly.
 
+Impact Calibration:
+- In the first paragraph, include one clear internal contradiction.
+- Safe contradiction style examples:
+  - strong in public, hesitant in private
+  - decisive in action, easily exhausted afterward
+- In the second paragraph, imply one meaningful fork or choice currently faced.
+- End with one concise directional statement.
+- Directional statement length guard: keep it short (roughly one line, about 8-20 Korean words).
+- The directional statement must feel firm but not deterministic.
+
+Intensity Balance:
+- Slightly increase emotional sharpness compared to other chapters.
+- Prefer active verbs over abstract nouns.
+- Avoid neutral academic tone.
+
+Do not:
+- Turn this chapter into a prediction section.
+- Mention specific calendar years.
+- Use standalone shock-style lines more than once in this chapter.
+
 Avoid:
 - Reusing Life Timeline phrasing.
 - Repeating the same structural sentence templates.
@@ -910,6 +1891,9 @@ async def refine_reading_with_llm(
         "year_horizon": [current_year, current_year + 1, current_year + 2, current_year + 3],
     }
     atomic_interpretations = _get_atomic_chart_interpretations(structural_summary if isinstance(structural_summary, dict) else {})
+    # Request-scope guard: main prompt may include global evidence once;
+    # individual regen prompts should not re-inject it.
+    global_evidence_injected_count = 0
     system_message = "Follow the user prompt exactly."
     user_message = build_llm_structural_prompt(
         structural_payload,
@@ -920,6 +1904,14 @@ async def refine_reading_with_llm(
         narrative_mode=narrative_mode,
         executive_summary=executive_summary,
         dasha_context=dasha_context,
+        global_evidence_injected_count=global_evidence_injected_count,
+    )
+    logger.info(
+        "LLM prompt assembled request_id=%s prompt_char_length=%s context_mode=%s prompt_mode=%s",
+        request_id,
+        len(user_message or ""),
+        (os.getenv("LLM_CONTEXT_MODE", "relationship_compact") or "").strip().lower(),
+        (os.getenv("PROMPT_MODE", "analyzer_first") or "").strip().lower(),
     )
     chapter_blocks_hash = compute_hash_fn(validated)
     selected_model = str(model or OPENAI_MODEL).strip() or OPENAI_MODEL
@@ -967,6 +1959,7 @@ async def refine_reading_with_llm(
                 )
             response_text = normalize_paragraphs_fn(response_text, max_chars=300)
             response_text = _sanitize_percent_phrasing_ko(response_text)
+            response_text = _sanitize_meta_report_phrasing_ko(response_text)
             has_timeline = ("## Life Timeline" in response_text or "## Life Timeline Interpretation" in response_text)
             timeline_raw_paragraphs = _raw_timeline_paragraph_count(response_text)
             timeline_structural_errors = _structural_layout_error_codes(response_text)
@@ -996,7 +1989,34 @@ async def refine_reading_with_llm(
                         str(timeline_err),
                     )
             response_text = _sanitize_percent_phrasing_ko(response_text)
+            response_text = _sanitize_meta_report_phrasing_ko(response_text)
             response_text = normalize_llm_layout_strict(response_text)
+            min_chars = _resolve_min_chars_by_phase()
+            length_map = _chapter_nonspace_lengths(response_text)
+            prose_length_map = _chapter_prose_nonspace_lengths(response_text)
+            below_min = _length_violation_keys(response_text, min_chars)
+            if below_min:
+                logger.warning(
+                    "[LLM LENGTH] below_min_chars=%s min_chars=%s request_id=%s selected_model=%s lengths=%s prose_lengths=%s",
+                    below_min,
+                    min_chars,
+                    request_id,
+                    candidate_model,
+                    length_map,
+                    prose_length_map,
+                )
+            covered, total = _actionable_bullet_coverage(response_text)
+            if total > 0:
+                coverage_ratio = covered / max(total, 1)
+                if coverage_ratio < 0.7:
+                    logger.warning(
+                        "[LLM BULLETS] warn_action_bullets_coverage_low covered=%s total=%s ratio=%.2f request_id=%s selected_model=%s",
+                        covered,
+                        total,
+                        coverage_ratio,
+                        request_id,
+                        candidate_model,
+                    )
             fallback_dup_hits = _fallback_duplication_hits(response_text)
             if fallback_dup_hits > 0:
                 logger.warning(
@@ -1022,6 +2042,7 @@ async def refine_reading_with_llm(
                     if isinstance(new_exec, str) and new_exec.strip():
                         response_text = replace_executive_block(response_text, new_exec)
                         response_text = _sanitize_percent_phrasing_ko(response_text)
+                        response_text = _sanitize_meta_report_phrasing_ko(response_text)
                         response_text = normalize_llm_layout_strict(response_text)
                         audit_report = audit_llm_output(response_text, structural_summary)
                 except Exception as exec_err:
@@ -1084,72 +2105,266 @@ def build_llm_structural_prompt(
     narrative_mode: str | None = None,
     executive_summary: str | None = None,
     dasha_context: dict[str, Any] | None = None,
+    global_evidence_injected_count: int = 0,
 ) -> str:
     import json
 
     atomic = atomic_interpretations if isinstance(atomic_interpretations, dict) else {}
     signals = dict(semantic_signals) if isinstance(semantic_signals, dict) else {}
     timing = dict(dasha_context) if isinstance(dasha_context, dict) else {}
+    source = structural_summary if isinstance(structural_summary, dict) else {}
     mode = str(narrative_mode).strip() if isinstance(narrative_mode, str) and narrative_mode.strip() else "measured_growth"
+    prompt_style = (os.getenv("PROMPT_STYLE", "") or "").strip().lower()
+    style_run151158 = prompt_style == "run151158_like"
+    prompt_mode = (os.getenv("PROMPT_MODE", "analyzer_first") or "").strip().lower()
+    context_mode = (os.getenv("LLM_CONTEXT_MODE", "relationship_compact") or "").strip().lower()
+    evidence_mode = (os.getenv("LLM_EVIDENCE_MODE", "off") or "").strip().lower()
+    evidence_priority = (os.getenv("LLM_EVIDENCE_PRIORITY", "evidence_only") or "").strip().lower()
+    evidence_only = evidence_mode == "on" and evidence_priority == "evidence_only"
+    min_chars = _resolve_min_chars_by_phase()
+    target_chars = int(os.getenv("LLM_TARGET_CHARS_PER_CHAPTER", "1100"))
+    min_anchors = int(os.getenv("LLM_MIN_ANCHORS_PER_CHAPTER", "4"))
     overview = executive_summary if isinstance(executive_summary, str) else ""
     asc_text = str(atomic.get("asc", "")).strip()
     sun_text = str(atomic.get("sun", "")).strip()
     moon_text = str(atomic.get("moon", "")).strip()
-    blocks_json = json.dumps(chapter_blocks, indent=2, ensure_ascii=False) if chapter_blocks else "{}"
-    source = structural_summary if isinstance(structural_summary, dict) else {}
-    current_vector = source.get("current_dasha_vector") or {}
-    if not isinstance(current_vector, dict):
-        current_vector = {}
-    psych_axis = source.get("psychological_tension_axis")
-    if isinstance(psych_axis, list):
-        psych_axis_norm = " ↔ ".join(str(x) for x in psych_axis if str(x).strip())
-    else:
-        psych_axis_norm = psych_axis
-    dominant_axis = (
-        current_vector.get("dominant_axis")
-        or source.get("dominant_axis")
-        or psych_axis_norm
+    compact_context = build_relationship_signal_context(
+        structural_summary=source,
+        semantic_signals=signals,
+        dasha_context=timing,
     )
-    compressed_signals = {
-        "dominant_axis": dominant_axis,
-        "current_theme": current_vector.get("current_theme"),
-        "risk_signal": signals.get("risk_pattern") or signals.get("risk_band") or None,
-        "influence_signal": signals.get("influence_band") or signals.get("activation_band") or None,
-        "stability_signal": signals.get("stability_band") or signals.get("stability_profile") or None,
-    }
-    money_snapshot = {
-        "priority": "money/instability/consumption",
-        "money_pressure": signals.get("money_pressure") or signals.get("financial_pattern") or signals.get("risk_pattern"),
-        "stability_hint": signals.get("stability_band") or signals.get("stability_profile"),
-        "consumption_hint": signals.get("consumption_pattern") or signals.get("activation_band"),
-    }
-    relationship_snapshot = {
-        "priority": "tension/attachment/relational",
-        "relational_tension": signals.get("risk_pattern") or signals.get("risk_band"),
-        "attachment_hint": signals.get("attachment_signal") or signals.get("stability_profile"),
-        "dialogue_hint": signals.get("dialogue_pattern") or signals.get("influence_band"),
-    }
-    career_snapshot = {
-        "priority": "authority/burnout/role-friction",
-        "authority_friction": signals.get("authority_friction") or signals.get("risk_pattern"),
-        "burnout_hint": signals.get("burnout_signal") or signals.get("risk_band"),
-        "role_pressure": signals.get("role_pressure") or signals.get("activation_band"),
-    }
-    chapter_key_lines = "\n".join(f"- {key}" for key in REPORT_CHAPTERS)
+    compact_context_json = json.dumps(compact_context, indent=2, ensure_ascii=False)
+    chapter_blocks_included = (context_mode in {"legacy", "hybrid_compact"}) and not evidence_only
+    compact_mode = os.getenv("LLM_GATE_COMPACT", "0").strip() == "1"
+    source_blocks = _select_chapter_blocks_source(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    active_chapters = _active_report_chapters()
+    evidence_global_chars_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_MAX", "1500"))
+    evidence_global_chars_hard_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_HARD_MAX", "2500"))
+    evidence_chapter_chars_min = int(os.getenv("LLM_EVIDENCE_CHAPTER_CHARS_MIN", "600"))
+    evidence_chapter_chars_max = int(os.getenv("LLM_EVIDENCE_CHAPTER_CHARS_MAX", "1200"))
+    evidence_total_chars_hard_max = int(os.getenv("LLM_EVIDENCE_TOTAL_CHARS_HARD_MAX", "15000"))
+
+    evidence_pack = {"global_evidence": [], "chapter_evidence": {}, "stats": {}}
+    if evidence_mode == "on":
+        evidence_pack = build_evidence_packs(
+            source,
+            active_chapters,
+            chapter_chars_min=evidence_chapter_chars_min,
+            chapter_chars_max=evidence_chapter_chars_max,
+            global_chars_max=evidence_global_chars_max,
+            global_chars_hard_max=evidence_global_chars_hard_max,
+            total_chars_hard_max=evidence_total_chars_hard_max,
+        )
+
+    global_evidence_items = evidence_pack.get("global_evidence", []) if isinstance(evidence_pack, dict) else []
+    chapter_evidence_map = evidence_pack.get("chapter_evidence", {}) if isinstance(evidence_pack, dict) else {}
+    evidence_stats = evidence_pack.get("stats", {}) if isinstance(evidence_pack, dict) else {}
+    global_evidence_text = "\n".join(
+        f"- ({it.get('id','')}) {it.get('text','')}" for it in global_evidence_items if isinstance(it, dict)
+    ).strip()
+    chapter_evidence_lines: list[str] = []
+    if isinstance(chapter_evidence_map, dict):
+        for ck in active_chapters:
+            items = chapter_evidence_map.get(ck, [])
+            if not isinstance(items, list) or not items:
+                continue
+            chapter_evidence_lines.append(f"EVIDENCE[{ck}]")
+            for it in items:
+                if isinstance(it, dict):
+                    chapter_evidence_lines.append(f"- ({it.get('id','')}) {it.get('text','')}")
+            chapter_evidence_lines.append("")
+    chapter_evidence_text = "\n".join(chapter_evidence_lines).strip()
+    if chapter_blocks_included:
+        if compact_mode:
+            compact_blocks = _compact_chapter_blocks_for_prompt(source_blocks)
+            blocks_json = json.dumps(compact_blocks, indent=2, ensure_ascii=False) if compact_blocks else "{}"
+        else:
+            blocks_json = json.dumps(source_blocks, indent=2, ensure_ascii=False) if source_blocks else "{}"
+    else:
+        blocks_json = "{}"
+    context_blocks_chars = len(blocks_json) if chapter_blocks_included else 0
+    chapter_key_lines = "\n".join(f"- {key}" for key in active_chapters)
+    intensity_dist: dict[str, int] = {}
+    for item in compact_context.get("cross_dynamics", []) if isinstance(compact_context, dict) else []:
+        if not isinstance(item, dict):
+            continue
+        level = str(item.get("intensity", "")).strip() or "unknown"
+        intensity_dist[level] = intensity_dist.get(level, 0) + 1
+    timing_windows = None
+    if isinstance(compact_context, dict):
+        timing_axis = compact_context.get("timing_axis")
+        if isinstance(timing_axis, dict):
+            timing_windows = timing_axis.get("timing_windows")
+    timing_windows_count = len(timing_windows) if isinstance(timing_windows, list) else 0
+    effective_global_injected = int(global_evidence_injected_count or (1 if (evidence_mode == "on" and global_evidence_text) else 0))
+    logger.info(
+        "LLM prompt context mode=%s prompt_mode=%s evidence_mode=%s priority=%s blocks_injected=%s context_blocks_chars=%s relationship_signal_context_length=%s cross_dynamics_count=%s cross_dynamics_intensity=%s timing_windows_count=%s global_evidence_injected_count=%s",
+        context_mode,
+        prompt_mode,
+        evidence_mode,
+        evidence_priority,
+        chapter_blocks_included,
+        context_blocks_chars,
+        len(compact_context_json),
+        len(compact_context.get("cross_dynamics", [])) if isinstance(compact_context, dict) else 0,
+        intensity_dist,
+        timing_windows_count,
+        effective_global_injected,
+    )
+    if effective_global_injected > 1:
+        logger.warning("[LLM EVIDENCE] global_evidence_injected_count_exceeded=%s", effective_global_injected)
+    if evidence_mode == "on":
+        logger.info(
+            "LLM evidence stats mode=%s priority=%s global_items=%s global_chars=%s total_chars=%s missing_ids=%s chapter_evidence_count=%s chapter_evidence_char_count=%s fallback_used=%s reused_in_final=%s evidence_trim_level=%s",
+            evidence_mode,
+            evidence_priority,
+            len(global_evidence_items),
+            _evidence_chars(global_evidence_items),
+            int(evidence_stats.get("total_chars", 0)) if isinstance(evidence_stats, dict) else 0,
+            (evidence_stats.get("missing_ids", []) if isinstance(evidence_stats, dict) else [])[:10],
+            evidence_stats.get("chapter_evidence_count", {}) if isinstance(evidence_stats, dict) else {},
+            evidence_stats.get("chapter_evidence_char_count", {}) if isinstance(evidence_stats, dict) else {},
+            evidence_stats.get("fallback_used", {}) if isinstance(evidence_stats, dict) else {},
+            evidence_stats.get("reused_in_final", []) if isinstance(evidence_stats, dict) else [],
+            evidence_stats.get("evidence_trim_level", 0) if isinstance(evidence_stats, dict) else 0,
+        )
+        if _evidence_chars(global_evidence_items) < 400:
+            logger.warning("[LLM EVIDENCE] warn_evidence_global_chars_low chars=%s", _evidence_chars(global_evidence_items))
+        if int(evidence_stats.get("total_chars", 0)) > evidence_total_chars_hard_max:
+            logger.warning("[LLM EVIDENCE] warn_evidence_total_chars_overflow_guard_applied total=%s hard=%s", int(evidence_stats.get("total_chars", 0)), evidence_total_chars_hard_max)
+        if isinstance(chapter_evidence_map, dict):
+            low_char_keys = []
+            for ck, items in chapter_evidence_map.items():
+                if _evidence_chars(items if isinstance(items, list) else []) < evidence_chapter_chars_min:
+                    low_char_keys.append(ck)
+            if low_char_keys:
+                logger.warning(
+                    "[LLM EVIDENCE] warn_evidence_chapter_chars_low keys=%s min=%s",
+                    low_char_keys,
+                    evidence_chapter_chars_min,
+                )
+        no_keys = evidence_stats.get("no_evidence_keys", []) if isinstance(evidence_stats, dict) else []
+        low_density_keys = evidence_stats.get("low_evidence_density_keys", []) if isinstance(evidence_stats, dict) else []
+        if no_keys:
+            logger.warning("[LLM EVIDENCE] no_evidence_injected keys=%s", no_keys)
+        if low_density_keys:
+            logger.warning("[LLM EVIDENCE] low_evidence_density_injected keys=%s", low_density_keys)
+    style_override_block = ""
+    if style_run151158:
+        style_override_block = """
+STYLE OVERRIDE (run151158_like)
+- 목표: 대중형/즉시공감형. 해석보다 즉시 이해를 우선한다.
+- 고정 수사 순서를 강제하지 않는다. (관찰->공감->패턴->통찰->선택지 반복 금지)
+- 조언 문장을 기본 종결로 쓰지 않는다. 일부 챕터는 통찰형/선언형으로 끝내도 된다.
+- 라벨성 전환 문구를 피한다:
+  "공감하자면", "패턴적으로", "진술적으로", "문장으로 말하자면", "선택지:"
+- 챕터 본문에서 다음과 같은 콜론 라벨 문장을 만들지 않는다:
+  "공감:", "통찰:", "패턴:", "권장:", "요약:"
+- 설명형 메타문장보다 장면형/상황형 문장을 우선한다.
+- 문장을 어렵게 압축하지 말고, 처음 읽을 때 바로 이해되게 쓴다.
+- 문단 길이는 과도하게 늘리지 않는다. 짧고 분명한 문단을 우선한다.
+- 같은 완화형 종결을 반복하지 않는다:
+  "지금은 ... 편이 좋습니다", "무리하지 말고 ...", "당장은 ..."
+- 본문에서 "선택지:" 라벨을 사용하지 않는다. 조언이 필요하면 일반 문장으로 짧게 포함한다.
+- 조언형 종결(~해보세요/~좋습니다/~유리합니다)을 연속 챕터에서 반복하지 않는다.
+- 챕터 시작부에서 "지금은...", "당장..."으로 여는 문장을 반복하지 않는다.
+"""
+
+    if prompt_mode == "analyzer_first":
+        return f"""
+ROLE
+- 당신은 엔진이 만든 신호를 조합해 서술하는 조립기(assembler)다.
+- 새로운 원인/원천 데이터를 만들지 않는다.
+
+OUTPUT CONTRACT (STRICT)
+- 정확히 {len(active_chapters)}개 챕터를 작성한다.
+- 모든 챕터 헤딩은 `## [<chapter_key>] <한국어 제목>` 형식으로 시작한다.
+- 챕터 순서/경계를 절대 바꾸지 않는다.
+- 챕터를 병합/누락하지 않는다.
+- 문단 사이는 반드시 빈 줄(Blank line) 1개로 구분한다.
+- 챕터 본문은 공백 제외 최소 {min_chars}자, 권장 {min_chars}~{target_chars}자를 목표로 한다.
+- 분량이 부족하면 새 사실을 만들지 말고 주어진 근거를 더 구체화해 확장한다.
+- 각 챕터는 최소 {min_anchors}개의 구체 앵커(행성/하우스/라시/낙샤트라/다샤/요가)를 포함한다.
+- 앵커는 나열하지 말고 문장 안에서 인과적으로 연결한다.
+
+CHAPTER KEY ORDER
+{chapter_key_lines}
+
+ANALYSIS RULES
+- 각 챕터는 최소 1개 이상의 매핑 신호를 반영한다.
+- 분석 라벨(원인/표현/영향) 표기 금지.
+- 모순 신호가 있으면 모순을 숨기지 말고 그대로 설명한다.
+- 문장은 바로 이해 가능하게, 생활어 중심으로 작성한다.
+- 챕터 리듬(Hook/요약/주의/실행팁)은 권장이지 강제가 아니다.
+- Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다.
+- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다.
+- 같은 조언형 종결(~도움됩니다/~유리합니다/~좋습니다) 반복을 피한다.
+- Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
+- 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
+
+SAFETY RULES
+- 내부 메타 용어를 출력하지 말 것:
+  activation intensity, dominant axis, psychological tension axis,
+  stability index, risk_factor, opportunity_factor, vector, modifier, amplification.
+- 수치/퍼센트/점수/지표 직접 노출 금지.
+- 내부 메타 라벨/지표명은 앵커로 쓰지 않는다.
+- 사건 확정 예언 금지:
+  결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
+- 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
+- dasha_context에 없는 값은 만들지 않는다.
+- 연도 언급은 Future Timing에서만 허용한다.
+- timing_axis.timing_windows가 없으면 시기 문장을 억지로 만들지 않는다.
+
+DASHA INTEGRITY
+- 시기 흐름은 dasha_context를 기반으로 해석한다.
+- 고전 lords 정보가 없으면 중립적 시기 프레이밍을 사용한다.
+- "시기 흐름(다샤)" 표기는 최초 1회만 사용 가능하다.
+- 이미 시작된 시기는 "현재 진행 중"으로, 이미 종료된 시기는 제외한다.
+- 점성학 용어는 은은하게 사용하고 과잉 노출 금지.
+- Timing windows 우선순위: intensity(high>medium>low) -> domain(career>relationship>money>health>general) -> nearest start.
+
+Narrative Mode:
+{mode}
+
+Structural Executive Overview:
+{overview}
+
+Timing Context (internal cue):
+{json.dumps(timing, indent=2, ensure_ascii=False)}
+
+Relationship Compact Context (JSON):
+{compact_context_json}
+
+[GLOBAL CHART EVIDENCE]
+{global_evidence_text if global_evidence_text else "- (none)"}
+
+[CHAPTER SPECIFIC EVIDENCE]
+{chapter_evidence_text if chapter_evidence_text else "(none)"}
+
+Core Chart Identity (internal cue only):
+{asc_text} / {sun_text} / {moon_text}
+
+Chapter Blocks (JSON):
+{blocks_json if chapter_blocks_included else "{}"}
+"""
 
     return f"""
 PERSONA
-- 당신은 규칙을 나열하는 분석가가 아니라, 한 사람의 반복 패턴을 읽어주는 서사형 해석자다.
+- 당신은 엔진 신호를 조립해 읽히는 한국어 서사로 바꾸는 조립기다.
 - 문장은 따뜻하고 명확하게, 생활어 중심으로 쓴다.
-- 관찰 -> 공감 -> 패턴 -> 통찰 -> 선택지(권장 최대 2문장) 흐름을 유지한다.
 
 OUTPUT CONTRACT (STRICT)
-- 정확히 15개 챕터를 작성한다.
+- 정확히 {len(active_chapters)}개 챕터를 작성한다.
 - 모든 챕터 헤딩은 `## [<chapter_key>] <한국어 제목>` 형식으로 시작한다.
 - 아래 chapter_key 순서/경계를 절대 바꾸지 않는다.
 - 챕터를 병합/누락하지 않는다.
 - 각 챕터는 2~4문단(2문단도 허용), 문단은 가독성 있게 분리한다.
+- 문단 사이는 반드시 빈 줄(Blank line) 1개로 구분한다.
 - 메타 라벨 출력 금지: "중심 주제:", "내적 줄다리기:", "전략 제안:" 등.
+- 챕터 본문은 공백 제외 최소 {min_chars}자, 권장 {min_chars}~{target_chars}자를 목표로 한다.
+- 분량이 부족하면 새 사실을 만들지 말고 주어진 근거를 더 구체화해 확장한다.
+- 각 챕터는 최소 {min_anchors}개의 구체 앵커(행성/하우스/라시/낙샤트라/다샤/요가)를 포함한다.
+- 앵커는 나열하지 말고 문장 안에서 인과적으로 연결한다.
 
 CHAPTER KEY ORDER
 {chapter_key_lines}
@@ -1160,16 +2375,21 @@ HARD BANS
   stability index, risk_factor, opportunity_factor, vector, modifier, amplification.
 - 수치/퍼센트/점수/지표 직접 노출 금지.
 - 연도 언급은 Future Timing window에서만 허용.
-- 사건 확정 예언(결혼/이직/질병 단정) 금지.
+- 사건 확정 예언 금지:
+  결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
+- 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
 - 공포 마케팅 문장 금지.
+- (원인), (표현), (영향) 같은 분석 라벨 직접 표기 금지.
 
 DASHA INTEGRITY
 - 시기 흐름은 dasha_context를 따르되, 없는 값을 만들어내지 말 것.
 - 고전 lords 정보가 없으면 중립적 시기 프레이밍을 사용.
 - "시기 흐름(다샤)" 표기는 최초 1회만 사용 가능.
+- timing_axis.timing_windows가 없으면 시기 언급을 억지로 만들지 않는다(추론 금지).
+- 점성학 용어는 은은하게만 사용하고, 생활어 중심으로 설명한다.
 - 제공된 신호에서 타이밍 강조가 반복되면 강한 신호로 간주한다.
 - Future Timing 섹션이 리포트 전체 분량을 지배하지 않게 유지한다.
-- standalone shock 문장은 자연스럽게 분산해 배치하고, 연속 배치는 피한다.
+- Timing windows 우선순위: intensity(high>medium>low) -> domain(career>relationship>money>health>general) -> nearest start.
 - 연도 범위를 쓸 때 시작 연도는 current_year보다 작을 수 없다.
 - 이미 시작된 구간은 "현재 진행 중"으로, 이미 종료된 구간은 제외한다.
 
@@ -1181,24 +2401,28 @@ CORE WRITING GUIDANCE
 - 챕터를 각각 별도의 분석 보고서처럼 분리하지 말고, 미세한 세계관 연속성을 유지한다.
 - 단계별 매뉴얼형 전략 나열을 줄이고, 통찰 중심 문장을 우선한다.
 - 모든 챕터를 조언으로 끝내지 않는다.
+- Not every chapter needs a concluding instruction.
+- Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다.
+- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다.
+- Avoid repeatedly using similar softening or mitigating phrases across multiple chapters (e.g., "지금은...", "무리하지 말고...", "당장은...").
+- Allow at least a few sentences per report that feel emotionally decisive rather than explanatory.
+- HOT 섹션(Executive Summary, Karmic Patterns, Love & Relationships, Confidence & Forecast)에서는 긴장이 자연스럽게 존재할 때만, 섹션당 sharp line을 최대 1회 허용한다.
+- Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
+- 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
 
-SHOCK ARCHITECTURE
-- 보고서 초반에 행성+하우스 암시를 1회만 짧게 제시하고 기술 강의는 금지한다.
-- 반복 패턴 파트는 추상 성격 나열 대신 상황형 문장으로 작성한다.
-- 심리적 역설(내부 모순) 문장을 최소 1회 포함한다.
-- Future Timing에서는 impact window를 최대 2개 작성한다.
-- 강한 신호면 정확히 2개, 약한 신호면 1개 primary + 1개 lighter secondary를 사용한다.
-- 각 window는 다음을 포함한다:
-  1) 연도 또는 연도 범위
-  2) 행성 이름
-  3) 하우스 번호
-  4) 영향 영역
-  5) 짧은 standalone 문장
-- window는 각각 짧은 문단 1개 + standalone 1개 이내로 유지한다.
-- 같은 planet-house 문형을 두 window에서 반복하지 않는다.
-- standalone shock 문장은 보고서 전체에서 2~3개만 사용하고, 연속 배치를 피한다.
-- Transit 표기는 생활어 중심으로 쓰되, 예시는 다음 범위를 참고한다:
-  Saturn-4th, Jupiter-10th, Nodes-7th, Venus-relationship, Mars-career pressure.
+{style_override_block}
+
+META REPORT-VOICE BAN
+- 본문에서 아래 메타 문장을 쓰지 말 것:
+  - "이 리포트는"
+  - "본 해석은"
+  - "이 보고서는"
+- 챕터 제목/키 표기는 예외다. (예: Appendix (Optional), 보충 메모 표기 자체는 허용)
+- 본문에서 메타 설명 라벨(예: "보충 메모:")은 금지한다.
+
+STANDALONE LINE CAP
+- 단독 문장은 최대 4개까지 허용한다.
+- 단독 문장을 연속으로 배치하지 않는다.
 
 FINAL SUMMARY MINIMUM INSIGHTS
 - Final Summary에는 아래 통찰 2개를 반드시 포함:
@@ -1215,26 +2439,20 @@ Structural Executive Overview:
 Timing Context (internal cue):
 {json.dumps(timing, indent=2, ensure_ascii=False)}
 
-Compressed Structural Signals (JSON):
-{json.dumps(compressed_signals, indent=2, ensure_ascii=False)}
-
-Money Snapshot (internal cue):
-{json.dumps(money_snapshot, indent=2, ensure_ascii=False)}
-
-Relationship Snapshot (internal cue):
-{json.dumps(relationship_snapshot, indent=2, ensure_ascii=False)}
-
-Career Snapshot (internal cue):
-{json.dumps(career_snapshot, indent=2, ensure_ascii=False)}
-
 Core Chart Identity:
 Ascendant: {asc_text}
 Sun: {sun_text}
 Moon: {moon_text}
 
+Relationship Compact Context (JSON):
+{compact_context_json}
+
+[GLOBAL CHART EVIDENCE]
+{global_evidence_text if global_evidence_text else "- (none)"}
+
+[CHAPTER SPECIFIC EVIDENCE]
+{chapter_evidence_text if chapter_evidence_text else "(none)"}
+
 Chapter Blocks (JSON):
-{blocks_json}
+{blocks_json if chapter_blocks_included else "{}"}
 """
-
-
-

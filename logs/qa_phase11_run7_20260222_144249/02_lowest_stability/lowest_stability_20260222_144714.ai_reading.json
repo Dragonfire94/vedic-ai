@@ -1,0 +1,2163 @@
+{
+  "cached": false,
+  "fallback": false,
+  "model": "gpt-5-mini",
+  "summary": {
+    "language": "ko",
+    "analysis_mode": "standard",
+    "readability_mode": "banded_explanation",
+    "readability_snapshot": {
+      "ego_power": "low",
+      "emotional_regulation": "low",
+      "stability_index": "very_low",
+      "self_sabotage_risk": "high"
+    },
+    "structured_summary": {
+      "ascendant_sign": "Pisces",
+      "sun_sign": "Sagittarius",
+      "moon_sign": "Capricorn",
+      "chart_signature": {
+        "ascendant_sign": "Pisces",
+        "sun_sign": "Sagittarius",
+        "moon_sign": "Capricorn"
+      },
+      "planet_power_ranking": [
+        "Sun",
+        "Mars",
+        "Jupiter",
+        "Rahu",
+        "Ketu",
+        "Moon",
+        "Venus",
+        "Mercury",
+        "Saturn"
+      ],
+      "psychological_tension_axis": [
+        "Rahu",
+        "Ketu"
+      ],
+      "dominant_purushartha": "Artha",
+      "life_purpose_vector": {
+        "dominant_planet": "Ketu",
+        "dominant_purushartha": "Artha",
+        "primary_axis": "status_dharma_axis"
+      },
+      "dominant_house_cluster": 12,
+      "purushartha_profile": {
+        "Dharma": 0,
+        "Artha": 42,
+        "Kama": 18,
+        "Moksha": 40,
+        "dominant_purushartha": "Artha",
+        "quadrant_tags": {
+          "Dharma": "underdeveloped",
+          "Artha": "balanced",
+          "Kama": "underdeveloped",
+          "Moksha": "balanced"
+        }
+      },
+      "behavioral_risk_profile": {
+        "ego_instability": 6.35,
+        "emotional_volatility": 7.21,
+        "financial_instability": 7.13,
+        "relationship_break_risk": 3.8,
+        "authority_conflict_risk": 5.12,
+        "burnout_risk": 4.64,
+        "obsession_tendency": 3.33,
+        "self_sabotage_risk": 6.55,
+        "impulsivity_risk": 52.3,
+        "overcontrol_risk": 38.11,
+        "primary_risk": "impulsivity"
+      },
+      "interaction_risks": {
+        "narcissistic_instability": 0.0,
+        "authority_breakdown_risk": 0.0,
+        "impulsive_sabotage_risk": 40.28,
+        "chronic_stress_amplification": 0.13,
+        "emotional_oscillation": 13.41
+      },
+      "enhanced_behavioral_risks": {
+        "authority_conflict_risk": 5.12,
+        "emotional_volatility": 10.0,
+        "self_sabotage_risk": 10.0,
+        "burnout_risk": 4.69,
+        "emotional_volatility_amplified": 10.0
+      },
+      "stability_metrics": {
+        "stability_index": 0.76,
+        "stability_grade": "D",
+        "mean_planet_strength": 2.78,
+        "tension_index": 0.0581,
+        "yoga_support_index": 0.4,
+        "risk_index": 5.52,
+        "grade": "D"
+      },
+      "personality_vector": {
+        "ego_power": 37.65,
+        "emotional_regulation": 23.8,
+        "aggression_drive": 89.1,
+        "discipline_index": 8.3,
+        "attachment_intensity": 25.0,
+        "authority_orientation": 40.03,
+        "risk_appetite": 80.8
+      },
+      "probability_forecast": {
+        "marriage_5yr": 0.1195,
+        "career_shift_3yr": 0.3482,
+        "burnout_2yr": 0.124,
+        "financial_instability_3yr": 0.2618
+      },
+      "varga_alignment": {
+        "relationship_alignment": {
+          "score": 0.1429,
+          "level": "low"
+        },
+        "career_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "creativity_progeny_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "family_lineage_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "overall_alignment": {
+          "score": 0.1429,
+          "level": "low"
+        },
+        "available_vargas": [
+          "d9"
+        ]
+      },
+      "shadbala_summary": {
+        "top3_planets": [
+          "Sun",
+          "Jupiter",
+          "Saturn"
+        ],
+        "by_planet": {
+          "Sun": {
+            "band": "strong",
+            "total": 0.8455,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Directional Strength",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Moon": {
+            "band": "medium",
+            "total": 0.5903,
+            "evidence_tags": [
+              "Weak Expression",
+              "Aspect Support"
+            ],
+            "avastha_state": "dina",
+            "avastha_tags": [
+              "Weak Expression"
+            ]
+          },
+          "Mars": {
+            "band": "medium",
+            "total": 0.5267,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Mercury": {
+            "band": "medium",
+            "total": 0.5213,
+            "evidence_tags": [
+              "Combust"
+            ],
+            "avastha_state": "asta",
+            "avastha_tags": [
+              "Combust"
+            ]
+          },
+          "Jupiter": {
+            "band": "strong",
+            "total": 0.6721,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Temporal Strength"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Venus": {
+            "band": "medium",
+            "total": 0.5383,
+            "evidence_tags": [
+              "Combust"
+            ],
+            "avastha_state": "asta",
+            "avastha_tags": [
+              "Combust"
+            ]
+          },
+          "Saturn": {
+            "band": "medium",
+            "total": 0.632,
+            "evidence_tags": [
+              "Debilitated",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "dina",
+            "avastha_tags": [
+              "Debilitated"
+            ]
+          },
+          "Rahu": {
+            "band": "medium",
+            "total": 0.5833,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          },
+          "Ketu": {
+            "band": "medium",
+            "total": 0.5833,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          }
+        }
+      },
+      "karmic_pattern_profile": {
+        "financial_leak_pattern": 0.35,
+        "delayed_success_pattern": 0.2,
+        "authority_conflict_pattern": 0.25,
+        "primary_pattern": "correction"
+      },
+      "current_dasha_vector": {
+        "current_theme": "leadership calibration and purpose consolidation",
+        "dominant_axis": "status_dharma_axis",
+        "risk_factor": 0.16,
+        "opportunity_factor": 0.54
+      },
+      "dominant_life_theme": "financial_leak_pattern",
+      "psychological_axis": "status_dharma_axis",
+      "relationship_vector": "attachment_healing_required",
+      "career_vector": "skill_consolidation_phase",
+      "karmic_axis": "Saturn",
+      "engine": {
+        "analysis_mode": "standard",
+        "planet_strength": {
+          "Sun": {
+            "score": 4.17,
+            "strength_level": "medium",
+            "factors": [
+              "kendra_house:+1"
+            ],
+            "shadbala": {
+              "total": 0.8455,
+              "band": "strong",
+              "components": {
+                "sthana": 0.5,
+                "dig": 1.0,
+                "kala": 0.8,
+                "chesta": 0.55,
+                "naisargika": 1.0,
+                "drik": 0.9
+              },
+              "evidence_tags": [
+                "Balanced Expression",
+                "Directional Strength",
+                "Temporal Strength",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "madhya",
+              "evidence_tags": [
+                "Balanced Expression"
+              ]
+            }
+          },
+          "Moon": {
+            "score": 2.5,
+            "strength_level": "weak",
+            "factors": [
+              "enemy_sign:-1"
+            ],
+            "shadbala": {
+              "total": 0.5903,
+              "band": "medium",
+              "components": {
+                "sthana": 0.35,
+                "dig": 0.6,
+                "kala": 0.45,
+                "chesta": 0.55,
+                "naisargika": 0.85,
+                "drik": 0.742
+              },
+              "evidence_tags": [
+                "Weak Expression",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "dina",
+              "evidence_tags": [
+                "Weak Expression"
+              ]
+            }
+          },
+          "Mars": {
+            "score": 3.33,
+            "strength_level": "weak",
+            "factors": [],
+            "shadbala": {
+              "total": 0.5267,
+              "band": "medium",
+              "components": {
+                "sthana": 0.4,
+                "dig": 0.6,
+                "kala": 0.45,
+                "chesta": 0.55,
+                "naisargika": 0.28,
+                "drik": 0.8
+              },
+              "evidence_tags": [
+                "Balanced Expression",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "madhya",
+              "evidence_tags": [
+                "Balanced Expression"
+              ]
+            }
+          },
+          "Mercury": {
+            "score": 1.67,
+            "strength_level": "very_weak",
+            "factors": [
+              "combust:-2"
+            ],
+            "shadbala": {
+              "total": 0.5213,
+              "band": "medium",
+              "components": {
+                "sthana": 0.5,
+                "dig": 0.6,
+                "kala": 0.65,
+                "chesta": 0.55,
+                "naisargika": 0.43,
+                "drik": 0.398
+              },
+              "evidence_tags": [
+                "Combust"
+              ]
+            },
+            "avastha": {
+              "state": "asta",
+              "evidence_tags": [
+                "Combust"
+              ]
+            }
+          },
+          "Jupiter": {
+            "score": 3.33,
+            "strength_level": "weak",
+            "factors": [],
+            "shadbala": {
+              "total": 0.6721,
+              "band": "strong",
+              "components": {
+                "sthana": 0.4,
+                "dig": 0.6,
+                "kala": 0.8,
+                "chesta": 0.55,
+                "naisargika": 0.57,
+                "drik": 0.6
+              },
+              "evidence_tags": [
+                "Balanced Expression",
+                "Temporal Strength"
+              ]
+            },
+            "avastha": {
+              "state": "madhya",
+              "evidence_tags": [
+                "Balanced Expression"
+              ]
+            }
+          },
+          "Venus": {
+            "score": 2.5,
+            "strength_level": "weak",
+            "factors": [
+              "kendra_house:+1",
+              "combust:-2"
+            ],
+            "shadbala": {
+              "total": 0.5383,
+              "band": "medium",
+              "components": {
+                "sthana": 0.5,
+                "dig": 0.2,
+                "kala": 0.45,
+                "chesta": 0.55,
+                "naisargika": 0.72,
+                "drik": 0.65
+              },
+              "evidence_tags": [
+                "Combust"
+              ]
+            },
+            "avastha": {
+              "state": "asta",
+              "evidence_tags": [
+                "Combust"
+              ]
+            }
+          },
+          "Saturn": {
+            "score": 0.83,
+            "strength_level": "very_weak",
+            "factors": [
+              "debilitated:-3"
+            ],
+            "shadbala": {
+              "total": 0.632,
+              "band": "medium",
+              "components": {
+                "sthana": 0.2,
+                "dig": 0.6,
+                "kala": 0.8,
+                "chesta": 0.55,
+                "naisargika": 0.15,
+                "drik": 0.85
+              },
+              "evidence_tags": [
+                "Debilitated",
+                "Temporal Strength",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "dina",
+              "evidence_tags": [
+                "Debilitated"
+              ]
+            }
+          },
+          "Rahu": {
+            "score": 3.33,
+            "strength_level": "weak",
+            "factors": [],
+            "shadbala": {
+              "total": 0.5833,
+              "band": "medium",
+              "components": {
+                "sthana": 0.4,
+                "dig": 0.5,
+                "kala": 0.45,
+                "chesta": 0.85,
+                "naisargika": 0.5,
+                "drik": 0.8
+              },
+              "evidence_tags": [
+                "Retrograde Motion",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "madhya",
+              "evidence_tags": [
+                "Retrograde Motion"
+              ]
+            }
+          },
+          "Ketu": {
+            "score": 3.33,
+            "strength_level": "weak",
+            "factors": [],
+            "shadbala": {
+              "total": 0.5833,
+              "band": "medium",
+              "components": {
+                "sthana": 0.4,
+                "dig": 0.5,
+                "kala": 0.45,
+                "chesta": 0.85,
+                "naisargika": 0.5,
+                "drik": 0.8
+              },
+              "evidence_tags": [
+                "Retrograde Motion",
+                "Aspect Support"
+              ]
+            },
+            "avastha": {
+              "state": "madhya",
+              "evidence_tags": [
+                "Retrograde Motion"
+              ]
+            }
+          }
+        },
+        "dispositor_analysis": {
+          "loops": [
+            {
+              "start": "Sun",
+              "loop": [
+                "Jupiter",
+                "Venus"
+              ],
+              "length": 2
+            },
+            {
+              "start": "Moon",
+              "loop": [
+                "Saturn",
+                "Mars"
+              ],
+              "length": 2
+            }
+          ],
+          "parivartana": [
+            {
+              "planets": [
+                "Mars",
+                "Saturn"
+              ],
+              "type": "mutual_exchange"
+            },
+            {
+              "planets": [
+                "Jupiter",
+                "Venus"
+              ],
+              "type": "mutual_exchange"
+            }
+          ],
+          "chain_lengths": {
+            "Sun": 3,
+            "Moon": 3,
+            "Mars": 2,
+            "Mercury": 3,
+            "Jupiter": 2,
+            "Venus": 2,
+            "Saturn": 2,
+            "Rahu": 3,
+            "Ketu": 4
+          },
+          "final_dispositors": {
+            "Sun": "Jupiter",
+            "Moon": "Saturn",
+            "Mars": "Mars",
+            "Mercury": "Saturn",
+            "Jupiter": "Jupiter",
+            "Venus": "Venus",
+            "Saturn": "Saturn",
+            "Rahu": "Saturn",
+            "Ketu": "Jupiter"
+          },
+          "dominant_final_dispositor": "Saturn"
+        },
+        "yogas": [
+          {
+            "name": "Raja Yoga",
+            "strength": 0.75,
+            "planets_involved": [
+              "Moon",
+              "Mercury"
+            ],
+            "status": "active",
+            "reason_tags": [],
+            "rule_key": "raja_yoga"
+          },
+          {
+            "name": "Parivartana Yoga",
+            "strength": 0.7,
+            "planets_involved": [
+              "Mars",
+              "Saturn"
+            ],
+            "status": "active",
+            "reason_tags": [],
+            "rule_key": "parivartana_yoga"
+          },
+          {
+            "name": "Parivartana Yoga",
+            "strength": 0.7,
+            "planets_involved": [
+              "Jupiter",
+              "Venus"
+            ],
+            "status": "active",
+            "reason_tags": [],
+            "rule_key": "parivartana_yoga"
+          },
+          {
+            "name": "Gaja Kesari Yoga",
+            "strength": 0.8,
+            "planets_involved": [
+              "Moon",
+              "Jupiter"
+            ],
+            "status": "active",
+            "reason_tags": [],
+            "rule_key": "gaja_kesari_yoga"
+          }
+        ],
+        "yogas_all": [],
+        "karmic_patterns": {
+          "financial_leak_pattern": 0.35,
+          "delayed_success_pattern": 0.2,
+          "authority_conflict_pattern": 0.25,
+          "primary_pattern": "correction"
+        },
+        "influence_matrix": {
+          "matrix": {
+            "Sun->Moon": 0.0,
+            "Sun->Mars": 0.61,
+            "Sun->Mercury": 0.0,
+            "Sun->Jupiter": 0.0,
+            "Sun->Venus": 1.23,
+            "Sun->Saturn": 0.0,
+            "Sun->Rahu": 0.33,
+            "Sun->Ketu": 0.6,
+            "Moon->Sun": 0.0,
+            "Moon->Mars": 0.0,
+            "Moon->Mercury": 0.0,
+            "Moon->Jupiter": 0.19,
+            "Moon->Venus": 0.14,
+            "Moon->Saturn": 0.08,
+            "Moon->Rahu": 0.11,
+            "Moon->Ketu": 0.11,
+            "Mars->Sun": 0.64,
+            "Mars->Moon": 0.0,
+            "Mars->Mercury": 0.0,
+            "Mars->Jupiter": 0.0,
+            "Mars->Venus": 0.37,
+            "Mars->Saturn": 0.0,
+            "Mars->Rahu": 0.81,
+            "Mars->Ketu": 0.6,
+            "Mercury->Sun": 0.0,
+            "Mercury->Moon": 0.0,
+            "Mercury->Mars": 0.0,
+            "Mercury->Jupiter": 0.1,
+            "Mercury->Venus": 0.0,
+            "Mercury->Saturn": 0.18,
+            "Mercury->Rahu": 0.0,
+            "Mercury->Ketu": 0.0,
+            "Jupiter->Sun": 0.0,
+            "Jupiter->Moon": 0.28,
+            "Jupiter->Mars": 0.0,
+            "Jupiter->Mercury": 0.23,
+            "Jupiter->Venus": 0.0,
+            "Jupiter->Saturn": 0.98,
+            "Jupiter->Rahu": 0.0,
+            "Jupiter->Ketu": 0.0,
+            "Venus->Sun": 0.76,
+            "Venus->Moon": 0.11,
+            "Venus->Mars": 0.21,
+            "Venus->Mercury": 0.0,
+            "Venus->Jupiter": 0.0,
+            "Venus->Saturn": 0.0,
+            "Venus->Rahu": 0.38,
+            "Venus->Ketu": 0.69,
+            "Saturn->Sun": 0.0,
+            "Saturn->Moon": 0.04,
+            "Saturn->Mars": 0.0,
+            "Saturn->Mercury": 0.14,
+            "Saturn->Jupiter": 0.21,
+            "Saturn->Venus": 0.0,
+            "Saturn->Rahu": 0.0,
+            "Saturn->Ketu": 0.0,
+            "Rahu->Sun": 0.34,
+            "Rahu->Moon": 0.15,
+            "Rahu->Mars": 0.78,
+            "Rahu->Mercury": 0.0,
+            "Rahu->Jupiter": 0.0,
+            "Rahu->Venus": 0.64,
+            "Rahu->Saturn": 0.0,
+            "Rahu->Ketu": 1.05,
+            "Ketu->Sun": 0.58,
+            "Ketu->Moon": 0.15,
+            "Ketu->Mars": 0.55,
+            "Ketu->Mercury": 0.0,
+            "Ketu->Jupiter": 0.0,
+            "Ketu->Venus": 1.09,
+            "Ketu->Saturn": 0.0,
+            "Ketu->Rahu": 0.99
+          },
+          "dominant_planet": "Ketu",
+          "most_conflicted_axis": [
+            "Rahu",
+            "Ketu"
+          ]
+        },
+        "house_clusters": {
+          "cluster_scores": {
+            "1": 0.0,
+            "2": 1.83,
+            "3": 0.0,
+            "4": 0.0,
+            "5": 0.0,
+            "6": 5.33,
+            "7": 0.0,
+            "8": 4.33,
+            "9": 0.0,
+            "10": 7.67,
+            "11": 6.17,
+            "12": 9.66
+          },
+          "cluster_intensity": {
+            "1": 0.0,
+            "2": 1.83,
+            "3": 0.0,
+            "4": 0.0,
+            "5": 0.0,
+            "6": 5.33,
+            "7": 0.0,
+            "8": 4.33,
+            "9": 0.0,
+            "10": 3.83,
+            "11": 3.08,
+            "12": 4.83
+          },
+          "planet_counts": {
+            "1": 0,
+            "2": 1,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 1,
+            "7": 0,
+            "8": 1,
+            "9": 0,
+            "10": 2,
+            "11": 2,
+            "12": 2
+          },
+          "dominant_house": 12,
+          "overloaded_axis": [
+            6,
+            12
+          ]
+        },
+        "purushartha_profile": {
+          "Dharma": 0,
+          "Artha": 42,
+          "Kama": 18,
+          "Moksha": 40,
+          "dominant_purushartha": "Artha",
+          "quadrant_tags": {
+            "Dharma": "underdeveloped",
+            "Artha": "balanced",
+            "Kama": "underdeveloped",
+            "Moksha": "balanced"
+          }
+        },
+        "behavioral_risks": {
+          "ego_instability": 6.35,
+          "emotional_volatility": 7.21,
+          "financial_instability": 7.13,
+          "relationship_break_risk": 3.8,
+          "authority_conflict_risk": 5.12,
+          "burnout_risk": 4.64,
+          "obsession_tendency": 3.33,
+          "self_sabotage_risk": 6.55,
+          "impulsivity_risk": 52.3,
+          "overcontrol_risk": 38.11,
+          "primary_risk": "impulsivity"
+        },
+        "interaction_summary": {
+          "top_risks": [],
+          "amplifiers": [],
+          "mitigators": []
+        },
+        "stability_metrics": {
+          "stability_index": 0.76,
+          "stability_grade": "D",
+          "mean_planet_strength": 2.78,
+          "tension_index": 0.0581,
+          "yoga_support_index": 0.4,
+          "risk_index": 5.52,
+          "grade": "D"
+        },
+        "personality_vector": {
+          "ego_power": 37.65,
+          "emotional_regulation": 23.8,
+          "aggression_drive": 89.1,
+          "discipline_index": 8.3,
+          "attachment_intensity": 25.0,
+          "authority_orientation": 40.03,
+          "risk_appetite": 80.8
+        },
+        "probability_forecast": {
+          "marriage_5yr": 0.1195,
+          "career_shift_3yr": 0.3482,
+          "burnout_2yr": 0.124,
+          "financial_instability_3yr": 0.2618
+        },
+        "varga_alignment": {
+          "relationship_alignment": {
+            "score": 0.1429,
+            "level": "low"
+          },
+          "career_alignment": {
+            "score": null,
+            "level": "unknown"
+          },
+          "creativity_progeny_alignment": {
+            "score": null,
+            "level": "unknown"
+          },
+          "family_lineage_alignment": {
+            "score": null,
+            "level": "unknown"
+          },
+          "overall_alignment": {
+            "score": 0.1429,
+            "level": "low"
+          },
+          "available_vargas": [
+            "d9"
+          ]
+        },
+        "shadbala_summary": {
+          "top3_planets": [
+            "Sun",
+            "Jupiter",
+            "Saturn"
+          ],
+          "by_planet": {
+            "Sun": {
+              "band": "strong",
+              "total": 0.8455,
+              "evidence_tags": [
+                "Balanced Expression",
+                "Directional Strength",
+                "Temporal Strength",
+                "Aspect Support"
+              ],
+              "avastha_state": "madhya",
+              "avastha_tags": [
+                "Balanced Expression"
+              ]
+            },
+            "Moon": {
+              "band": "medium",
+              "total": 0.5903,
+              "evidence_tags": [
+                "Weak Expression",
+                "Aspect Support"
+              ],
+              "avastha_state": "dina",
+              "avastha_tags": [
+                "Weak Expression"
+              ]
+            },
+            "Mars": {
+              "band": "medium",
+              "total": 0.5267,
+              "evidence_tags": [
+                "Balanced Expression",
+                "Aspect Support"
+              ],
+              "avastha_state": "madhya",
+              "avastha_tags": [
+                "Balanced Expression"
+              ]
+            },
+            "Mercury": {
+              "band": "medium",
+              "total": 0.5213,
+              "evidence_tags": [
+                "Combust"
+              ],
+              "avastha_state": "asta",
+              "avastha_tags": [
+                "Combust"
+              ]
+            },
+            "Jupiter": {
+              "band": "strong",
+              "total": 0.6721,
+              "evidence_tags": [
+                "Balanced Expression",
+                "Temporal Strength"
+              ],
+              "avastha_state": "madhya",
+              "avastha_tags": [
+                "Balanced Expression"
+              ]
+            },
+            "Venus": {
+              "band": "medium",
+              "total": 0.5383,
+              "evidence_tags": [
+                "Combust"
+              ],
+              "avastha_state": "asta",
+              "avastha_tags": [
+                "Combust"
+              ]
+            },
+            "Saturn": {
+              "band": "medium",
+              "total": 0.632,
+              "evidence_tags": [
+                "Debilitated",
+                "Temporal Strength",
+                "Aspect Support"
+              ],
+              "avastha_state": "dina",
+              "avastha_tags": [
+                "Debilitated"
+              ]
+            },
+            "Rahu": {
+              "band": "medium",
+              "total": 0.5833,
+              "evidence_tags": [
+                "Retrograde Motion",
+                "Aspect Support"
+              ],
+              "avastha_state": "madhya",
+              "avastha_tags": [
+                "Retrograde Motion"
+              ]
+            },
+            "Ketu": {
+              "band": "medium",
+              "total": 0.5833,
+              "evidence_tags": [
+                "Retrograde Motion",
+                "Aspect Support"
+              ],
+              "avastha_state": "madhya",
+              "avastha_tags": [
+                "Retrograde Motion"
+              ]
+            }
+          }
+        },
+        "current_dasha": "Sun"
+      }
+    }
+  },
+  "structured_summary": {
+    "ascendant_sign": "Pisces",
+    "sun_sign": "Sagittarius",
+    "moon_sign": "Capricorn",
+    "chart_signature": {
+      "ascendant_sign": "Pisces",
+      "sun_sign": "Sagittarius",
+      "moon_sign": "Capricorn"
+    },
+    "planet_power_ranking": [
+      "Sun",
+      "Mars",
+      "Jupiter",
+      "Rahu",
+      "Ketu",
+      "Moon",
+      "Venus",
+      "Mercury",
+      "Saturn"
+    ],
+    "psychological_tension_axis": [
+      "Rahu",
+      "Ketu"
+    ],
+    "dominant_purushartha": "Artha",
+    "life_purpose_vector": {
+      "dominant_planet": "Ketu",
+      "dominant_purushartha": "Artha",
+      "primary_axis": "status_dharma_axis"
+    },
+    "dominant_house_cluster": 12,
+    "purushartha_profile": {
+      "Dharma": 0,
+      "Artha": 42,
+      "Kama": 18,
+      "Moksha": 40,
+      "dominant_purushartha": "Artha",
+      "quadrant_tags": {
+        "Dharma": "underdeveloped",
+        "Artha": "balanced",
+        "Kama": "underdeveloped",
+        "Moksha": "balanced"
+      }
+    },
+    "behavioral_risk_profile": {
+      "ego_instability": 6.35,
+      "emotional_volatility": 7.21,
+      "financial_instability": 7.13,
+      "relationship_break_risk": 3.8,
+      "authority_conflict_risk": 5.12,
+      "burnout_risk": 4.64,
+      "obsession_tendency": 3.33,
+      "self_sabotage_risk": 6.55,
+      "impulsivity_risk": 52.3,
+      "overcontrol_risk": 38.11,
+      "primary_risk": "impulsivity"
+    },
+    "interaction_risks": {
+      "narcissistic_instability": 0.0,
+      "authority_breakdown_risk": 0.0,
+      "impulsive_sabotage_risk": 40.28,
+      "chronic_stress_amplification": 0.13,
+      "emotional_oscillation": 13.41
+    },
+    "enhanced_behavioral_risks": {
+      "authority_conflict_risk": 5.12,
+      "emotional_volatility": 10.0,
+      "self_sabotage_risk": 10.0,
+      "burnout_risk": 4.69,
+      "emotional_volatility_amplified": 10.0
+    },
+    "stability_metrics": {
+      "stability_index": 0.76,
+      "stability_grade": "D",
+      "mean_planet_strength": 2.78,
+      "tension_index": 0.0581,
+      "yoga_support_index": 0.4,
+      "risk_index": 5.52,
+      "grade": "D"
+    },
+    "personality_vector": {
+      "ego_power": 37.65,
+      "emotional_regulation": 23.8,
+      "aggression_drive": 89.1,
+      "discipline_index": 8.3,
+      "attachment_intensity": 25.0,
+      "authority_orientation": 40.03,
+      "risk_appetite": 80.8
+    },
+    "probability_forecast": {
+      "marriage_5yr": 0.1195,
+      "career_shift_3yr": 0.3482,
+      "burnout_2yr": 0.124,
+      "financial_instability_3yr": 0.2618
+    },
+    "varga_alignment": {
+      "relationship_alignment": {
+        "score": 0.1429,
+        "level": "low"
+      },
+      "career_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "creativity_progeny_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "family_lineage_alignment": {
+        "score": null,
+        "level": "unknown"
+      },
+      "overall_alignment": {
+        "score": 0.1429,
+        "level": "low"
+      },
+      "available_vargas": [
+        "d9"
+      ]
+    },
+    "shadbala_summary": {
+      "top3_planets": [
+        "Sun",
+        "Jupiter",
+        "Saturn"
+      ],
+      "by_planet": {
+        "Sun": {
+          "band": "strong",
+          "total": 0.8455,
+          "evidence_tags": [
+            "Balanced Expression",
+            "Directional Strength",
+            "Temporal Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Balanced Expression"
+          ]
+        },
+        "Moon": {
+          "band": "medium",
+          "total": 0.5903,
+          "evidence_tags": [
+            "Weak Expression",
+            "Aspect Support"
+          ],
+          "avastha_state": "dina",
+          "avastha_tags": [
+            "Weak Expression"
+          ]
+        },
+        "Mars": {
+          "band": "medium",
+          "total": 0.5267,
+          "evidence_tags": [
+            "Balanced Expression",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Balanced Expression"
+          ]
+        },
+        "Mercury": {
+          "band": "medium",
+          "total": 0.5213,
+          "evidence_tags": [
+            "Combust"
+          ],
+          "avastha_state": "asta",
+          "avastha_tags": [
+            "Combust"
+          ]
+        },
+        "Jupiter": {
+          "band": "strong",
+          "total": 0.6721,
+          "evidence_tags": [
+            "Balanced Expression",
+            "Temporal Strength"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Balanced Expression"
+          ]
+        },
+        "Venus": {
+          "band": "medium",
+          "total": 0.5383,
+          "evidence_tags": [
+            "Combust"
+          ],
+          "avastha_state": "asta",
+          "avastha_tags": [
+            "Combust"
+          ]
+        },
+        "Saturn": {
+          "band": "medium",
+          "total": 0.632,
+          "evidence_tags": [
+            "Debilitated",
+            "Temporal Strength",
+            "Aspect Support"
+          ],
+          "avastha_state": "dina",
+          "avastha_tags": [
+            "Debilitated"
+          ]
+        },
+        "Rahu": {
+          "band": "medium",
+          "total": 0.5833,
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Retrograde Motion"
+          ]
+        },
+        "Ketu": {
+          "band": "medium",
+          "total": 0.5833,
+          "evidence_tags": [
+            "Retrograde Motion",
+            "Aspect Support"
+          ],
+          "avastha_state": "madhya",
+          "avastha_tags": [
+            "Retrograde Motion"
+          ]
+        }
+      }
+    },
+    "karmic_pattern_profile": {
+      "financial_leak_pattern": 0.35,
+      "delayed_success_pattern": 0.2,
+      "authority_conflict_pattern": 0.25,
+      "primary_pattern": "correction"
+    },
+    "current_dasha_vector": {
+      "current_theme": "leadership calibration and purpose consolidation",
+      "dominant_axis": "status_dharma_axis",
+      "risk_factor": 0.16,
+      "opportunity_factor": 0.54
+    },
+    "dominant_life_theme": "financial_leak_pattern",
+    "psychological_axis": "status_dharma_axis",
+    "relationship_vector": "attachment_healing_required",
+    "career_vector": "skill_consolidation_phase",
+    "karmic_axis": "Saturn",
+    "engine": {
+      "analysis_mode": "standard",
+      "planet_strength": {
+        "Sun": {
+          "score": 4.17,
+          "strength_level": "medium",
+          "factors": [
+            "kendra_house:+1"
+          ],
+          "shadbala": {
+            "total": 0.8455,
+            "band": "strong",
+            "components": {
+              "sthana": 0.5,
+              "dig": 1.0,
+              "kala": 0.8,
+              "chesta": 0.55,
+              "naisargika": 1.0,
+              "drik": 0.9
+            },
+            "evidence_tags": [
+              "Balanced Expression",
+              "Directional Strength",
+              "Temporal Strength",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "madhya",
+            "evidence_tags": [
+              "Balanced Expression"
+            ]
+          }
+        },
+        "Moon": {
+          "score": 2.5,
+          "strength_level": "weak",
+          "factors": [
+            "enemy_sign:-1"
+          ],
+          "shadbala": {
+            "total": 0.5903,
+            "band": "medium",
+            "components": {
+              "sthana": 0.35,
+              "dig": 0.6,
+              "kala": 0.45,
+              "chesta": 0.55,
+              "naisargika": 0.85,
+              "drik": 0.742
+            },
+            "evidence_tags": [
+              "Weak Expression",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "dina",
+            "evidence_tags": [
+              "Weak Expression"
+            ]
+          }
+        },
+        "Mars": {
+          "score": 3.33,
+          "strength_level": "weak",
+          "factors": [],
+          "shadbala": {
+            "total": 0.5267,
+            "band": "medium",
+            "components": {
+              "sthana": 0.4,
+              "dig": 0.6,
+              "kala": 0.45,
+              "chesta": 0.55,
+              "naisargika": 0.28,
+              "drik": 0.8
+            },
+            "evidence_tags": [
+              "Balanced Expression",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "madhya",
+            "evidence_tags": [
+              "Balanced Expression"
+            ]
+          }
+        },
+        "Mercury": {
+          "score": 1.67,
+          "strength_level": "very_weak",
+          "factors": [
+            "combust:-2"
+          ],
+          "shadbala": {
+            "total": 0.5213,
+            "band": "medium",
+            "components": {
+              "sthana": 0.5,
+              "dig": 0.6,
+              "kala": 0.65,
+              "chesta": 0.55,
+              "naisargika": 0.43,
+              "drik": 0.398
+            },
+            "evidence_tags": [
+              "Combust"
+            ]
+          },
+          "avastha": {
+            "state": "asta",
+            "evidence_tags": [
+              "Combust"
+            ]
+          }
+        },
+        "Jupiter": {
+          "score": 3.33,
+          "strength_level": "weak",
+          "factors": [],
+          "shadbala": {
+            "total": 0.6721,
+            "band": "strong",
+            "components": {
+              "sthana": 0.4,
+              "dig": 0.6,
+              "kala": 0.8,
+              "chesta": 0.55,
+              "naisargika": 0.57,
+              "drik": 0.6
+            },
+            "evidence_tags": [
+              "Balanced Expression",
+              "Temporal Strength"
+            ]
+          },
+          "avastha": {
+            "state": "madhya",
+            "evidence_tags": [
+              "Balanced Expression"
+            ]
+          }
+        },
+        "Venus": {
+          "score": 2.5,
+          "strength_level": "weak",
+          "factors": [
+            "kendra_house:+1",
+            "combust:-2"
+          ],
+          "shadbala": {
+            "total": 0.5383,
+            "band": "medium",
+            "components": {
+              "sthana": 0.5,
+              "dig": 0.2,
+              "kala": 0.45,
+              "chesta": 0.55,
+              "naisargika": 0.72,
+              "drik": 0.65
+            },
+            "evidence_tags": [
+              "Combust"
+            ]
+          },
+          "avastha": {
+            "state": "asta",
+            "evidence_tags": [
+              "Combust"
+            ]
+          }
+        },
+        "Saturn": {
+          "score": 0.83,
+          "strength_level": "very_weak",
+          "factors": [
+            "debilitated:-3"
+          ],
+          "shadbala": {
+            "total": 0.632,
+            "band": "medium",
+            "components": {
+              "sthana": 0.2,
+              "dig": 0.6,
+              "kala": 0.8,
+              "chesta": 0.55,
+              "naisargika": 0.15,
+              "drik": 0.85
+            },
+            "evidence_tags": [
+              "Debilitated",
+              "Temporal Strength",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "dina",
+            "evidence_tags": [
+              "Debilitated"
+            ]
+          }
+        },
+        "Rahu": {
+          "score": 3.33,
+          "strength_level": "weak",
+          "factors": [],
+          "shadbala": {
+            "total": 0.5833,
+            "band": "medium",
+            "components": {
+              "sthana": 0.4,
+              "dig": 0.5,
+              "kala": 0.45,
+              "chesta": 0.85,
+              "naisargika": 0.5,
+              "drik": 0.8
+            },
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "madhya",
+            "evidence_tags": [
+              "Retrograde Motion"
+            ]
+          }
+        },
+        "Ketu": {
+          "score": 3.33,
+          "strength_level": "weak",
+          "factors": [],
+          "shadbala": {
+            "total": 0.5833,
+            "band": "medium",
+            "components": {
+              "sthana": 0.4,
+              "dig": 0.5,
+              "kala": 0.45,
+              "chesta": 0.85,
+              "naisargika": 0.5,
+              "drik": 0.8
+            },
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ]
+          },
+          "avastha": {
+            "state": "madhya",
+            "evidence_tags": [
+              "Retrograde Motion"
+            ]
+          }
+        }
+      },
+      "dispositor_analysis": {
+        "loops": [
+          {
+            "start": "Sun",
+            "loop": [
+              "Jupiter",
+              "Venus"
+            ],
+            "length": 2
+          },
+          {
+            "start": "Moon",
+            "loop": [
+              "Saturn",
+              "Mars"
+            ],
+            "length": 2
+          }
+        ],
+        "parivartana": [
+          {
+            "planets": [
+              "Mars",
+              "Saturn"
+            ],
+            "type": "mutual_exchange"
+          },
+          {
+            "planets": [
+              "Jupiter",
+              "Venus"
+            ],
+            "type": "mutual_exchange"
+          }
+        ],
+        "chain_lengths": {
+          "Sun": 3,
+          "Moon": 3,
+          "Mars": 2,
+          "Mercury": 3,
+          "Jupiter": 2,
+          "Venus": 2,
+          "Saturn": 2,
+          "Rahu": 3,
+          "Ketu": 4
+        },
+        "final_dispositors": {
+          "Sun": "Jupiter",
+          "Moon": "Saturn",
+          "Mars": "Mars",
+          "Mercury": "Saturn",
+          "Jupiter": "Jupiter",
+          "Venus": "Venus",
+          "Saturn": "Saturn",
+          "Rahu": "Saturn",
+          "Ketu": "Jupiter"
+        },
+        "dominant_final_dispositor": "Saturn"
+      },
+      "yogas": [
+        {
+          "name": "Raja Yoga",
+          "strength": 0.75,
+          "planets_involved": [
+            "Moon",
+            "Mercury"
+          ],
+          "status": "active",
+          "reason_tags": [],
+          "rule_key": "raja_yoga"
+        },
+        {
+          "name": "Parivartana Yoga",
+          "strength": 0.7,
+          "planets_involved": [
+            "Mars",
+            "Saturn"
+          ],
+          "status": "active",
+          "reason_tags": [],
+          "rule_key": "parivartana_yoga"
+        },
+        {
+          "name": "Parivartana Yoga",
+          "strength": 0.7,
+          "planets_involved": [
+            "Jupiter",
+            "Venus"
+          ],
+          "status": "active",
+          "reason_tags": [],
+          "rule_key": "parivartana_yoga"
+        },
+        {
+          "name": "Gaja Kesari Yoga",
+          "strength": 0.8,
+          "planets_involved": [
+            "Moon",
+            "Jupiter"
+          ],
+          "status": "active",
+          "reason_tags": [],
+          "rule_key": "gaja_kesari_yoga"
+        }
+      ],
+      "yogas_all": [],
+      "karmic_patterns": {
+        "financial_leak_pattern": 0.35,
+        "delayed_success_pattern": 0.2,
+        "authority_conflict_pattern": 0.25,
+        "primary_pattern": "correction"
+      },
+      "influence_matrix": {
+        "matrix": {
+          "Sun->Moon": 0.0,
+          "Sun->Mars": 0.61,
+          "Sun->Mercury": 0.0,
+          "Sun->Jupiter": 0.0,
+          "Sun->Venus": 1.23,
+          "Sun->Saturn": 0.0,
+          "Sun->Rahu": 0.33,
+          "Sun->Ketu": 0.6,
+          "Moon->Sun": 0.0,
+          "Moon->Mars": 0.0,
+          "Moon->Mercury": 0.0,
+          "Moon->Jupiter": 0.19,
+          "Moon->Venus": 0.14,
+          "Moon->Saturn": 0.08,
+          "Moon->Rahu": 0.11,
+          "Moon->Ketu": 0.11,
+          "Mars->Sun": 0.64,
+          "Mars->Moon": 0.0,
+          "Mars->Mercury": 0.0,
+          "Mars->Jupiter": 0.0,
+          "Mars->Venus": 0.37,
+          "Mars->Saturn": 0.0,
+          "Mars->Rahu": 0.81,
+          "Mars->Ketu": 0.6,
+          "Mercury->Sun": 0.0,
+          "Mercury->Moon": 0.0,
+          "Mercury->Mars": 0.0,
+          "Mercury->Jupiter": 0.1,
+          "Mercury->Venus": 0.0,
+          "Mercury->Saturn": 0.18,
+          "Mercury->Rahu": 0.0,
+          "Mercury->Ketu": 0.0,
+          "Jupiter->Sun": 0.0,
+          "Jupiter->Moon": 0.28,
+          "Jupiter->Mars": 0.0,
+          "Jupiter->Mercury": 0.23,
+          "Jupiter->Venus": 0.0,
+          "Jupiter->Saturn": 0.98,
+          "Jupiter->Rahu": 0.0,
+          "Jupiter->Ketu": 0.0,
+          "Venus->Sun": 0.76,
+          "Venus->Moon": 0.11,
+          "Venus->Mars": 0.21,
+          "Venus->Mercury": 0.0,
+          "Venus->Jupiter": 0.0,
+          "Venus->Saturn": 0.0,
+          "Venus->Rahu": 0.38,
+          "Venus->Ketu": 0.69,
+          "Saturn->Sun": 0.0,
+          "Saturn->Moon": 0.04,
+          "Saturn->Mars": 0.0,
+          "Saturn->Mercury": 0.14,
+          "Saturn->Jupiter": 0.21,
+          "Saturn->Venus": 0.0,
+          "Saturn->Rahu": 0.0,
+          "Saturn->Ketu": 0.0,
+          "Rahu->Sun": 0.34,
+          "Rahu->Moon": 0.15,
+          "Rahu->Mars": 0.78,
+          "Rahu->Mercury": 0.0,
+          "Rahu->Jupiter": 0.0,
+          "Rahu->Venus": 0.64,
+          "Rahu->Saturn": 0.0,
+          "Rahu->Ketu": 1.05,
+          "Ketu->Sun": 0.58,
+          "Ketu->Moon": 0.15,
+          "Ketu->Mars": 0.55,
+          "Ketu->Mercury": 0.0,
+          "Ketu->Jupiter": 0.0,
+          "Ketu->Venus": 1.09,
+          "Ketu->Saturn": 0.0,
+          "Ketu->Rahu": 0.99
+        },
+        "dominant_planet": "Ketu",
+        "most_conflicted_axis": [
+          "Rahu",
+          "Ketu"
+        ]
+      },
+      "house_clusters": {
+        "cluster_scores": {
+          "1": 0.0,
+          "2": 1.83,
+          "3": 0.0,
+          "4": 0.0,
+          "5": 0.0,
+          "6": 5.33,
+          "7": 0.0,
+          "8": 4.33,
+          "9": 0.0,
+          "10": 7.67,
+          "11": 6.17,
+          "12": 9.66
+        },
+        "cluster_intensity": {
+          "1": 0.0,
+          "2": 1.83,
+          "3": 0.0,
+          "4": 0.0,
+          "5": 0.0,
+          "6": 5.33,
+          "7": 0.0,
+          "8": 4.33,
+          "9": 0.0,
+          "10": 3.83,
+          "11": 3.08,
+          "12": 4.83
+        },
+        "planet_counts": {
+          "1": 0,
+          "2": 1,
+          "3": 0,
+          "4": 0,
+          "5": 0,
+          "6": 1,
+          "7": 0,
+          "8": 1,
+          "9": 0,
+          "10": 2,
+          "11": 2,
+          "12": 2
+        },
+        "dominant_house": 12,
+        "overloaded_axis": [
+          6,
+          12
+        ]
+      },
+      "purushartha_profile": {
+        "Dharma": 0,
+        "Artha": 42,
+        "Kama": 18,
+        "Moksha": 40,
+        "dominant_purushartha": "Artha",
+        "quadrant_tags": {
+          "Dharma": "underdeveloped",
+          "Artha": "balanced",
+          "Kama": "underdeveloped",
+          "Moksha": "balanced"
+        }
+      },
+      "behavioral_risks": {
+        "ego_instability": 6.35,
+        "emotional_volatility": 7.21,
+        "financial_instability": 7.13,
+        "relationship_break_risk": 3.8,
+        "authority_conflict_risk": 5.12,
+        "burnout_risk": 4.64,
+        "obsession_tendency": 3.33,
+        "self_sabotage_risk": 6.55,
+        "impulsivity_risk": 52.3,
+        "overcontrol_risk": 38.11,
+        "primary_risk": "impulsivity"
+      },
+      "interaction_summary": {
+        "top_risks": [],
+        "amplifiers": [],
+        "mitigators": []
+      },
+      "stability_metrics": {
+        "stability_index": 0.76,
+        "stability_grade": "D",
+        "mean_planet_strength": 2.78,
+        "tension_index": 0.0581,
+        "yoga_support_index": 0.4,
+        "risk_index": 5.52,
+        "grade": "D"
+      },
+      "personality_vector": {
+        "ego_power": 37.65,
+        "emotional_regulation": 23.8,
+        "aggression_drive": 89.1,
+        "discipline_index": 8.3,
+        "attachment_intensity": 25.0,
+        "authority_orientation": 40.03,
+        "risk_appetite": 80.8
+      },
+      "probability_forecast": {
+        "marriage_5yr": 0.1195,
+        "career_shift_3yr": 0.3482,
+        "burnout_2yr": 0.124,
+        "financial_instability_3yr": 0.2618
+      },
+      "varga_alignment": {
+        "relationship_alignment": {
+          "score": 0.1429,
+          "level": "low"
+        },
+        "career_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "creativity_progeny_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "family_lineage_alignment": {
+          "score": null,
+          "level": "unknown"
+        },
+        "overall_alignment": {
+          "score": 0.1429,
+          "level": "low"
+        },
+        "available_vargas": [
+          "d9"
+        ]
+      },
+      "shadbala_summary": {
+        "top3_planets": [
+          "Sun",
+          "Jupiter",
+          "Saturn"
+        ],
+        "by_planet": {
+          "Sun": {
+            "band": "strong",
+            "total": 0.8455,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Directional Strength",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Moon": {
+            "band": "medium",
+            "total": 0.5903,
+            "evidence_tags": [
+              "Weak Expression",
+              "Aspect Support"
+            ],
+            "avastha_state": "dina",
+            "avastha_tags": [
+              "Weak Expression"
+            ]
+          },
+          "Mars": {
+            "band": "medium",
+            "total": 0.5267,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Mercury": {
+            "band": "medium",
+            "total": 0.5213,
+            "evidence_tags": [
+              "Combust"
+            ],
+            "avastha_state": "asta",
+            "avastha_tags": [
+              "Combust"
+            ]
+          },
+          "Jupiter": {
+            "band": "strong",
+            "total": 0.6721,
+            "evidence_tags": [
+              "Balanced Expression",
+              "Temporal Strength"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Balanced Expression"
+            ]
+          },
+          "Venus": {
+            "band": "medium",
+            "total": 0.5383,
+            "evidence_tags": [
+              "Combust"
+            ],
+            "avastha_state": "asta",
+            "avastha_tags": [
+              "Combust"
+            ]
+          },
+          "Saturn": {
+            "band": "medium",
+            "total": 0.632,
+            "evidence_tags": [
+              "Debilitated",
+              "Temporal Strength",
+              "Aspect Support"
+            ],
+            "avastha_state": "dina",
+            "avastha_tags": [
+              "Debilitated"
+            ]
+          },
+          "Rahu": {
+            "band": "medium",
+            "total": 0.5833,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          },
+          "Ketu": {
+            "band": "medium",
+            "total": 0.5833,
+            "evidence_tags": [
+              "Retrograde Motion",
+              "Aspect Support"
+            ],
+            "avastha_state": "madhya",
+            "avastha_tags": [
+              "Retrograde Motion"
+            ]
+          }
+        }
+      },
+      "current_dasha": "Sun"
+    }
+  },
+  "reading": "## [Executive Summary] 당신의 흐름\n\n장면: 어느 바쁜 아침, 당신은 마음이 결정되는 순간 곧장 움직여 버린다 — 손에 든 열정이 발화한 것이다. 이 성향은 빠른 결과를 낳지만, 속도가 붙을수록 감정적·체력적 소모가 먼저 온다는 사실도 함께 온다.\n\n공감: 그럴 때면 성취의 환희와 동시에 공허감이 찾아오기도 한다. 선택의 결단이 곧 행동으로 연결되는 능력은 탁월하지만, 회복 리듬을 잃으면 다음 결단이 더 어려워지는 악순환이 생긴다.\n\n패턴: 요즘은 시기 흐름(다샤)에서 힘의 초점이 바뀌는 구간이라 속도 조절이 특히 중요하다. 당신의 힘이 모이는 버튼은 Ketu 기질과 닿아 있어 빠른 단절과 집중이 반복적으로 유발된다—이 점을 외면하면 같은 비용을 여러 번 치르게 된다.\n\n통찰/선택지: 우선순위를 덜 소모하는 쪽으로 재배치하면 에너지를 오래 유지할 수 있다. (권장) 결정 전에 짧은 회복 루틴을 의무화해 보라.\n\n## [Purushartha Profile] 삶의 우선순위\n\n명제: 당신의 삶에서 물질적 성취와 실용적 야망이 중요한 축을 이룬다. 성과는 목표의 명확성과 실행의 규율에서 온다.\n\n관찰과 공감: 목표가 뚜렷하면 내적 동력은 강하게 발현된다. 반대로 모호한 요구는 압박과 번복을 반복시키며 소모를 키운다.\n\n패턴과 통찰: 가시적 약속과 작은 계약으로 일을 쪼개면 흐름이 생긴다. 실행의 질을 높이려면 환경을 더 구조화하고 책임선을 선명히 하라.\n\n선택지: 중요한 결과는 한 번의 대담함보다 연속된 규율에서 온다. (권장) 마감과 검토를 분리한 루틴을 시도해라.\n\n## [Psychological Architecture] 마음이 움직이는 방식\n\n진술: 당신은 감수성이 풍부하면서도 내부에는 실용적 절제의 힘이 공존한다. 감정은 표면적으로는 차분하지만, 내부에서는 직관적 순간들이 자주 폭발한다는 역설이 있다.\n\n공감: 이 내부 모순은 때로 친밀함을 맺는 걸 어색하게 만들지만, 동시에 위기에서 침착함을 발휘하게도 한다. 자기비판이 강하면 외부의 요구에 과도하게 맞추려는 경향이 생긴다.\n\n패턴과 통찰: 감정 억제와 즉각적 행동이 뒤섞이면 소진과 과잉보정이 반복된다. 자신의 취약함을 드러내는 연습이 장기적으로 결정을 더 단단하게 만든다.\n\n선택지: 혼자 해결하려는 습관을 일부러 깨뜨려라 — 신뢰를 작게 테스트하는 대화가 효율적이다.\n\n## [Behavioral Risks] 무너지는 습관\n\n모습: 압박이 올라오면 당신은 우선 속도를 택한다. 빠른 해결감이 당장의 안도감을 주지만, 검증 절차를 누락할 위험이 있다.\n\n공감: 그 순간의 안도감은 이후 더 큰 수습 비용으로 돌아오곤 한다. 누구나 속도에 현혹되면 실수가 생긴다.\n\n패턴과 통찰: 핵심 리스크는 ‘속도 대 정확성’의 균열이다. 중요한 결정 전 필수 확인 단계를 루틴으로 고정해두면 연쇄 오류를 줄일 수 있다.\n\n선택지: 의무적 일시 정지 장치를 마련하라 — 예컨대 두 번의 확인자나 24시간 대기 규칙 같은 것이다.\n\n## [Karmic Patterns] 반복 패턴\n\n장면: 반복되는 실패는 우연이 아니라 습관의 다른 얼굴이다. 같은 형태의 마찰이 다른 무대에서 재현되는 일이 잦다.\n\n공감: 좌절감은 그 자체로 당신을 판단하게 만들지만, 사실 그것은 수정할 기회다. 당신은 이미 변화의 신호를 충분히 받고 있다.\n\n패턴과 통찰: 이 삶의 흐름은 ‘교정의 반복’으로 성장한다는 메시지를 준다. 단발적인 돌파보다 작은 조정의 축적이 더 큰 전진을 만든다—이것이 핵심이다.\n\n선택지: 문제를 개인의 실패로만 보지 말고 시스템의 신호로 읽어보라. 필요한 건 응급처치가 아니라 구조적 재설계다.\n\n## [Stability Metrics] 버티는 힘\n\n진술: 최근의 압박은 구조적 불안정을 드러낸다. 평소 관리 가능하던 자원들이 작은 충격에 취약하게 느껴질 때가 있다.\n\n공감: 그런 상태에서는 사소한 일 하나가 전반적인 계획을 흐트러뜨려 불안감을 증폭시킨다. 누구라도 지치기 쉬운 국면이다.\n\n패턴과 통찰: 회복력의 하락은 복구 시간을 길게 만든다. 보수적 부하 관리와 조기 개입이 장기적으로 비용을 낮춘다.\n\n선택지: 지금은 확장보다는 보호에 초점을 두라 — 소수의 핵심 자원에만 에너지를 집중하라.\n\n## [Personality Vector] 반응 방식\n\n진술: 외부 분위기를 잘 흡수하는 당신은 상황에 따라 여러 페르소나를 자연스럽게 연기한다. 이는 유연함이자 피로의 원인이다.\n\n공감: 타인을 공명시키는 능력은 관계에서 큰 장점이지만, 경계가 흐려지면 자아 소모가 빨라진다. 자신을 다시 세우는 의식이 필요하다.\n\n패턴과 통찰: 규칙적인 경계 복구 행동이 없으면 에너지 누출이 반복된다. 작고 일관된 자기 돌봄이 성격의 지속력을 만든다.\n\n선택지: 매일 단 5분이라도 경계 설정 의식을 넣어 보라 — 소모를 막기 위한 최소한의 투자다.\n\n## [Life Timeline Interpretation] 시간의 흐름\n\n모습: 타임라인을 보면 빠른 결정이 잦은 구간과 재정렬의 시간이 교대로 왔다. 외형적으로는 전진처럼 보이지만 내부적으로는 교정 루프가 지속된다.\n\n창: 다음의 두 시기 창이 눈에 띈다. 첫째는 기회의 창, 둘째는 안정화·재정렬 창이다.\n\n창(주요): 2026-2027 — 목성(Jupiter)-10th — 커리어·공적 성과. 기회 확장의 창이 열리지만 속도 조절이 관건이다.\n(독립 문장)\n\n중간 설명: 이들 창은 같은 방법으로 다뤄지면 소모만 늘어난다. 기회는 오히려 구조화된 수용 태도에 더 잘 응답한다.\n\n## [Career & Success] 일과 성취\n\n진술: 당신의 커리어 에너지는 아르타(물질적 성취) 쪽에 닻을 내리고 있다. 명확한 소유권과 레버리지 포인트가 성과를 가른다.\n\n공감: 불확실한 역할이나 모호한 기대는 빠르게 소모를 만든다. 이는 개인적 성과와 조직적 신뢰 양쪽 모두에 영향을 준다.\n\n패턴과 통찰: 반복되는 마찰은 주로 결정 구조의 불일치에서 오며, 권위와의 충돌이나 역할 불명확성이 이를 촉발한다. 기대를 문서화하고 작은 신뢰의 축적을 목표로 하라.\n\n실행적 제안: 역할과 기대를 계약화하라 — 구두 약속을 측정 가능한 행동으로 바꾸면 마찰은 줄어든다.\n\n## [Love & Relationships] 관계의 결\n\n장면: 관계에서 당신은 보호적이면서도 때론 거리감을 만든다 — 가까워지려는 욕구와 스스로 선을 긋는 습관이 서로 충돌한다.\n\n공감: 상대는 당신의 신중함을 안정으로 느끼기도 하고, 동시에 냉정함으로 느끼기도 한다. 그 모순이 관계의 긴장이다.\n\n패턴과 통찰: 친밀함은 감정의 개방과 소소한 실수의 공유에서 자란다. 과도한 자기비판은 사랑을 검사하는 잣대가 되어 관계를 위축시킨다.\n\n선택지: 감정을 조금 덜 완벽하게 표현해라 — 작은 취약성이 신뢰를 키운다.\n\n## [Health & Body Patterns] 몸의 리듬\n\n진술: 감정의 흡수성이 높아지면 신체적 피로와 소화·수면 리듬의 변동으로 이어질 수 있다. 몸은 감정의 잔여물을 곧바로 반응으로 보여준다.\n\n공감: 바쁜 국면에서 자기 케어가 뒤로 밀리면 회복 속도가 떨어진다. 누구라도 그럴 수 있다 — 비난보다 재정비가 필요하다.\n\n패턴과 통찰: 규칙적 휴식과 짧은 회복 루틴이 누적 이득을 만든다. 작은 신호를 무시하지 않는 것이 큰 병을 예방한다.\n\n선택지: 수면·식사·움직임의 최소 기준을 정해 일관되게 지켜라.\n\n## [Confidence & Forecast] 앞으로의 흐름\n\n진술: 내적 낙관과 외적 신중이 동시에 존재하는데, 이 균형이 깨질 때 자신감의 진폭이 커진다. 당신의 자신감은 실천과 검토의 루프에서 회복된다.\n\n공감: 때론 낙관이 지나쳐 세부를 놓치고, 때론 지나친 절제가 추진력을 잠식한다. 그 사이에서 자신감은 오르내린다.\n\n패턴과 통찰: 단기적 성취로 자신감을 보완하는 경향이 있으나, 지속적 자신감은 반복 학습의 결과다. 지금은 자신감을 외부 성과에만 기대지 않고 내부 점검으로도 보완해야 할 시점이다.\n\n선택지: 작은 성공들을 기록하고 반성의 창을 의도적으로 넣어라. (권장)\n\n## [Remedies & Program] 회복의 방향\n\n모습: 치료적 개입은 거대한 변화가 아니라 일상의 재배치에서 시작된다. 마음과 행동을 연결하는 소규모 의식이 효과적이다.\n\n공감: 새로운 습관을 들이려 할 때 실패가 생기더라도 그 자체가 정보다. 부드럽게 다시 시작하라.\n\n패턴과 통찰: 핵심은 반복 가능한 작은 행동이다 — 짧은 명상, 일일 검토, 결정 전 10분 멈춤 같은 것들이 누적되어 패턴을 바꾼다.\n\n선택지: 30일 단위의 소규모 실험을 설계해, 무엇이 지속 가능한지 관찰하라.\n\n## [Final Summary] 마지막 정리\n\n진술: 당신의 삶에서 커리어, 관계, 건강은 분리된 문제가 아니다 — 하나의 에너지 흐름이 여러 영역으로 나뉘어 영향을 미친다. 연결 통찰: 업무에서의 속도 선택은 곧 관계와 건강의 소모로 연결된다.\n\n패턴과 통찰: 반복되는 교정 루프가 이 삶의 핵심 서사다 — 빠른 결정과 사후 수습의 반복이 에너지를 깎아간다. 패턴을 깨려면 외형적 행동이 아니라 결정 방식을 재인식해야 한다.\n\n마지막 권고: 작은 경계와 회복 루틴을 먼저 고정하라. 이 간단한 전환 하나가 당신의 다음 사이클을 달라지게 할 것이다.\n\n## [Appendix (Optional)] 보충 메모\n\n진술: 참고용으로 구조적 포인트들을 모아두면 필요할 때 빠르게 꺼내볼 수 있다.\n\n여기에는 일상 루틴 체크리스트나 대화 스크립트 같은 실용 도구가 포함될 수 있다.\n\n빠른 결론보다 반복되는 장면의 패턴을 붙잡는 편이 유리합니다.",
+  "polished_reading": "## [Executive Summary] 당신의 흐름\n\n장면: 어느 바쁜 아침, 당신은 마음이 결정되는 순간 곧장 움직여 버린다 — 손에 든 열정이 발화한 것이다. 이 성향은 빠른 결과를 낳지만, 속도가 붙을수록 감정적·체력적 소모가 먼저 온다는 사실도 함께 온다.\n\n공감: 그럴 때면 성취의 환희와 동시에 공허감이 찾아오기도 한다. 선택의 결단이 곧 행동으로 연결되는 능력은 탁월하지만, 회복 리듬을 잃으면 다음 결단이 더 어려워지는 악순환이 생긴다.\n\n패턴: 요즘은 시기 흐름(다샤)에서 힘의 초점이 바뀌는 구간이라 속도 조절이 특히 중요하다. 당신의 힘이 모이는 버튼은 Ketu 기질과 닿아 있어 빠른 단절과 집중이 반복적으로 유발된다—이 점을 외면하면 같은 비용을 여러 번 치르게 된다.\n\n통찰/선택지: 우선순위를 덜 소모하는 쪽으로 재배치하면 에너지를 오래 유지할 수 있다. (권장) 결정 전에 짧은 회복 루틴을 의무화해 보라.\n\n## [Purushartha Profile] 삶의 우선순위\n\n명제: 당신의 삶에서 물질적 성취와 실용적 야망이 중요한 축을 이룬다. 성과는 목표의 명확성과 실행의 규율에서 온다.\n\n관찰과 공감: 목표가 뚜렷하면 내적 동력은 강하게 발현된다. 반대로 모호한 요구는 압박과 번복을 반복시키며 소모를 키운다.\n\n패턴과 통찰: 가시적 약속과 작은 계약으로 일을 쪼개면 흐름이 생긴다. 실행의 질을 높이려면 환경을 더 구조화하고 책임선을 선명히 하라.\n\n선택지: 중요한 결과는 한 번의 대담함보다 연속된 규율에서 온다. (권장) 마감과 검토를 분리한 루틴을 시도해라.\n\n## [Psychological Architecture] 마음이 움직이는 방식\n\n진술: 당신은 감수성이 풍부하면서도 내부에는 실용적 절제의 힘이 공존한다. 감정은 표면적으로는 차분하지만, 내부에서는 직관적 순간들이 자주 폭발한다는 역설이 있다.\n\n공감: 이 내부 모순은 때로 친밀함을 맺는 걸 어색하게 만들지만, 동시에 위기에서 침착함을 발휘하게도 한다. 자기비판이 강하면 외부의 요구에 과도하게 맞추려는 경향이 생긴다.\n\n패턴과 통찰: 감정 억제와 즉각적 행동이 뒤섞이면 소진과 과잉보정이 반복된다. 자신의 취약함을 드러내는 연습이 장기적으로 결정을 더 단단하게 만든다.\n\n선택지: 혼자 해결하려는 습관을 일부러 깨뜨려라 — 신뢰를 작게 테스트하는 대화가 효율적이다.\n\n## [Behavioral Risks] 무너지는 습관\n\n모습: 압박이 올라오면 당신은 우선 속도를 택한다. 빠른 해결감이 당장의 안도감을 주지만, 검증 절차를 누락할 위험이 있다.\n\n공감: 그 순간의 안도감은 이후 더 큰 수습 비용으로 돌아오곤 한다. 누구나 속도에 현혹되면 실수가 생긴다.\n\n패턴과 통찰: 핵심 리스크는 ‘속도 대 정확성’의 균열이다. 중요한 결정 전 필수 확인 단계를 루틴으로 고정해두면 연쇄 오류를 줄일 수 있다.\n\n선택지: 의무적 일시 정지 장치를 마련하라 — 예컨대 두 번의 확인자나 24시간 대기 규칙 같은 것이다.\n\n## [Karmic Patterns] 반복 패턴\n\n장면: 반복되는 실패는 우연이 아니라 습관의 다른 얼굴이다. 같은 형태의 마찰이 다른 무대에서 재현되는 일이 잦다.\n\n공감: 좌절감은 그 자체로 당신을 판단하게 만들지만, 사실 그것은 수정할 기회다. 당신은 이미 변화의 신호를 충분히 받고 있다.\n\n패턴과 통찰: 이 삶의 흐름은 ‘교정의 반복’으로 성장한다는 메시지를 준다. 단발적인 돌파보다 작은 조정의 축적이 더 큰 전진을 만든다—이것이 핵심이다.\n\n선택지: 문제를 개인의 실패로만 보지 말고 시스템의 신호로 읽어보라. 필요한 건 응급처치가 아니라 구조적 재설계다.\n\n## [Stability Metrics] 버티는 힘\n\n진술: 최근의 압박은 구조적 불안정을 드러낸다. 평소 관리 가능하던 자원들이 작은 충격에 취약하게 느껴질 때가 있다.\n\n공감: 그런 상태에서는 사소한 일 하나가 전반적인 계획을 흐트러뜨려 불안감을 증폭시킨다. 누구라도 지치기 쉬운 국면이다.\n\n패턴과 통찰: 회복력의 하락은 복구 시간을 길게 만든다. 보수적 부하 관리와 조기 개입이 장기적으로 비용을 낮춘다.\n\n선택지: 지금은 확장보다는 보호에 초점을 두라 — 소수의 핵심 자원에만 에너지를 집중하라.\n\n## [Personality Vector] 반응 방식\n\n진술: 외부 분위기를 잘 흡수하는 당신은 상황에 따라 여러 페르소나를 자연스럽게 연기한다. 이는 유연함이자 피로의 원인이다.\n\n공감: 타인을 공명시키는 능력은 관계에서 큰 장점이지만, 경계가 흐려지면 자아 소모가 빨라진다. 자신을 다시 세우는 의식이 필요하다.\n\n패턴과 통찰: 규칙적인 경계 복구 행동이 없으면 에너지 누출이 반복된다. 작고 일관된 자기 돌봄이 성격의 지속력을 만든다.\n\n선택지: 매일 단 5분이라도 경계 설정 의식을 넣어 보라 — 소모를 막기 위한 최소한의 투자다.\n\n## [Life Timeline Interpretation] 시간의 흐름\n\n모습: 타임라인을 보면 빠른 결정이 잦은 구간과 재정렬의 시간이 교대로 왔다. 외형적으로는 전진처럼 보이지만 내부적으로는 교정 루프가 지속된다.\n\n창: 다음의 두 시기 창이 눈에 띈다. 첫째는 기회의 창, 둘째는 안정화·재정렬 창이다.\n\n창(주요): 2026-2027 — 목성(Jupiter)-10th — 커리어·공적 성과. 기회 확장의 창이 열리지만 속도 조절이 관건이다.\n(독립 문장)\n\n중간 설명: 이들 창은 같은 방법으로 다뤄지면 소모만 늘어난다. 기회는 오히려 구조화된 수용 태도에 더 잘 응답한다.\n\n## [Career & Success] 일과 성취\n\n진술: 당신의 커리어 에너지는 아르타(물질적 성취) 쪽에 닻을 내리고 있다. 명확한 소유권과 레버리지 포인트가 성과를 가른다.\n\n공감: 불확실한 역할이나 모호한 기대는 빠르게 소모를 만든다. 이는 개인적 성과와 조직적 신뢰 양쪽 모두에 영향을 준다.\n\n패턴과 통찰: 반복되는 마찰은 주로 결정 구조의 불일치에서 오며, 권위와의 충돌이나 역할 불명확성이 이를 촉발한다. 기대를 문서화하고 작은 신뢰의 축적을 목표로 하라.\n\n실행적 제안: 역할과 기대를 계약화하라 — 구두 약속을 측정 가능한 행동으로 바꾸면 마찰은 줄어든다.\n\n## [Love & Relationships] 관계의 결\n\n장면: 관계에서 당신은 보호적이면서도 때론 거리감을 만든다 — 가까워지려는 욕구와 스스로 선을 긋는 습관이 서로 충돌한다.\n\n공감: 상대는 당신의 신중함을 안정으로 느끼기도 하고, 동시에 냉정함으로 느끼기도 한다. 그 모순이 관계의 긴장이다.\n\n패턴과 통찰: 친밀함은 감정의 개방과 소소한 실수의 공유에서 자란다. 과도한 자기비판은 사랑을 검사하는 잣대가 되어 관계를 위축시킨다.\n\n선택지: 감정을 조금 덜 완벽하게 표현해라 — 작은 취약성이 신뢰를 키운다.\n\n## [Health & Body Patterns] 몸의 리듬\n\n진술: 감정의 흡수성이 높아지면 신체적 피로와 소화·수면 리듬의 변동으로 이어질 수 있다. 몸은 감정의 잔여물을 곧바로 반응으로 보여준다.\n\n공감: 바쁜 국면에서 자기 케어가 뒤로 밀리면 회복 속도가 떨어진다. 누구라도 그럴 수 있다 — 비난보다 재정비가 필요하다.\n\n패턴과 통찰: 규칙적 휴식과 짧은 회복 루틴이 누적 이득을 만든다. 작은 신호를 무시하지 않는 것이 큰 병을 예방한다.\n\n선택지: 수면·식사·움직임의 최소 기준을 정해 일관되게 지켜라.\n\n## [Confidence & Forecast] 앞으로의 흐름\n\n진술: 내적 낙관과 외적 신중이 동시에 존재하는데, 이 균형이 깨질 때 자신감의 진폭이 커진다. 당신의 자신감은 실천과 검토의 루프에서 회복된다.\n\n공감: 때론 낙관이 지나쳐 세부를 놓치고, 때론 지나친 절제가 추진력을 잠식한다. 그 사이에서 자신감은 오르내린다.\n\n패턴과 통찰: 단기적 성취로 자신감을 보완하는 경향이 있으나, 지속적 자신감은 반복 학습의 결과다. 지금은 자신감을 외부 성과에만 기대지 않고 내부 점검으로도 보완해야 할 시점이다.\n\n선택지: 작은 성공들을 기록하고 반성의 창을 의도적으로 넣어라. (권장)\n\n## [Remedies & Program] 회복의 방향\n\n모습: 치료적 개입은 거대한 변화가 아니라 일상의 재배치에서 시작된다. 마음과 행동을 연결하는 소규모 의식이 효과적이다.\n\n공감: 새로운 습관을 들이려 할 때 실패가 생기더라도 그 자체가 정보다. 부드럽게 다시 시작하라.\n\n패턴과 통찰: 핵심은 반복 가능한 작은 행동이다 — 짧은 명상, 일일 검토, 결정 전 10분 멈춤 같은 것들이 누적되어 패턴을 바꾼다.\n\n선택지: 30일 단위의 소규모 실험을 설계해, 무엇이 지속 가능한지 관찰하라.\n\n## [Final Summary] 마지막 정리\n\n진술: 당신의 삶에서 커리어, 관계, 건강은 분리된 문제가 아니다 — 하나의 에너지 흐름이 여러 영역으로 나뉘어 영향을 미친다. 연결 통찰: 업무에서의 속도 선택은 곧 관계와 건강의 소모로 연결된다.\n\n패턴과 통찰: 반복되는 교정 루프가 이 삶의 핵심 서사다 — 빠른 결정과 사후 수습의 반복이 에너지를 깎아간다. 패턴을 깨려면 외형적 행동이 아니라 결정 방식을 재인식해야 한다.\n\n마지막 권고: 작은 경계와 회복 루틴을 먼저 고정하라. 이 간단한 전환 하나가 당신의 다음 사이클을 달라지게 할 것이다.\n\n## [Appendix (Optional)] 보충 메모\n\n진술: 참고용으로 구조적 포인트들을 모아두면 필요할 때 빠르게 꺼내볼 수 있다.\n\n여기에는 일상 루틴 체크리스트나 대화 스크립트 같은 실용 도구가 포함될 수 있다.\n\n빠른 결론보다 반복되는 장면의 패턴을 붙잡는 편이 유리합니다.",
+  "detail_level": "full",
+  "ai_cache_key": "1970_1_9_12.5_19.076_72.8777_W_ko_male_0_[]_None_standard_full_8000_ko_only_v2_chapter_blocks_v2",
+  "request_id": "008854f0-6772-428f-859c-c157fab05f92",
+  "chart_hash": "d013f8e28e52bf69d055e44e3172fe42fd3cbcc8f43f99f5ad824e7cb1056fa9",
+  "chapter_blocks_hash": "c2d256f52a269b4d57ee711124fc1dd121232004d26c0cd4234b195b4ef39f69",
+  "chapter_blocks": {
+    "Executive Summary": [
+      {
+        "title": "Executive Summary - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "커리어 서사 강화",
+        "summary": "커리어 결과는 전략적 야망과 카르마 교정 루프의 상호작용에 의해 강하게 형성된다.",
+        "analysis": "실행 규율이 교훈 통합과 일치할 때 변동성이 감소하고 복리 성장이 개선된다. 두 가지가 어긋날 때 유사한 장애물이 반복된다.",
+        "implication": "각 후퇴를 구조화된 교정으로 취급하여 장기 사이클 모멘텀을 보존할 것. 반복되는 장애물은 패턴 재설계의 신호다.",
+        "examples": "반복되는 장애물은 동일한 결정 패턴이 의도적으로 재설계되는 순간 해소되는 경향이 있다."
+      }
+    ],
+    "Purushartha Profile": [
+      {
+        "title": "Purushartha Profile - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "삶의 방향: 아르타 중심",
+        "summary": "물질적 구조, 성취, 실용적 야망이 이 프로필의 중심 주제다.",
+        "analysis": "측정 가능한 목표와 실행 시스템이 명확할 때 가장 강한 실행력이 발현된다. 이 에너지는 구조화된 환경에서 가장 효과적으로 작동한다.",
+        "implication": "자원 전략과 규율 있는 순서화가 진전을 가속시킨다. 목표를 가시적인 실행 계약으로 전환하는 능력이 이 구조의 핵심 자산이다.",
+        "examples": ""
+      }
+    ],
+    "Psychological Architecture": [
+      {
+        "title": "Psychological Architecture - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 달이 염소자리에 위치하면 감정을 절제하고 실용적·책임감 있게 반응하려는 경향이 있어 대체로 차분하고 계획적인 행동 패턴을 보일 가능성이 높다. 장기적인 목표를 향한 인내와 신뢰할 수 있는 실무 능력, 위기 상황에서 침착함을 발휘해 주변에 안정감을 주는 능력이 강점으로 작용할 수 있다. 반면 감정을 억누르거나 자기비판이 과해지기 쉬워 친밀감 형성에 어려움이 있거나 스트레스를 혼자 안고 갈 가능성이 있어 취약성을 드러내고 감정 관리를 의식적으로 연습하는 것이 도움이 될 수 있다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Behavioral Risks": [
+      {
+        "title": "Behavioral Risks - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 달이 염소자리에 위치하면 감정을 절제하고 실용적·책임감 있게 반응하려는 경향이 있어 대체로 차분하고 계획적인 행동 패턴을 보일 가능성이 높다. 장기적인 목표를 향한 인내와 신뢰할 수 있는 실무 능력, 위기 상황에서 침착함을 발휘해 주변에 안정감을 주는 능력이 강점으로 작용할 수 있다. 반면 감정을 억누르거나 자기비판이 과해지기 쉬워 친밀감 형성에 어려움이 있거나 스트레스를 혼자 안고 갈 가능성이 있어 취약성을 드러내고 감정 관리를 의식적으로 연습하는 것이 도움이 될 수 있다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "행동 리스크: 충동성",
+        "summary": "압박이 높아지는 국면에서 명확성보다 속도를 선택하는 결정 패턴이 활성화될 가능성이 있다.",
+        "analysis": "긴박감이 검증 절차를 건너뛸 때, 단기 해결처럼 보이는 행동이 이후에 더 큰 수습 비용을 만들어낸다. 속도와 정확성의 균형이 무너지는 지점이 핵심 리스크다.",
+        "implication": "의무적인 일시 정지 프로토콜이 연쇄 오류의 가능성을 낮춘다. 빠른 결정 전에 반드시 거쳐야 할 확인 단계를 사전에 고정해둘 것.",
+        "examples": ""
+      }
+    ],
+    "Karmic Patterns": [
+      {
+        "title": "Karmic Patterns - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "카르마 주제: 교정",
+        "summary": "이 구조에서 반복되는 교훈은 선형적 전진이 아니라 반복적 교정 과정을 통해 성장이 일어난다는 신호다.",
+        "analysis": "피드백 루프를 일찍 받아들이고 명확하게 적용할수록 누적적 향상이 발생한다. 돌파구 하나보다 조정 습관이 결과를 바꾼다.",
+        "implication": "안정적인 결과는 단발적 노력이 아니라 조정 규율에서 나온다. 같은 패턴이 반복된다면, 방법이 아닌 구조를 점검해야 할 때다.",
+        "examples": ""
+      }
+    ],
+    "Stability Metrics": [
+      {
+        "title": "Stability Metrics - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "안정성 저하 창",
+        "summary": "현재 지표가 누적 긴장 아래에서 회복력 용량의 의미 있는 하락을 나타내고 있다.",
+        "analysis": "구조적 안정성이 낮아지면 원래라면 관리 가능했을 스트레스 요인들이 증폭되고 교정 속도가 느려진다. 이 국면에서 발생하는 손실은 정상 국면보다 복구에 더 오랜 시간이 걸린다.",
+        "implication": "보수적 부하 관리와 조기 개입 프로토콜이 권장된다. 지금 이 신호를 무시하면, 회복에 필요한 비용이 훨씬 커진다.",
+        "examples": "피로 상태에서는 사소한 중단도 계획과 실행 모두에서 불균형적인 혼란을 일으킬 수 있다."
+      }
+    ],
+    "Personality Vector": [
+      {
+        "title": "Personality Vector - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 달이 염소자리에 위치하면 감정을 절제하고 실용적·책임감 있게 반응하려는 경향이 있어 대체로 차분하고 계획적인 행동 패턴을 보일 가능성이 높다. 장기적인 목표를 향한 인내와 신뢰할 수 있는 실무 능력, 위기 상황에서 침착함을 발휘해 주변에 안정감을 주는 능력이 강점으로 작용할 수 있다. 반면 감정을 억누르거나 자기비판이 과해지기 쉬워 친밀감 형성에 어려움이 있거나 스트레스를 혼자 안고 갈 가능성이 있어 취약성을 드러내고 감정 관리를 의식적으로 연습하는 것이 도움이 될 수 있다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Life Timeline Interpretation": [
+      {
+        "title": "Life Timeline Interpretation - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n시데리얼(항성황도), 라히리 기준으로 태양이 사수자리에 있으면 자유와 진리 탐구를 중시하며 낙관적이고 확장 지향적인 자기상을 갖는 경향이 있다. 강점으로는 철학적·개념적 안목과 모험심이 있어 새로운 아이디어나 경험을 주도하고 사람들에게 활력을 불어넣을 가능성이 있다. 주의점은 과도한 낙관이나 성급한 확장으로 책임을 지나치게 가볍게 여기거나 세부를 소홀히 할 가능성이 있다는 점이다.\n\n시데리얼(항성황도), 라히리 기준으로 달이 염소자리에 위치하면 감정을 절제하고 실용적·책임감 있게 반응하려는 경향이 있어 대체로 차분하고 계획적인 행동 패턴을 보일 가능성이 높다. 장기적인 목표를 향한 인내와 신뢰할 수 있는 실무 능력, 위기 상황에서 침착함을 발휘해 주변에 안정감을 주는 능력이 강점으로 작용할 수 있다. 반면 감정을 억누르거나 자기비판이 과해지기 쉬워 친밀감 형성에 어려움이 있거나 스트레스를 혼자 안고 갈 가능성이 있어 취약성을 드러내고 감정 관리를 의식적으로 연습하는 것이 도움이 될 수 있다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "재귀적 교정 루프",
+        "summary": "충동적 행동이 숙고를 앞서는 구조에서, 타임라인은 급속한 교정 루프에 반복적으로 빠져들 수 있다.",
+        "analysis": "이 흐름은 전형적으로 빠른 결정 → 마찰 → 교정 → 리셋 → 반복의 순서를 따른다. 겉으로는 전진처럼 보이지만, 내부적으로는 숨겨진 비용이 누적된다.",
+        "implication": "이 루프가 끊기지 않으면, 신뢰와 에너지와 기회 타이밍 측면에서의 손실이 복리로 쌓인다. 지금 이 패턴을 인식하지 않으면, 나중에 더 큰 대가를 치르게 된다.",
+        "examples": "빠른 방향 전환이 즉각적인 문제를 해결하는 것처럼 느껴지지만, 다음 사이클에서 동일한 구조적 불일치가 새로운 형태로 되돌아온다.",
+        "shadow_pattern": "긴박감이 불확실성에 대한 내성을 회피하는 무의식적 수단으로 사용된다.",
+        "defense_mechanism": "즉각적 행동 후 과잉 보정식 수습.",
+        "emotional_trigger": "정체된 것처럼 보이는 상태에 대한 불안, 또는 추진력을 증명해야 한다는 압박.",
+        "repetition_cycle": "빠른 행동 → 저항 → 수습 → 임시 리셋 → 다시 빠른 행동.",
+        "integration_path": "되돌릴 수 없는 선택 이전에 사전 확약 검토 체크포인트를 삽입하고, 결정 이후 학습 창을 강제 적용할 것."
+      },
+      {
+        "title": "카르마 반복 인사이트",
+        "summary": "타임라인 루프는 내면의 인식 임계점을 넘어설 때까지 지속되는 경향이 있다.",
+        "analysis": "반복적으로 나타나는 혼란은 무작위적 역경이 아니라 통합되지 않은 결정 패턴의 신호다. 반복되는 장애물은 패턴이다.",
+        "implication": "패턴 단절은 행동 재설계보다 인식이 먼저다. 무엇을 반복하고 있는지 보이기 전까지, 무엇을 바꿔야 할지 알 수 없다.",
+        "examples": "서로 다른 인생 단계에서, 새로운 이야기로 포장된 유사한 긴박감의 실수가 반복될 수 있다.",
+        "shadow_pattern": "불확실한 변화보다 익숙한 고통이 선호된다.",
+        "defense_mechanism": "충동적 결정 이후의 사후 합리화.",
+        "emotional_trigger": "지연, 거절, 또는 모멘텀 상실에 대한 체감.",
+        "repetition_cycle": "방아쇠 → 반사적 결정 → 결과 → 사후 인식 → 다시 방아쇠.",
+        "integration_path": "사후 인식을 사전 확약 프로토콜로 변환할 것."
+      }
+    ],
+    "Career & Success": [
+      {
+        "title": "Career & Success - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 태양이 사수자리에 있으면 자유와 진리 탐구를 중시하며 낙관적이고 확장 지향적인 자기상을 갖는 경향이 있다. 강점으로는 철학적·개념적 안목과 모험심이 있어 새로운 아이디어나 경험을 주도하고 사람들에게 활력을 불어넣을 가능성이 있다. 주의점은 과도한 낙관이나 성급한 확장으로 책임을 지나치게 가볍게 여기거나 세부를 소홀히 할 가능성이 있다는 점이다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      },
+      {
+        "title": "아르타에 닻을 내린 커리어 동력",
+        "summary": "물질적 전략과 구조적 성장이 이 커리어 경로의 핵심 동력이다.",
+        "analysis": "소유권, 레버리지 포인트, 성공 지표가 명확할 때 가장 강한 성과가 나타난다. 이 구조는 모호성을 측정 가능한 실행 계약으로 전환하는 능력에서 강점을 발휘한다.",
+        "implication": "커리어 성장을 설계된 아키텍처로 취급할 것: 마일스톤을 순서화하고, 집중력을 보호하고, 신뢰도를 복리로 쌓아라. 모호한 역할도 명확한 실행 지표로 번역되면 작동 가능하다.",
+        "examples": "모호성이 높은 역할도 측정 가능한 실행 계약으로 번역되면 충분히 기능한다."
+      },
+      {
+        "title": "반복 교훈이 만드는 커리어 마찰",
+        "summary": "동일한 행동 패턴이 교정되지 않는 한, 커리어 흐름은 특정 구간에서 반복적으로 정체될 가능성이 높다.",
+        "analysis": "이 패턴은 권위와의 마찰, 역할 불일치, 혹은 타이밍 오류라는 형태로 서로 다른 환경에서 반복적으로 나타난다. 문제는 상대가 아니라 자신의 결정 구조에 있다.",
+        "implication": "고수준의 커리어 전진은 같은 노력의 반복이 아니라 패턴 교정에서 온다. 기대 계약을 명확히 하지 않으면 유사한 붕괴가 조직과 리더십 사이클을 넘어 반복된다.",
+        "examples": "기대 수준이 모호한 채로 유지되면, 팀과 리더십 사이클이 달라져도 유사한 갈등이 재연된다."
+      }
+    ],
+    "Love & Relationships": [
+      {
+        "title": "Love & Relationships - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 달이 염소자리에 위치하면 감정을 절제하고 실용적·책임감 있게 반응하려는 경향이 있어 대체로 차분하고 계획적인 행동 패턴을 보일 가능성이 높다. 장기적인 목표를 향한 인내와 신뢰할 수 있는 실무 능력, 위기 상황에서 침착함을 발휘해 주변에 안정감을 주는 능력이 강점으로 작용할 수 있다. 반면 감정을 억누르거나 자기비판이 과해지기 쉬워 친밀감 형성에 어려움이 있거나 스트레스를 혼자 안고 갈 가능성이 있어 취약성을 드러내고 감정 관리를 의식적으로 연습하는 것이 도움이 될 수 있다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Health & Body Patterns": [
+      {
+        "title": "Health & Body Patterns - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Confidence & Forecast": [
+      {
+        "title": "Confidence & Forecast - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준으로 태양이 사수자리에 있으면 자유와 진리 탐구를 중시하며 낙관적이고 확장 지향적인 자기상을 갖는 경향이 있다. 강점으로는 철학적·개념적 안목과 모험심이 있어 새로운 아이디어나 경험을 주도하고 사람들에게 활력을 불어넣을 가능성이 있다. 주의점은 과도한 낙관이나 성급한 확장으로 책임을 지나치게 가볍게 여기거나 세부를 소홀히 할 가능성이 있다는 점이다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Remedies & Program": [
+      {
+        "title": "Remedies & Program - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Final Summary": [
+      {
+        "title": "Final Summary - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ],
+    "Appendix (Optional)": [
+      {
+        "title": "Appendix (Optional) - 해석 블록 1",
+        "summary": "시데리얼(항성황도), 라히리 기준의 물고기자리 상승은 감수성이 매우 풍부하고 경계가 유연해 외부 영향과 분위기를 쉽게 흡수하는 경향이 있다. 내적 동기는 연결과 영적·예술적 표현에 대한 욕구로 나타나기 쉬우며 타인의 감정에 공명해 행동할 가능성이 높다. 행동 패턴은 직관과 상상에 의존해 현실을 회피하거나 물러나는 경향이 있을 수 있으나, 창조적·치유적 역할로 전환되는 경우도 많다.\n\n요즘은 Ketu 쪽 성향이 강해져 선택의 속도와 방향에 영향을 주는 때입니다. 변화가 커질수록 반응 폭이 커질 수 있어, 회복 리듬을 먼저 챙기는 편이 유리합니다.",
+        "analysis": "",
+        "implication": "",
+        "examples": ""
+      }
+    ]
+  },
+  "debug_info": {
+    "api_key_configured": true,
+    "api_key_length": 164,
+    "model_requested": "gpt-5-mini",
+    "model_used": "gpt-5-mini",
+    "client_initialized": true,
+    "pipeline_version": "chapter_blocks_v2",
+    "retry_used": false,
+    "fallback_used": false,
+    "interpretations_loaded": true,
+    "interpretations_load_error": null,
+    "analysis_mode_requested": "standard",
+    "analysis_mode_resolved": "standard",
+    "analysis_mode_fallback": false,
+    "llm_input_source": "report_engine.chapter_blocks"
+  }
+}

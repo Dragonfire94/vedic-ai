@@ -1,7 +1,15 @@
-﻿import json
+﻿import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+import json
 import traceback
 from datetime import datetime
 from pathlib import Path
+
+import os
 
 from fastapi.testclient import TestClient
 
@@ -39,6 +47,13 @@ def main():
 
     client = TestClient(app)
     rows = []
+    true_path_failed = False
+    fallback_model_marker = "cache/polished_reuse"
+
+    # Cost/time saver:
+    # - Skip AI regeneration inside /pdf by default (include_ai=0)
+    # - Generate PDF only when explicitly enabled
+    include_pdf = os.getenv("PHASE11_INCLUDE_PDF", "1").strip() == "1"
 
     for idx, (name, cand) in enumerate(ordered, start=1):
         p = cand['input']
@@ -50,7 +65,7 @@ def main():
             'lat': p['lat'], 'lon': p['lon'], 'house_system': p['house_system'],
             'include_nodes': p['include_nodes'], 'include_d9': p['include_d9'], 'include_vargas': p['include_vargas'],
             'language': 'ko', 'gender': p['gender'],
-            'analysis_mode': p['analysis_mode'], 'detail_level': 'full', 'use_cache': 1
+            'analysis_mode': p['analysis_mode'], 'detail_level': 'full', 'use_cache': 0
         }
         if p.get('timezone') is not None:
             params['timezone'] = p.get('timezone')
@@ -63,8 +78,11 @@ def main():
         audit = audit_llm_output(ai_text, structural_summary)
         ai_forbidden_hits = len(scan_forbidden_patterns(ai_text))
 
-        pdf_resp = client.get('/pdf', params={**params, 'include_ai': 1}, timeout=300)
-        pdf_resp.raise_for_status()
+        pdf_resp = None
+        if include_pdf:
+            # Keep PDF generation, but do not trigger a second LLM call.
+            pdf_resp = client.get('/pdf', params={**params, 'include_ai': 0}, timeout=300)
+            pdf_resp.raise_for_status()
 
         subdir = run_dir / f"{idx:02d}_{name}"
         subdir.mkdir(parents=True, exist_ok=True)
@@ -74,9 +92,25 @@ def main():
         ai_path = subdir / f"{name}_{stamp}.ai_reading.json"
         aud_path = subdir / f"{name}_{stamp}.audit.json"
 
-        pdf_path.write_bytes(pdf_resp.content)
+        if pdf_resp is not None:
+            pdf_path.write_bytes(pdf_resp.content)
         ai_path.write_text(json.dumps(ai, ensure_ascii=False, indent=2), encoding='utf-8')
         aud_path.write_text(json.dumps(audit, ensure_ascii=False, indent=2), encoding='utf-8')
+
+        debug = ai.get('debug_info') or {}
+        selected_model = debug.get('model_requested') or ai.get('model')
+        model_used = debug.get('model_used') or ai.get('model')
+        fallback = bool(ai.get('fallback', False))
+        llm_input_source = debug.get('llm_input_source')
+        chapter_blocks_hash = debug.get('chapter_blocks_hash')
+
+        # Phase 19-R4.2 true-path hard checks
+        check_fallback_false = (fallback is False)
+        check_input_source = (llm_input_source == 'report_engine.chapter_blocks')
+        check_not_fallback_model = str(selected_model) != fallback_model_marker and str(model_used) != fallback_model_marker
+        true_path_ok = bool(check_fallback_false and check_input_source and check_not_fallback_model)
+        if not true_path_ok:
+            true_path_failed = True
 
         row = {
             'profile_name': name,
@@ -86,7 +120,18 @@ def main():
             'audit_tone': int(audit.get('tone_alignment_score', 0)),
             'audit_density': int(audit.get('density_score', 0)),
             'ai_forbidden_hits': ai_forbidden_hits,
-            'pdf_path': str(pdf_path),
+            'pdf_path': str(pdf_path) if pdf_resp is not None else None,
+            'selected_model': selected_model,
+            'model_used': model_used,
+            'fallback': fallback,
+            'llm_input_source': llm_input_source,
+            'chapter_blocks_hash': chapter_blocks_hash,
+            'true_path_checks': {
+                'fallback_false': check_fallback_false,
+                'input_source_ok': check_input_source,
+                'selected_model_not_fallback_model': check_not_fallback_model,
+            },
+            'true_path_ok': true_path_ok,
         }
         rows.append(row)
 
@@ -95,6 +140,9 @@ def main():
         'rows': rows,
         'avg_audit_overall': round(sum(r['audit_overall'] for r in rows) / len(rows), 2),
         'ai_forbidden_hits_total': sum(r['ai_forbidden_hits'] for r in rows),
+        'true_path_all_ok': not true_path_failed,
+        'invalid_for_scoring': bool(true_path_failed),
+        'fallback_model_marker': fallback_model_marker,
     }
 
     (run_dir / 'phase11_run7_summary.json').write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding='utf-8')
@@ -108,3 +156,4 @@ if __name__ == '__main__':
         print('ERROR:', type(e).__name__, str(e))
         traceback.print_exc()
         raise
+
