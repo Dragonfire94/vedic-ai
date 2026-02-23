@@ -64,15 +64,23 @@ _BULLET_EXEMPT_CHAPTER_KEYS = {
     "Final Summary",
 }
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+).+")
+_EVIDENCE_TAG_RE = re.compile(
+    r'(?:<\s*EVIDENCE_BLOCK\s*>|\[EVIDENCE_BLOCK\]|EVIDENCE_BLOCK)',
+    re.IGNORECASE,
+)
 _INTERPRETATIONS_PATH = Path("assets/data/interpretations.kr_final.json")
 _INTERPRETATIONS_INDEX_CACHE: dict[str, dict[str, str]] | None = None
+_HYBRID_EVIDENCE_ESCAPE_CACHE: dict[int, dict[str, str]] = {}
+_HYBRID_EVIDENCE_ESCAPE_CACHE_LIMIT = 64
 _EVIDENCE_FALLBACK_PATTERNS = {
     "Executive Summary": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:upachaya_emphasis"],
+    "Life Timeline Interpretation": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
     "Career & Success": ["pat:strong_10th_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
     "Stability Metrics": ["pat:strong_moon", "pat:afflicted_moon", "pat:combust_emphasis"],
     "Love & Relationships": ["pat:benefic_support", "pat:malefic_overload"],
     "Karmic Patterns": ["pat:dusthana_focus", "pat:scattered_energy"],
     "Health & Body Patterns": ["pat:malefic_overload", "pat:combust_emphasis"],
+    "Confidence & Forecast": ["pat:trikona_emphasis", "pat:upachaya_emphasis", "pat:benefic_support"],
     "Psychological Architecture": ["pat:scattered_energy", "pat:kendra_emphasis"],
 }
 CHAPTER_EVIDENCE_RULES: dict[str, dict[str, int]] = {
@@ -86,6 +94,30 @@ CHAPTER_EVIDENCE_RULES: dict[str, dict[str, int]] = {
     "Confidence & Forecast": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
     "Psychological Architecture": {"patterns": 3, "yogas": 0, "lagna_lord": 1},
     "Final Summary": {"reuse_top": 3},
+}
+_ENGINE_YOGA_KEY_TO_INTERP: dict[str, str] = {
+    "raja_yoga": "yoga:RajayogaGeneral",
+    "dhana_yoga": "yoga:DhanaYogaGeneral",
+    "parivartana_yoga": "yoga:ParivartanaGeneral",
+    "vipareeta_raja_yoga": "yoga:VipareetaLite",
+    "gaja_kesari_yoga": "yoga:Gajakesari",
+    "neecha_bhanga": "yoga:NeechaBhangaLite",
+    "kemadruma": "yoga:KemadrumaLite",
+}
+_ENGINE_PATTERN_KEY_TO_INTERP: dict[str, str] = {
+    "authority_conflict_pattern": "pat:malefic_overload",
+    "delayed_success_pattern": "pat:dusthana_focus",
+    "financial_leak_pattern": "pat:scattered_energy",
+    "obsession_public_image_pattern": "pat:kendra_emphasis",
+    "relationship_abandonment_pattern": "pat:scattered_energy",
+}
+_ENGINE_AVASTHA_TO_LL_STATE: dict[str, str] = {
+    "asta": "ll:state:combust",
+    "deepta": "ll:state:exalted",
+    "chesta": "ll:state:retrograde",
+    "yuva": "ll:state:own",
+    "dina": "ll:state:debilitated",
+    "madhya": "ll:state:neutral",
 }
 _EVIDENCE_LOW_PRIORITY_CHAPTERS = [
     "Executive Summary",
@@ -137,10 +169,18 @@ def _load_interpretations_index() -> dict[str, dict[str, str]]:
 
 
 def _evidence_text_trim(text: str, max_chars: int) -> str:
-    t = str(text or "").strip()
+    if not text:
+        return ""
+    t = str(text).strip()
     if len(t) <= max_chars:
         return t
-    return t[:max_chars].rstrip() + "..."
+    candidate = t[:max_chars]
+    last_end = -1
+    for m in re.finditer(r"[.!?。](?:\s|$)", candidate):
+        last_end = m.end()
+    if last_end > max_chars * 0.5:
+        return candidate[:last_end].strip()
+    return candidate.rstrip(".,;: ").strip()
 
 
 def _evidence_chars(items: list[dict[str, str]]) -> int:
@@ -185,23 +225,43 @@ def build_evidence_packs(
     lagna_lord = idx.get("lagna_lord", {})
 
     def _norm_pat_id(value: str) -> str:
+        # NOTE: build_evidence_packs prioritizes _ENGINE_PATTERN_KEY_TO_INTERP.
+        # This helper is retained for direct pattern-id normalization outside mapping.
         v = str(value or "").strip()
         if not v:
             return ""
         return v if v.startswith("pat:") else f"pat:{v}"
 
     def _norm_yoga_id(value: str) -> str:
+        # NOTE: build_evidence_packs prioritizes _ENGINE_YOGA_KEY_TO_INTERP.
+        # This helper is retained for direct yoga-id normalization outside mapping.
         v = str(value or "").strip()
         if not v:
             return ""
         return v if v.startswith("yoga:") else f"yoga:{v}"
 
-    detected_yoga_ids = [_norm_yoga_id(v) for v in (source.get("detected_yogas") or []) if isinstance(v, str)]
-    detected_pattern_ids = [_norm_pat_id(v) for v in (source.get("pattern_flags") or []) if isinstance(v, str)]
-    ll_state = str(source.get("lagna_lord_state") or "").strip()
-    ll_place = str(source.get("lagna_lord_placement_group") or "").strip()
-    ll_ids = [f"ll:state:{ll_state}" if ll_state else "", f"ll:placement:{ll_place}" if ll_place else ""]
-    ll_ids = [v for v in ll_ids if v]
+    detected_yoga_ids: list[str] = []
+    for v in (source.get("detected_yogas") or []):
+        if not isinstance(v, str):
+            continue
+        mapped = _ENGINE_YOGA_KEY_TO_INTERP.get(v.strip().lower())
+        if mapped:
+            detected_yoga_ids.append(mapped)
+
+    detected_pattern_ids: list[str] = []
+    for v in (source.get("pattern_flags") or []):
+        if not isinstance(v, str):
+            continue
+        mapped = _ENGINE_PATTERN_KEY_TO_INTERP.get(v.strip().lower())
+        if mapped:
+            detected_pattern_ids.append(mapped)
+
+    ll_state_raw = str(source.get("lagna_lord_state") or "").strip().lower()
+    ll_place_raw = str(source.get("lagna_lord_placement_group") or "").strip().lower()
+
+    ll_state_key = _ENGINE_AVASTHA_TO_LL_STATE.get(ll_state_raw, "")
+    ll_place_key = f"ll:placement:{ll_place_raw}" if ll_place_raw else ""
+    ll_ids = [k for k in [ll_state_key, ll_place_key] if k]
 
     global_items: list[dict[str, str]] = []
     global_seen: set[str] = set()
@@ -228,6 +288,7 @@ def build_evidence_packs(
 
     chapter_evidence_raw: dict[str, list[dict[str, Any]]] = {}
     fallback_used_by_chapter: dict[str, bool] = {}
+    _fallback_use_count: dict[str, int] = {}
     reuse_in_final_ids: list[str] = []
 
     def _try_add(
@@ -297,8 +358,11 @@ def build_evidence_packs(
         for pid in _EVIDENCE_FALLBACK_PATTERNS.get(chapter, []):
             if len(items) >= chapter_items_max:
                 break
+            if _fallback_use_count.get(pid, 0) >= 2:
+                continue
             if _try_add(items, seen, chapter, pid, patterns, "fallback", 20, 360):
                 used_fallback = True
+                _fallback_use_count[pid] = _fallback_use_count.get(pid, 0) + 1
 
         while _evidence_chars(items) > chapter_chars_max and len(items) > 1:
             drop_idx = -1
@@ -318,6 +382,76 @@ def build_evidence_packs(
 
         chapter_evidence_raw[chapter] = items
         fallback_used_by_chapter[chapter] = used_fallback
+
+    # Cross-chapter evidence dedup: earlier chapters keep precedence.
+    _cross_seen: set[str] = set()
+    for chapter in normal_chapters:
+        items = chapter_evidence_raw.get(chapter, [])
+        deduped: list[dict[str, Any]] = []
+        for item in items:
+            iid = str(item.get("id", "")).strip()
+            item_kind = str(item.get("_kind", ""))
+            is_engine_signal = item_kind in ("yoga", "pattern", "lagna_lord")
+            if not iid or not is_engine_signal or iid not in _cross_seen:
+                deduped.append(item)
+                if iid and is_engine_signal:
+                    _cross_seen.add(iid)
+
+        if len(deduped) < len(items):
+            # 1) chapter-specific fallback refill
+            fallback_keys = _EVIDENCE_FALLBACK_PATTERNS.get(chapter, [])
+            for pid in fallback_keys:
+                if len(deduped) >= chapter_items_max:
+                    break
+                if _fallback_use_count.get(pid, 0) >= 2:
+                    continue
+                seen_local = {str(x.get("id", "")) for x in deduped}
+                if pid in seen_local:
+                    continue
+                txt = patterns.get(pid)
+                if not txt:
+                    continue
+                t = _evidence_text_trim(txt, 360)
+                if t:
+                    deduped.append({"id": pid, "text": t, "_kind": "fallback", "_score": 20, "_chapter": chapter})
+                    _fallback_use_count[pid] = _fallback_use_count.get(pid, 0) + 1
+
+            # 2) global fallback pool for chapters with thin/empty local fallbacks
+            _GLOBAL_FALLBACK_POOL = [
+                "pat:kendra_emphasis",
+                "pat:trikona_emphasis",
+                "pat:upachaya_emphasis",
+                "pat:benefic_support",
+                "pat:scattered_energy",
+                "pat:strong_lagna_lord",
+                "pat:strong_moon",
+                "pat:strong_10th_lord",
+                "pat:multi_exalted",
+            ]
+            if len(deduped) < max(1, chapter_items_min):
+                for pid in _GLOBAL_FALLBACK_POOL:
+                    if len(deduped) >= max(1, chapter_items_min):
+                        break
+                    if _fallback_use_count.get(pid, 0) >= 2:
+                        continue
+                    seen_local = {str(x.get("id", "")) for x in deduped}
+                    if pid in seen_local:
+                        continue
+                    txt = patterns.get(pid)
+                    if not txt:
+                        continue
+                    t = _evidence_text_trim(txt, 360)
+                    if t:
+                        deduped.append({"id": pid, "text": t, "_kind": "fallback", "_score": 10, "_chapter": chapter})
+                        _fallback_use_count[pid] = _fallback_use_count.get(pid, 0) + 1
+
+            chapter_evidence_raw[chapter] = deduped
+
+        # Always recompute fallback flag from final chapter payload.
+        fallback_used_by_chapter[chapter] = any(
+            str(x.get("_kind", "")) == "fallback"
+            for x in chapter_evidence_raw.get(chapter, [])
+        )
 
     # Final Summary: process last using strongest evidence from other chapters.
     if "Final Summary" in chapter_keys:
@@ -474,6 +608,427 @@ def build_evidence_packs(
             "evidence_trim_level": evidence_trim_level,
         },
     }
+
+
+def _escape_evidence_text(text: str) -> str:
+    escaped = re.sub(r"(?m)^\s*[-*]\s+", "• ", text)
+    escaped = re.sub(r"(?m)^\s*\d+[.)]\s+", "• ", escaped)
+    return escaped
+
+
+def _apply_evidence_soft_cap(text: str, max_chars: int) -> tuple[str, bool, int]:
+    if max_chars <= 0:
+        return text, False, -1
+    if len(text) <= max_chars:
+        return text, False, -1
+    paragraphs = [p for p in text.split("\n\n") if p is not None]
+    if not paragraphs:
+        return text[:max_chars].rstrip(), True, max_chars
+    while len("\n\n".join(paragraphs)) > max_chars and len(paragraphs) > 1:
+        paragraphs.pop()
+    joined = "\n\n".join(paragraphs)
+    if len(joined) > max_chars:
+        if len(paragraphs) > 1:
+            prefix = "\n\n".join(paragraphs[:-1])
+            allowed = max_chars - (len(prefix) + 2) if prefix else max_chars
+            allowed = max(0, allowed)
+            last = paragraphs[-1][:allowed].rstrip()
+            paragraphs = paragraphs[:-1] + [last]
+        else:
+            paragraphs = [paragraphs[0][:max_chars].rstrip()]
+        joined = "\n\n".join(paragraphs)
+    if not joined:
+        joined = paragraphs[0][:max_chars].rstrip()
+    return joined, True, len(joined)
+
+
+def _get_escape_cache_for_map(target_map: dict[str, list[dict[str, str]]]) -> dict[str, str]:
+    cache_key = id(target_map)
+    cache = _HYBRID_EVIDENCE_ESCAPE_CACHE.get(cache_key)
+    if cache is None:
+        if len(_HYBRID_EVIDENCE_ESCAPE_CACHE) >= _HYBRID_EVIDENCE_ESCAPE_CACHE_LIMIT:
+            _HYBRID_EVIDENCE_ESCAPE_CACHE.clear()
+        cache = {}
+        _HYBRID_EVIDENCE_ESCAPE_CACHE[cache_key] = cache
+    return cache
+
+
+def _assemble_evidence_text(
+    *,
+    items: list[dict[str, str]],
+    cache: dict[str, str],
+    cache_key: str,
+    max_chars: int,
+) -> tuple[str, dict[str, Any]]:
+    evidence_items_count = len(items)
+    raw_lines: list[str] = []
+    for it in items:
+        if not isinstance(it, dict):
+            continue
+        iid = str(it.get("id", "")).strip()
+        txt = str(it.get("text", "")).strip()
+        if not txt:
+            continue
+        if iid:
+            raw_lines.append(f"({iid}) {txt}")
+        else:
+            raw_lines.append(txt)
+    raw_text = "\n\n".join([line for line in raw_lines if line.strip()]).strip()
+    before_len = len(raw_text)
+    escape_applied = False
+    if not raw_text:
+        return "", {
+            "evidence_items_count": evidence_items_count,
+            "evidence_chars_before_escape": 0,
+            "evidence_chars_after_escape": 0,
+            "escape_applied": False,
+            "evidence_truncated": False,
+            "evidence_chars_truncated_to": -1,
+        }
+    if cache_key in cache:
+        escaped_text = cache[cache_key]
+    else:
+        escaped_text = _escape_evidence_text(raw_text)
+        cache[cache_key] = escaped_text
+        escape_applied = True
+    after_len = len(escaped_text)
+    capped_text, truncated, truncated_to = _apply_evidence_soft_cap(escaped_text, max_chars)
+    # Remove label-only lines while preserving paragraph boundaries between evidence items.
+    capped_text = re.sub(r"^[^\S\n]*\([a-zA-Z_]+:[^\)]+\)[^\S\n]*\n?", "", capped_text, flags=re.MULTILINE)
+    capped_text = re.sub(r"\n{3,}", "\n\n", capped_text).rstrip()
+    return capped_text, {
+        "evidence_items_count": evidence_items_count,
+        "evidence_chars_before_escape": before_len,
+        "evidence_chars_after_escape": after_len,
+        "escape_applied": escape_applied,
+        "evidence_truncated": truncated,
+        "evidence_chars_truncated_to": truncated_to if truncated else -1,
+    }
+
+
+_BRIDGE_FALLBACK_BY_CHAPTER: dict[str, str] = {
+    "Career & Success": "이 흐름을 실제 선택에 연결하면 다음과 같은 방향이 나옵니다.",
+    "Stability Metrics": "이 구조를 바탕으로 지금 단계에서 취할 수 있는 방향은 다음과 같습니다.",
+    "Love & Relationships": "이 패턴을 관계 안에서 구체적으로 다루려면 아래를 참고하세요.",
+    "Karmic Patterns": "이 반복을 알아차리는 것이 출발점이고, 실천은 여기서 시작됩니다.",
+    "Health & Body Patterns": "이 리듬을 몸에서 실제로 관리하려면 다음 방향이 유효합니다.",
+    "Confidence & Forecast": "이 흐름을 자기확신으로 연결하려면 아래 방향을 참고하세요.",
+    "Psychological Architecture": "이 내적 구조를 일상에서 다루는 실천 방향은 다음과 같습니다.",
+}
+_BRIDGE_FALLBACK_DEFAULT = "이 흐름을 실생활에 연결하면 다음과 같은 방향이 도움이 됩니다."
+
+
+def _ensure_bridge_after_evidence(body: str, chapter_key: str) -> str:
+    """
+    evidence 단락(시데리얼 또는 (tag:...) 로 시작) 이후에
+    서사 문장(Bridge)이 없으면 중립 Bridge 1문장을 삽입한다.
+    """
+    body_normalized = body.replace("\r\n", "\n")
+    paras = [p.strip() for p in body_normalized.split("\n\n") if p.strip()]
+    if not paras:
+        return body
+
+    def _is_evidence_para(p: str) -> bool:
+        return (
+            "시데리얼" in p
+            or "핵심 근거" in p
+            or bool(re.match(r"^(?:\s*배치|\s*상태|\s*구성|\s*패턴|\s*근거)", p))
+        )
+
+    def _is_bullet_para(p: str) -> bool:
+        first_line = p.split("\n")[0]
+        return bool(_BULLET_LINE_RE.match(first_line))
+
+    last_evidence_idx = -1
+    for i, p in enumerate(paras):
+        if _is_evidence_para(p):
+            last_evidence_idx = i
+
+    if last_evidence_idx < 0:
+        return body
+
+    after_evidence = paras[last_evidence_idx + 1:]
+    has_bridge = any(
+        not _is_evidence_para(p) and not _is_bullet_para(p)
+        for p in after_evidence
+    )
+    if has_bridge:
+        return body
+
+    bridge = _BRIDGE_FALLBACK_BY_CHAPTER.get(chapter_key, _BRIDGE_FALLBACK_DEFAULT)
+    paras.insert(last_evidence_idx + 1, bridge)
+    return "\n\n".join(paras)
+
+
+def apply_bridge_to_all_chapters(text: str) -> str:
+    """
+    Run after normalize_llm_layout_strict and re-insert bridge lines chapter-wise.
+    """
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized.split("\n")
+    heading_positions = _extract_heading_positions(normalized)
+    if not heading_positions:
+        return text
+
+    output_lines: list[str] = []
+    current_idx = 0
+
+    for sec_idx, (start, raw_heading_text) in enumerate(heading_positions):
+        end = (
+            heading_positions[sec_idx + 1][0]
+            if sec_idx + 1 < len(heading_positions)
+            else len(lines)
+        )
+        if current_idx < start:
+            output_lines.extend(lines[current_idx:start])
+        output_lines.append(lines[start])
+
+        body = "\n".join(lines[start + 1: end])
+        m = re.match(r"^\[(.*?)\]\s*(.*)$", raw_heading_text.strip())
+        token = m.group(1).strip() if m else raw_heading_text.strip()
+        chapter_key = _normalize_chapter_key(token, raw_heading_text, sec_idx)
+
+        new_body = _ensure_bridge_after_evidence(body, chapter_key)
+        output_lines.extend(new_body.split("\n"))
+        current_idx = end
+
+    if current_idx < len(lines):
+        output_lines.extend(lines[current_idx:])
+
+    return "\n".join(output_lines)
+
+
+def inject_evidence_blocks(
+    response_text: str,
+    chapter_evidence_map: dict[str, list[dict[str, str]]],
+    global_evidence_items: list[dict[str, str]],
+    *,
+    hybrid_render_mode: bool,
+    target_chapters: list[str] | None = None,
+    max_evidence_chars_per_chapter: int = 1200,
+) -> tuple[str, dict[str, dict]]:
+    """
+    target_chapters가 지정되면 해당 챕터만 치환.
+    hybrid_render_mode=False면 즉시 (response_text, {}) 반환.
+    Returns (modified_text, per_chapter_stats)
+    """
+    if not hybrid_render_mode:
+        return response_text, {}
+    if not isinstance(response_text, str) or not response_text.strip():
+        return response_text or "", {}
+
+    normalized_text = response_text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized_text.split("\n")
+    heading_positions = _extract_heading_positions(normalized_text)
+    if not heading_positions:
+        return response_text, {}
+
+    per_chapter_stats: dict[str, dict] = {}
+    warn_emitted: dict[str, set[str]] = {}
+    evidence_cache = _get_escape_cache_for_map(chapter_evidence_map if isinstance(chapter_evidence_map, dict) else {})
+    target_set = set(target_chapters) if target_chapters else None
+    found_targets: set[str] = set()
+
+    def _emit_warn(chapter_key: str, warn_type: str, message: str, *args: Any) -> None:
+        key = chapter_key or "_unknown"
+        bucket = warn_emitted.setdefault(key, set())
+        if warn_type in bucket:
+            logger.debug(message, *args)
+        else:
+            logger.warning(message, *args)
+            bucket.add(warn_type)
+
+    def _init_stats(chapter_key: str) -> dict[str, Any]:
+        base = {
+            "tag_found": False,
+            "tag_count": 0,
+            "tag_variant_matched": "",
+            "evidence_items_count": 0,
+            "evidence_chars_before_escape": 0,
+            "evidence_chars_after_escape": 0,
+            "escape_applied": False,
+            "missing_tag_fallback_used": False,
+            "no_evidence_empty_replace": False,
+            "regen_reinjected": bool(target_set),
+            "evidence_truncated": False,
+            "evidence_chars_truncated_to": -1,
+            "tag_residual_recovered": False,
+        }
+        per_chapter_stats[chapter_key] = base
+        return base
+
+    output_lines: list[str] = []
+    current_idx = 0
+    for sec_idx, (start, raw_heading_text) in enumerate(heading_positions):
+        end = heading_positions[sec_idx + 1][0] if sec_idx + 1 < len(heading_positions) else len(lines)
+        if current_idx < start:
+            output_lines.extend(lines[current_idx:start])
+        heading_line = lines[start]
+        output_lines.append(heading_line)
+
+        token = ""
+        m = re.match(r"^\[(.*?)\]\s*(.*)$", raw_heading_text)
+        if m:
+            token = (m.group(1) or "").strip()
+        chapter_key = _normalize_chapter_key(token, raw_heading_text, sec_idx)
+        if target_set is not None and chapter_key not in target_set:
+            block_body = "\n".join(lines[start + 1 : end])
+            if block_body:
+                output_lines.extend(block_body.split("\n"))
+            current_idx = end
+            continue
+
+        if chapter_key:
+            found_targets.add(chapter_key)
+        block_body = "\n".join(lines[start + 1 : end])
+        stats = _init_stats(chapter_key)
+
+        items = chapter_evidence_map.get(chapter_key, []) if isinstance(chapter_evidence_map, dict) else []
+        evidence_text, evidence_meta = _assemble_evidence_text(
+            items=items if isinstance(items, list) else [],
+            cache=evidence_cache,
+            cache_key=chapter_key or f"sec_{sec_idx}",
+            max_chars=max_evidence_chars_per_chapter,
+        )
+        stats.update(evidence_meta)
+
+        tag_matches = list(_EVIDENCE_TAG_RE.finditer(block_body))
+        tag_count = len(tag_matches)
+        stats["tag_found"] = tag_count > 0
+        stats["tag_count"] = tag_count
+        stats["tag_variant_matched"] = tag_matches[0].group(0) if tag_count > 0 else ""
+
+        if tag_count == 0:
+            _emit_warn(
+                chapter_key,
+                "missing_evidence_tag",
+                "WARN missing_evidence_tag chapter=%s",
+                chapter_key,
+            )
+        elif tag_count > 1:
+            _emit_warn(
+                chapter_key,
+                "multiple_evidence_tags",
+                "WARN multiple_evidence_tags chapter=%s count=%s",
+                chapter_key,
+                tag_count,
+            )
+
+        if stats["evidence_items_count"] == 0:
+            stats["no_evidence_empty_replace"] = True
+            # TODO: global evidence fallback 정책 결정 후 구현
+            _emit_warn(
+                chapter_key,
+                "no_evidence_for_chapter",
+                "WARN no_evidence_for_chapter chapter=%s",
+                chapter_key,
+            )
+            if tag_count > 0:
+                new_body = _EVIDENCE_TAG_RE.sub("", block_body)
+                new_body = re.sub(r"\n{3,}", "\n\n", new_body)
+            else:
+                new_body = block_body
+        else:
+            if stats.get("evidence_truncated"):
+                _emit_warn(
+                    chapter_key,
+                    "evidence_truncated",
+                    "WARN evidence_truncated chapter=%s before=%s after=%s",
+                    chapter_key,
+                    stats.get("evidence_chars_after_escape"),
+                    stats.get("evidence_chars_truncated_to"),
+                )
+            if tag_count == 0:
+                block_body = block_body.replace("\r\n", "\n")
+                parts = block_body.split("\n\n", 1)
+                if len(parts) == 2:
+                    hook_part, rest_part = parts
+                    new_body = hook_part + "\n\n" + evidence_text + "\n\n" + rest_part
+                else:
+                    new_body = evidence_text + "\n\n" + block_body
+                stats["missing_tag_fallback_used"] = True
+            else:
+                used_first = False
+
+                def _tag_repl(match: re.Match) -> str:
+                    nonlocal used_first
+                    if not used_first:
+                        used_first = True
+                        return evidence_text
+                    return ""
+
+                new_body = _EVIDENCE_TAG_RE.sub(_tag_repl, block_body)
+
+        if new_body:
+            output_lines.extend(new_body.split("\n"))
+        current_idx = end
+
+    if current_idx < len(lines):
+        output_lines.extend(lines[current_idx:])
+
+    modified_text = "\n".join(output_lines)
+
+    if target_set is not None:
+        missing_targets = [ck for ck in target_set if ck not in found_targets]
+        for ck in missing_targets:
+            _emit_warn(
+                ck,
+                "timeline_regen_block_scope_not_found",
+                "WARN timeline_regen_block_scope_not_found chapter=%s",
+                ck,
+            )
+
+    if _EVIDENCE_TAG_RE.search(modified_text):
+        tag_matches = list(_EVIDENCE_TAG_RE.finditer(modified_text))
+        if tag_matches:
+            heading_positions = _extract_heading_positions(modified_text)
+            heading_positions_sorted = sorted(heading_positions, key=lambda x: x[0])
+
+            def _chapter_for_line(line_idx: int) -> str:
+                current_key = ""
+                for sec_idx, (h_idx, raw_heading_text) in enumerate(heading_positions_sorted):
+                    if h_idx > line_idx:
+                        break
+                    token = ""
+                    m = re.match(r"^\[(.*?)\]\s*(.*)$", raw_heading_text)
+                    if m:
+                        token = (m.group(1) or "").strip()
+                    current_key = _normalize_chapter_key(token, raw_heading_text, sec_idx)
+                return current_key or "unknown"
+
+            for match in tag_matches:
+                line_idx = modified_text[: match.start()].count("\n")
+                chapter_key = _chapter_for_line(line_idx)
+                logger.error(
+                    "evidence_block_tag_residual chapter=%s line=%s pos=%s",
+                    chapter_key,
+                    line_idx + 1,
+                    match.start(),
+                )
+                stats = per_chapter_stats.get(chapter_key) or _init_stats(chapter_key)
+                stats["tag_residual_recovered"] = True
+                _emit_warn(
+                    chapter_key,
+                    "tag_residual_recovery_attempted",
+                    "WARN tag_residual_recovery_attempted chapter=%s",
+                    chapter_key,
+                )
+
+        global_text, _global_meta = _assemble_evidence_text(
+            items=global_evidence_items if isinstance(global_evidence_items, list) else [],
+            cache=evidence_cache,
+            cache_key="__global__",
+            max_chars=max_evidence_chars_per_chapter,
+        )
+        if not global_text:
+            global_text = "이 항목에 대한 근거 데이터를 구성하는 중 오류가 발생했습니다."
+        modified_text = _EVIDENCE_TAG_RE.sub(global_text, modified_text)
+        if _EVIDENCE_TAG_RE.search(modified_text):
+            neutral = "이 항목에 대한 근거 데이터를 구성하는 중 오류가 발생했습니다."
+            modified_text = _EVIDENCE_TAG_RE.sub(neutral, modified_text)
+
+    return modified_text, per_chapter_stats
+
 
 _FALLBACK_PARAGRAPH_POOL = [
     "지금은 결론을 서두르기보다 흐름을 차분히 살펴보는 편이 좋습니다.",
@@ -1103,6 +1658,27 @@ def _split_sentences_ko(text: str) -> list[str]:
     return [p.strip() for p in parts if p and p.strip()]
 
 
+def _extract_heading_positions(text: str) -> list[tuple[int, str]]:
+    """
+    Returns list of (line_index, raw_heading_text).
+    raw_heading_text: ## 마커 제거 후 원문 그대로 반환.
+    chapter key 정규화는 호출하지 않음.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return []
+    normalized_text = text.replace("\r\n", "\n").replace("\r", "\n")
+    lines = normalized_text.split("\n")
+    positions: list[tuple[int, str]] = []
+    for idx, line in enumerate(lines):
+        m = re.match(r"^\s*#{1,6}\s+(.*)$", line)
+        if not m:
+            continue
+        raw = (m.group(1) or "").strip()
+        if raw:
+            positions.append((idx, raw))
+    return positions
+
+
 def _normalize_chapter_key(token: str, title: str, section_index: int) -> str:
     active = _active_report_chapters()
     token_raw = (token or "").strip()
@@ -1431,14 +2007,11 @@ def normalize_llm_layout_strict(text: str) -> str:
     normalized_text = text.replace("\r\n", "\n").replace("\r", "\n")
     lines = normalized_text.split("\n")
 
-    heading_positions: list[int] = []
-    for idx, line in enumerate(lines):
-        if re.match(r"^\s*#{1,6}\s+", line):
-            heading_positions.append(idx)
+    heading_positions = _extract_heading_positions(normalized_text)
 
     prologue = ""
     if heading_positions:
-        prologue_raw = "\n".join(lines[: heading_positions[0]]).strip()
+        prologue_raw = "\n".join(lines[: heading_positions[0][0]]).strip()
         if prologue_raw:
             prologue_sentences = _split_sentences_ko(prologue_raw)
             prologue = " ".join(prologue_sentences[:4]).strip()
@@ -1450,17 +2023,15 @@ def normalize_llm_layout_strict(text: str) -> str:
     evidence_mode = os.getenv("LLM_EVIDENCE_MODE", "off").strip().lower()
     is_evidence_mode = evidence_mode == "on"
     fallback_salt = hashlib.sha256((normalized_text or "").encode("utf-8", errors="ignore")).hexdigest()[:16]
-    for sec_idx, start in enumerate(heading_positions):
-        end = heading_positions[sec_idx + 1] if sec_idx + 1 < len(heading_positions) else len(lines)
-        heading_line = lines[start].strip()
-        heading_text = re.sub(r"^\s*#{1,6}\s*", "", heading_line).strip()
+    for sec_idx, (start, raw_heading_text) in enumerate(heading_positions):
+        end = heading_positions[sec_idx + 1][0] if sec_idx + 1 < len(heading_positions) else len(lines)
         token = ""
-        title = heading_text
-        m = re.match(r"^\[(.*?)\]\s*(.*)$", heading_text)
+        title = raw_heading_text
+        m = re.match(r"^\[(.*?)\]\s*(.*)$", raw_heading_text)
         if m:
             token = m.group(1).strip()
             title = m.group(2).strip()
-        key = _normalize_chapter_key(token, title, sec_idx)
+        key = _normalize_chapter_key(token, raw_heading_text, sec_idx)
         if key and key not in title_map:
             title_map[key] = title or _SHORT_TITLE_BY_KEY.get(key, key)
 
@@ -1891,6 +2462,28 @@ async def refine_reading_with_llm(
         "year_horizon": [current_year, current_year + 1, current_year + 2, current_year + 3],
     }
     atomic_interpretations = _get_atomic_chart_interpretations(structural_summary if isinstance(structural_summary, dict) else {})
+    evidence_mode = (os.getenv("LLM_EVIDENCE_MODE", "off") or "").strip().lower()
+    evidence_global_chars_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_MAX", "1500"))
+    evidence_global_chars_hard_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_HARD_MAX", "2500"))
+    evidence_chapter_chars_min = int(os.getenv("LLM_EVIDENCE_CHAPTER_CHARS_MIN", "600"))
+    evidence_chapter_chars_max = int(os.getenv("LLM_EVIDENCE_CHAPTER_CHARS_MAX", "1200"))
+    evidence_total_chars_hard_max = int(os.getenv("LLM_EVIDENCE_TOTAL_CHARS_HARD_MAX", "15000"))
+    hybrid_render_mode = (os.getenv("LLM_HYBRID_RENDER_MODE", "off") or "").strip().lower() == "on"
+    max_evidence_chars_per_chapter = int(os.getenv("LLM_HYBRID_EVIDENCE_CHAPTER_MAX_CHARS", "1200"))
+
+    evidence_pack = {"global_evidence": [], "chapter_evidence": {}, "stats": {}}
+    if evidence_mode == "on":
+        evidence_pack = build_evidence_packs(
+            structural_summary if isinstance(structural_summary, dict) else {},
+            _active_report_chapters(),
+            chapter_chars_min=evidence_chapter_chars_min,
+            chapter_chars_max=evidence_chapter_chars_max,
+            global_chars_max=evidence_global_chars_max,
+            global_chars_hard_max=evidence_global_chars_hard_max,
+            total_chars_hard_max=evidence_total_chars_hard_max,
+        )
+    global_evidence_items = evidence_pack.get("global_evidence", []) if isinstance(evidence_pack, dict) else []
+    chapter_evidence_map = evidence_pack.get("chapter_evidence", {}) if isinstance(evidence_pack, dict) else {}
     # Request-scope guard: main prompt may include global evidence once;
     # individual regen prompts should not re-inject it.
     global_evidence_injected_count = 0
@@ -1919,6 +2512,7 @@ async def refine_reading_with_llm(
     last_error: Optional[Exception] = None
 
     for candidate_model in candidate_models:
+        inject_called = False
         timeline_regen_count = 0
         executive_regen_count = 0
         payload = build_payload_fn(
@@ -1960,6 +2554,19 @@ async def refine_reading_with_llm(
             response_text = normalize_paragraphs_fn(response_text, max_chars=300)
             response_text = _sanitize_percent_phrasing_ko(response_text)
             response_text = _sanitize_meta_report_phrasing_ko(response_text)
+            if hybrid_render_mode:
+                if inject_called:
+                    logger.error("inject_double_call_prevented request_id=%s", request_id)
+                else:
+                    response_text, _inject_stats = inject_evidence_blocks(
+                        response_text,
+                        chapter_evidence_map if isinstance(chapter_evidence_map, dict) else {},
+                        global_evidence_items if isinstance(global_evidence_items, list) else [],
+                        hybrid_render_mode=hybrid_render_mode,
+                        target_chapters=None,
+                        max_evidence_chars_per_chapter=max_evidence_chars_per_chapter,
+                    )
+                    inject_called = True
             has_timeline = ("## Life Timeline" in response_text or "## Life Timeline Interpretation" in response_text)
             timeline_raw_paragraphs = _raw_timeline_paragraph_count(response_text)
             timeline_structural_errors = _structural_layout_error_codes(response_text)
@@ -1980,6 +2587,15 @@ async def refine_reading_with_llm(
                         normalize_paragraphs_fn=normalize_paragraphs_fn,
                     )
                     response_text = replace_life_timeline_block(response_text, timeline_text)
+                    if hybrid_render_mode:
+                        response_text, _regen_stats = inject_evidence_blocks(
+                            response_text,
+                            chapter_evidence_map if isinstance(chapter_evidence_map, dict) else {},
+                            global_evidence_items if isinstance(global_evidence_items, list) else [],
+                            hybrid_render_mode=hybrid_render_mode,
+                            target_chapters=["Life Timeline Interpretation"],
+                            max_evidence_chars_per_chapter=max_evidence_chars_per_chapter,
+                        )
                 except Exception as timeline_err:
                     logger.warning(
                         "Life Timeline isolation fallback to base text request_id=%s selected_model=%s error_type=%s error=%s",
@@ -1991,6 +2607,8 @@ async def refine_reading_with_llm(
             response_text = _sanitize_percent_phrasing_ko(response_text)
             response_text = _sanitize_meta_report_phrasing_ko(response_text)
             response_text = normalize_llm_layout_strict(response_text)
+            if hybrid_render_mode:
+                response_text = apply_bridge_to_all_chapters(response_text)
             min_chars = _resolve_min_chars_by_phase()
             length_map = _chapter_nonspace_lengths(response_text)
             prose_length_map = _chapter_prose_nonspace_lengths(response_text)
@@ -2044,6 +2662,8 @@ async def refine_reading_with_llm(
                         response_text = _sanitize_percent_phrasing_ko(response_text)
                         response_text = _sanitize_meta_report_phrasing_ko(response_text)
                         response_text = normalize_llm_layout_strict(response_text)
+                        if hybrid_render_mode:
+                            response_text = apply_bridge_to_all_chapters(response_text)
                         audit_report = audit_llm_output(response_text, structural_summary)
                 except Exception as exec_err:
                     logger.warning(
@@ -2121,6 +2741,7 @@ def build_llm_structural_prompt(
     evidence_mode = (os.getenv("LLM_EVIDENCE_MODE", "off") or "").strip().lower()
     evidence_priority = (os.getenv("LLM_EVIDENCE_PRIORITY", "evidence_only") or "").strip().lower()
     evidence_only = evidence_mode == "on" and evidence_priority == "evidence_only"
+    hybrid_render_mode = (os.getenv("LLM_HYBRID_RENDER_MODE", "off") or "").strip().lower() == "on"
     min_chars = _resolve_min_chars_by_phase()
     target_chars = int(os.getenv("LLM_TARGET_CHARS_PER_CHAPTER", "1100"))
     min_anchors = int(os.getenv("LLM_MIN_ANCHORS_PER_CHAPTER", "4"))
@@ -2270,6 +2891,96 @@ STYLE OVERRIDE (run151158_like)
 - 챕터 시작부에서 "지금은...", "당장..."으로 여는 문장을 반복하지 않는다.
 """
 
+    hybrid_output_contract = ""
+    sales_tone_contract = ""
+    jargon_transform_rules = """
+[전문용어 변환 규칙 — 반드시 준수]
+※ 적용 범위: Hook / Bridge / Bullets 에만 적용.
+※ 점성학 앵커(행성/하우스/라시/낙샤트라/다샤/요가)는 <EVIDENCE_BLOCK>에서만 사용.
+※ 앵커 최소 4개 요건은 Evidence 단락에서 충족하며 Hook/Bridge/Bullets에서 별도 충족 불필요.
+
+- 라그나 로드 / 상승궁 지배성 -> "당신의 핵심 에너지", "삶을 이끄는 힘"
+- 켄드라(1,4,7,10하우스) -> "삶의 주요 무대", "외부로 드러나는 영역"
+- 트리코나(1,5,9하우스) -> "타고난 흐름", "자연스러운 재능의 방향"
+- 우파차야(3,6,10,11하우스) -> "시간이 지날수록 강해지는 구조"
+- 두스타나(6,8,12하우스) -> "반복되는 위기 패턴", "숨겨진 긴장"
+- 연소(Combust) -> "에너지가 눌린 상태", "잠시 빛이 가려진 시기"
+- 흉성 과다 / 악성 행성 -> "외부 압박이 집중되는 구조"
+- 다샤 전환 -> "삶의 흐름이 바뀌는 구간"
+- 시데리얼 / 라히리 기준 -> Hook/Bridge/Bullets에서는 금지(Evidence에서만 허용)
+- 아바스타 -> 사용 금지
+- 요가(Yoga) -> "특정 결합이 만드는 패턴"처럼 풀어쓰기
+"""
+    chapter_hook_hint_block = """
+[챕터별 Hook 감정 힌트]
+- Career & Success: "책임은 늘었는데 인정은 부족한 느낌", "잘하고 있는데 왜 불안한지 모르는 상태"
+- Stability Metrics: "안정을 원하면서도 변화가 두려운 역설", "기반을 다지려 할수록 흔들리는 느낌"
+- Love & Relationships: "가까워질수록 오히려 어색해지는 패턴", "관계에서 반복되는 같은 상처"
+- Karmic Patterns: "분명히 알면서도 또 같은 선택을 하는 자신", "끊고 싶은데 끊기지 않는 반복"
+- Health & Body Patterns: "머리는 괜찮다고 하는데 몸이 먼저 신호를 보내는 상황", "에너지가 갑자기 바닥나는 패턴"
+- Confidence & Forecast: "잘 될 것 같으면서도 확신이 없는 상태", "준비는 됐는데 시작을 못 하는 느낌"
+- Psychological Architecture: "겉으로는 괜찮아 보이지만 안에서 다른 목소리가 들리는 상태"
+- Executive Summary: "내가 어떤 사람인지 알 것 같으면서도 모르는 느낌"
+- Life Timeline Interpretation: "지금 이 시기가 전환점인 것 같은 막연한 감각"
+"""
+    anti_repeat_rules = """
+[반복 구조 금지]
+- 각 챕터에서 "정의 -> 강점 -> 리스크 -> 조언" 순서를 반복하지 않는다.
+- Hook은 매 챕터마다 다른 감정/상황에서 시작한다. 같은 도입 문장 패턴 반복 금지.
+- "~할 수 있다", "~가능성이 있다", "~경향이 있다" 종결을 연속 2회 이상 쓰지 않는다.
+- Bullets 3개가 모두 명령형으로 끝나는 구조 금지. 최소 1개는 질문형 또는 관찰형.
+"""
+    explanation_mode_ban = """
+[설명 모드 금지 — 반드시 준수]
+- Evidence 내용을 다시 정의하거나 이론 설명하지 않는다.
+- "~는 ~을 의미한다", "~를 가리킨다", "~라고 본다", "~는 ~한 결합이다" 형태 금지.
+- Evidence를 요약하지 말고 독자의 현재 삶에 바로 연결한다.
+- "이 패턴은 당신에게…", "지금 당신의 상황에서 이것은…" 형태로 적용 중심으로 쓴다.
+- 점성학 이론을 가르치지 말고 독자의 현재 상황을 해석한다.
+- Hook/Bridge에서 <EVIDENCE_BLOCK>의 내용을 미리 언급하거나 복붙하지 않는다.
+"""
+    bullet_compaction_rules = """
+[Bullets 압축 규칙]
+- 각 불릿은 40자 이내(한국어 기준)로 작성한다.
+- 불릿 1개 = 행동 1개. 여러 행동을 한 불릿에 묶지 않는다.
+- "~하고, ~하며, ~하십시오" 같은 나열형 불릿 금지.
+- 권장 형식: "~할 때 -> ~한다" 또는 "~을 위해 ~을 먼저 한다"
+"""
+    chapter_rhythm_line = "- 챕터 리듬(Hook/요약/주의/실행팁)은 권장이지 강제가 아니다."
+    chapter_paragraph_line = "- 각 챕터는 2~4문단(2문단도 허용), 문단은 가독성 있게 분리한다."
+    actionable_bullet_line = f"- Actionable 챕터({', '.join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다."
+    bullet_exempt_line = "- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다."
+    if hybrid_render_mode:
+        hybrid_output_contract = f"""
+HYBRID RENDER OUTPUT CONTRACT
+- Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))}) 출력 순서:
+  Hook: 1문장
+  <EVIDENCE_BLOCK>
+  Bridge: 1문장
+  - 불릿1
+  - 불릿2
+  - 불릿3
+- 불릿 면제 챕터(Executive Summary, Life Timeline Interpretation, Final Summary) 출력 순서:
+  Hook: 1문장
+  <EVIDENCE_BLOCK>
+  Bridge: 1문장
+  Bullets 금지.
+- <EVIDENCE_BLOCK> 태그는 챕터당 정확히 1회만 출력한다.
+- Evidence 텍스트를 재작성/재인용/복붙하지 않는다. 태그만 출력한다.
+- [근거], --- 같은 라벨/구분선 삽입 금지.
+- 체크리스트식 본문 전개 금지 (마지막 action bullets 3개는 허용).
+"""
+        sales_tone_contract = """
+[판매형 톤 계약]
+- Hook은 독자가 바로 공감할 질문/감정 진술 1문장으로 시작한다.
+- Bridge는 이론 설명 대신 "그래서 당신에게 어떤 의미인지" 1문장으로 연결한다.
+- Hook/Bridge/Bullets에서는 점성학 전문용어를 직접 노출하지 않는다.
+"""
+        chapter_rhythm_line = "- 챕터 리듬은 아래 HYBRID RENDER OUTPUT CONTRACT를 반드시 따른다."
+        chapter_paragraph_line = "- 각 챕터는 Hook/Bridge 흐름이 명확한 짧은 문단 구성을 유지한다."
+        actionable_bullet_line = "- Actionable 챕터는 HYBRID RENDER OUTPUT CONTRACT의 3개 불릿 규칙을 따른다."
+        bullet_exempt_line = "- Bullet-exempt 챕터는 HYBRID RENDER OUTPUT CONTRACT의 불릿 금지 규칙을 따른다."
+
     if prompt_mode == "analyzer_first":
         return f"""
 ROLE
@@ -2286,6 +2997,8 @@ OUTPUT CONTRACT (STRICT)
 - 분량이 부족하면 새 사실을 만들지 말고 주어진 근거를 더 구체화해 확장한다.
 - 각 챕터는 최소 {min_anchors}개의 구체 앵커(행성/하우스/라시/낙샤트라/다샤/요가)를 포함한다.
 - 앵커는 나열하지 말고 문장 안에서 인과적으로 연결한다.
+{hybrid_output_contract}
+{sales_tone_contract}
 
 CHAPTER KEY ORDER
 {chapter_key_lines}
@@ -2295,12 +3008,17 @@ ANALYSIS RULES
 - 분석 라벨(원인/표현/영향) 표기 금지.
 - 모순 신호가 있으면 모순을 숨기지 말고 그대로 설명한다.
 - 문장은 바로 이해 가능하게, 생활어 중심으로 작성한다.
-- 챕터 리듬(Hook/요약/주의/실행팁)은 권장이지 강제가 아니다.
-- Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다.
-- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다.
+- {chapter_rhythm_line[2:] if chapter_rhythm_line.startswith('- ') else chapter_rhythm_line}
+- {actionable_bullet_line[2:] if actionable_bullet_line.startswith('- ') else actionable_bullet_line}
+- {bullet_exempt_line[2:] if bullet_exempt_line.startswith('- ') else bullet_exempt_line}
 - 같은 조언형 종결(~도움됩니다/~유리합니다/~좋습니다) 반복을 피한다.
 - Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
 - 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
+{jargon_transform_rules}
+{chapter_hook_hint_block}
+{anti_repeat_rules}
+{explanation_mode_ban}
+{bullet_compaction_rules}
 
 SAFETY RULES
 - 내부 메타 용어를 출력하지 말 것:
@@ -2358,13 +3076,15 @@ OUTPUT CONTRACT (STRICT)
 - 모든 챕터 헤딩은 `## [<chapter_key>] <한국어 제목>` 형식으로 시작한다.
 - 아래 chapter_key 순서/경계를 절대 바꾸지 않는다.
 - 챕터를 병합/누락하지 않는다.
-- 각 챕터는 2~4문단(2문단도 허용), 문단은 가독성 있게 분리한다.
+- {chapter_paragraph_line[2:] if chapter_paragraph_line.startswith('- ') else chapter_paragraph_line}
 - 문단 사이는 반드시 빈 줄(Blank line) 1개로 구분한다.
 - 메타 라벨 출력 금지: "중심 주제:", "내적 줄다리기:", "전략 제안:" 등.
 - 챕터 본문은 공백 제외 최소 {min_chars}자, 권장 {min_chars}~{target_chars}자를 목표로 한다.
 - 분량이 부족하면 새 사실을 만들지 말고 주어진 근거를 더 구체화해 확장한다.
 - 각 챕터는 최소 {min_anchors}개의 구체 앵커(행성/하우스/라시/낙샤트라/다샤/요가)를 포함한다.
 - 앵커는 나열하지 말고 문장 안에서 인과적으로 연결한다.
+{hybrid_output_contract}
+{sales_tone_contract}
 
 CHAPTER KEY ORDER
 {chapter_key_lines}
@@ -2402,13 +3122,18 @@ CORE WRITING GUIDANCE
 - 단계별 매뉴얼형 전략 나열을 줄이고, 통찰 중심 문장을 우선한다.
 - 모든 챕터를 조언으로 끝내지 않는다.
 - Not every chapter needs a concluding instruction.
-- Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다.
-- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다.
+- {actionable_bullet_line[2:] if actionable_bullet_line.startswith('- ') else actionable_bullet_line}
+- {bullet_exempt_line[2:] if bullet_exempt_line.startswith('- ') else bullet_exempt_line}
 - Avoid repeatedly using similar softening or mitigating phrases across multiple chapters (e.g., "지금은...", "무리하지 말고...", "당장은...").
 - Allow at least a few sentences per report that feel emotionally decisive rather than explanatory.
 - HOT 섹션(Executive Summary, Karmic Patterns, Love & Relationships, Confidence & Forecast)에서는 긴장이 자연스럽게 존재할 때만, 섹션당 sharp line을 최대 1회 허용한다.
 - Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
 - 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
+{jargon_transform_rules}
+{chapter_hook_hint_block}
+{anti_repeat_rules}
+{explanation_mode_ban}
+{bullet_compaction_rules}
 
 {style_override_block}
 

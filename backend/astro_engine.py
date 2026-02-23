@@ -1829,6 +1829,25 @@ def build_shadbala_summary(strength_data: dict[str, dict[str, Any]]) -> dict[str
     }
 
 
+def _lagna_lord_placement_group(planets: dict[str, Any], lagna_lord: str) -> str | None:
+    """Return placement group string for the lagna lord's house position.
+    Priority: kendra > trikona > dusthana > upachaya > succedent.
+    House 1 is both kendra and trikona; kendra takes precedence.
+    """
+    house = _planet_house(planets, lagna_lord)
+    if house is None:
+        return None
+    if house in {1, 4, 7, 10}:
+        return "kendra"
+    if house in {5, 9}:
+        return "trikona"
+    if house in {6, 8, 12}:
+        return "dusthana"
+    if house in {3, 11}:
+        return "upachaya"
+    return "succedent"
+
+
 def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "standard") -> dict[str, Any]:
     """Build the structural summary payload from chart data.
 
@@ -1938,6 +1957,25 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         "relationship_vector": relationship_vector,
         "career_vector": career_vector,
         "karmic_axis": dispositor.get("dominant_final_dispositor") or "Moon",
+        # Evidence pipeline bridge keys.
+        "detected_yogas": [
+            y["rule_key"]
+            for y in yogas
+            if isinstance(y, dict) and isinstance(y.get("rule_key"), str)
+        ],
+        "pattern_flags": [
+            k
+            for k, v in karmic_profile.items()
+            if k != "primary_pattern" and isinstance(v, (int, float)) and float(v) > 0
+        ],
+        "lagna_lord_state": (
+            shadbala_summary.get("by_planet", {}).get(lagna_lord or "", {}).get("avastha_state")
+            if lagna_lord else None
+        ),
+        "lagna_lord_placement_group": (
+            _lagna_lord_placement_group(planets, lagna_lord)
+            if lagna_lord else None
+        ),
         "engine": {
             "analysis_mode": "pro" if pro_mode else "standard",
             "planet_strength": strength,
