@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import sys
 from datetime import datetime, timezone
@@ -32,6 +33,13 @@ from backend.report_engine import build_dasha_narrative_context, build_report_pa
 
 OUT_DIR = Path("logs/cheap_validation_gate")
 HASH_GUARD_PATH = OUT_DIR / "prompt_hash_guard.json"
+logger = logging.getLogger("cheap_validation_gate")
+
+
+def _is_timeout_error(exc: Exception) -> bool:
+    name = exc.__class__.__name__.lower()
+    msg = str(exc).lower()
+    return isinstance(exc, TimeoutError) or "timeout" in name or "timed out" in msg or "timeout" in msg
 
 
 def _json_dump(path: Path, payload: Any) -> None:
@@ -140,7 +148,7 @@ def _save_hash_guard(profile_name: str, prompt_hash: str) -> None:
     _json_dump(HASH_GUARD_PATH, payload)
 
 
-def _run_single_true_path(candidate: dict[str, Any]) -> dict[str, Any]:
+def _run_single_true_path(candidate: dict[str, Any], timeout_seconds: int = 180) -> dict[str, Any]:
     payload = candidate["input"]
     params = {
         "year": payload["year"],
@@ -162,7 +170,20 @@ def _run_single_true_path(candidate: dict[str, Any]) -> dict[str, Any]:
         "debug_payload": 0,
     }
     with TestClient(app) as client:
-        resp = client.get("/ai_reading", params=params)
+        try:
+            resp = client.get("/ai_reading", params=params, timeout=timeout_seconds)
+        except Exception as e:
+            if _is_timeout_error(e):
+                logger.error(
+                    "TIMEOUT_OCCURRED stage=ai_reading timeout=%s profile=%s",
+                    timeout_seconds,
+                    candidate.get("profile_name", "unknown"),
+                )
+            return {
+                "ok": False,
+                "status_code": 0,
+                "error": str(e)[:400],
+            }
     if resp.status_code != 200:
         return {
             "ok": False,
@@ -215,7 +236,9 @@ def _run_single_true_path(candidate: dict[str, Any]) -> dict[str, Any]:
                 # and prevent duplicate LLM API calls.
                 "ai_cache_key": ai_cache_key,
             }
-            pdf_resp = client.get("/pdf", params=pdf_params, timeout=300)
+            # Keep PDF timeout aligned with policy; never below true-path timeout.
+            pdf_timeout = max(int(timeout_seconds), 180)
+            pdf_resp = client.get("/pdf", params=pdf_params, timeout=pdf_timeout)
             pdf_status = pdf_resp.status_code
             if pdf_resp.status_code == 200:
                 pdf_path = run_dir / "report.pdf"
@@ -223,6 +246,12 @@ def _run_single_true_path(candidate: dict[str, Any]) -> dict[str, Any]:
             else:
                 pdf_error = (pdf_resp.text or "")[:400]
         except Exception as e:
+            if _is_timeout_error(e):
+                logger.error(
+                    "TIMEOUT_OCCURRED stage=pdf timeout=%s profile=%s",
+                    pdf_timeout,
+                    candidate.get("profile_name", "unknown"),
+                )
             pdf_error = str(e)
 
     return {
@@ -263,6 +292,7 @@ async def run_cheap_validation(
     force_truepath: bool,
     skip_truepath_on_same_hash: bool,
     allow_api: bool,
+    timeout_seconds: int,
 ) -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     candidates = _build_candidates()
@@ -281,7 +311,7 @@ async def run_cheap_validation(
     elif not should_run_truepath:
         truepath = {"skipped": True, "reason": "prompt_hash_unchanged"}
     else:
-        truepath = _run_single_true_path(candidate)
+        truepath = _run_single_true_path(candidate, timeout_seconds=timeout_seconds)
 
     summary = {
         "profile_name": profile_name,
@@ -323,6 +353,12 @@ async def run_cheap_validation(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
+    default_timeout_env = os.getenv("DEFAULT_COMMAND_TIMEOUT")
+    if default_timeout_env is None:
+        default_timeout = 180
+        logger.info("DEFAULT_COMMAND_TIMEOUT not set, using fallback=%s", default_timeout)
+    else:
+        default_timeout = int(default_timeout_env)
     parser.add_argument(
         "--profile",
         default="most_balanced",
@@ -345,6 +381,12 @@ if __name__ == "__main__":
         default=0,
         help="Allow true-path API call (1=yes, 0=no). Default is 0 for token-safe validation.",
     )
+    parser.add_argument(
+        "--timeout-seconds",
+        type=int,
+        default=max(default_timeout, 120),
+        help="Per-command timeout seconds. Default from DEFAULT_COMMAND_TIMEOUT (min 120, recommended 180).",
+    )
     args = parser.parse_args()
     raise SystemExit(
         asyncio.run(
@@ -353,6 +395,7 @@ if __name__ == "__main__":
                 force_truepath=bool(args.force_truepath),
                 skip_truepath_on_same_hash=bool(args.skip_truepath_on_same_hash),
                 allow_api=bool(args.allow_api),
+                timeout_seconds=int(args.timeout_seconds),
             )
         )
     )

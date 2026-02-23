@@ -391,7 +391,7 @@ def build_evidence_packs(
         for item in items:
             iid = str(item.get("id", "")).strip()
             item_kind = str(item.get("_kind", ""))
-            is_engine_signal = item_kind in ("yoga", "pattern", "lagna_lord")
+            is_engine_signal = item_kind in ("yoga", "pattern", "lagna_lord", "fallback")
             if not iid or not is_engine_signal or iid not in _cross_seen:
                 deduped.append(item)
                 if iid and is_engine_signal:
@@ -469,7 +469,7 @@ def build_evidence_packs(
         )
         final_items: list[dict[str, Any]] = []
         seen_final: set[str] = set()
-        reuse_top = int(CHAPTER_EVIDENCE_RULES.get("Final Summary", {}).get("reuse_top", 3))
+        reuse_top = int(CHAPTER_EVIDENCE_RULES.get("Final Summary", {}).get("reuse_top", 2))
         for item in pool:
             iid = str(item.get("id", "")).strip()
             if not iid or iid in seen_final:
@@ -733,6 +733,12 @@ def _ensure_bridge_after_evidence(body: str, chapter_key: str) -> str:
             "시데리얼" in p
             or "핵심 근거" in p
             or bool(re.match(r"^(?:\s*배치|\s*상태|\s*구성|\s*패턴|\s*근거)", p))
+            or bool(
+                re.match(
+                    r"^\s*(?:강점(?:으로는|은)?|리스크(?:는)?|조언(?:은)?|발현은|이\s*배치|이\s*구성|이\s*집들|이\s*상태|이\s*패턴)",
+                    p,
+                )
+            )
         )
 
     def _is_bullet_para(p: str) -> bool:
@@ -2954,16 +2960,16 @@ STYLE OVERRIDE (run151158_like)
         hybrid_output_contract = f"""
 HYBRID RENDER OUTPUT CONTRACT
 - Actionable 챕터({", ".join(sorted(_ACTIONABLE_CHAPTER_KEYS))}) 출력 순서:
-  Hook: 1문장
+  Hook: 2~3문장 (80~150자 목표)
   <EVIDENCE_BLOCK>
-  Bridge: 1문장
+  Bridge: 2~3문장 (100~200자 목표)
   - 불릿1
   - 불릿2
   - 불릿3
 - 불릿 면제 챕터(Executive Summary, Life Timeline Interpretation, Final Summary) 출력 순서:
-  Hook: 1문장
+  Hook: 2~3문장 (80~150자 목표)
   <EVIDENCE_BLOCK>
-  Bridge: 1문장
+  Bridge: 2~3문장 (100~200자 목표)
   Bullets 금지.
 - <EVIDENCE_BLOCK> 태그는 챕터당 정확히 1회만 출력한다.
 - Evidence 텍스트를 재작성/재인용/복붙하지 않는다. 태그만 출력한다.
@@ -2972,8 +2978,14 @@ HYBRID RENDER OUTPUT CONTRACT
 """
         sales_tone_contract = """
 [판매형 톤 계약]
-- Hook은 독자가 바로 공감할 질문/감정 진술 1문장으로 시작한다.
-- Bridge는 이론 설명 대신 "그래서 당신에게 어떤 의미인지" 1문장으로 연결한다.
+- Hook은 독자가 바로 공감할 질문/감정 진술로 시작하되, 2~3문장(80~150자)으로 쓴다.
+  첫 문장: 공감 질문 또는 감정 진술
+  이어지는 문장: 그 감정이 왜 생기는지 상황을 1~2문장으로 풀어준다.
+- Bridge는 Evidence를 독자의 삶에 연결하는 2~3문장(100~200자)으로 쓴다.
+  "그래서 당신에게 어떤 의미인지" 한 줄로 끝내지 않는다.
+  Evidence에서 가장 중요한 포인트 1개를 골라 지금 당신의 상황에 바로 적용한다.
+- Hook+Bridge 합산은 최소 220자 이상을 권장한다.
+- Bridge는 Evidence의 핵심 포인트 1개만 확장해 설명한다.
 - Hook/Bridge/Bullets에서는 점성학 전문용어를 직접 노출하지 않는다.
 """
         chapter_rhythm_line = "- 챕터 리듬은 아래 HYBRID RENDER OUTPUT CONTRACT를 반드시 따른다."

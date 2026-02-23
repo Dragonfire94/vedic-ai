@@ -2,8 +2,8 @@
   "profile_name": "most_balanced",
   "selected_model_env": "gpt-5-mini",
   "static": {
-    "prompt_hash": "970b7adc5411da4dd7cc513a886435eefcceaf8388ed6ddc8ed6f59861034c42",
-    "prompt_length": 17177,
+    "prompt_hash": "2c58cac16f8c63ca698fdb831959e8cababed7ae423b2e56a28a63a71e87f44f",
+    "prompt_length": 14474,
     "required_markers": {
       "OUTPUT CONTRACT (STRICT)": true,
       "DASHA INTEGRITY": true,
@@ -19,7 +19,7 @@
     "forbidden_hits": 0
   },
   "hash_guard": {
-    "previous_hash": "d58188fc2f34e0e92fd72df9f19710a958767ec4b869676303ce0195244b6c63",
+    "previous_hash": "be78e63cee8d991d7ea13c92dab95a191c38b9fc2a22625393f9c765ee3389b5",
     "same_hash": false,
     "should_run_truepath": true
   },
@@ -34,13 +34,13 @@
     "chapter_blocks_hash": "2ca50af16ceb1f55f790990736663db11cbff25703562d5ceb161dc13f29f6bc",
     "audit_overall": 0,
     "audit_flags": null,
-    "reading_length": 9183,
+    "reading_length": 6808,
     "heading_count": 10,
     "forbidden_hits": 0,
     "error": null,
     "analysis_mode_fallback": null,
-    "run_dir": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260223_062309",
-    "reading_path": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260223_062309\\reading.md",
+    "run_dir": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260223_124300",
+    "reading_path": "logs\\cheap_validation_gate\\truepath_runs\\profile_20260223_124300\\reading.md",
     "pdf_status": 503,
     "pdf_path": null,
     "pdf_include_ai": 1,
