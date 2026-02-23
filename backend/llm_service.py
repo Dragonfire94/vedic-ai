@@ -13,6 +13,15 @@ from backend.report_engine import (
     build_dasha_narrative_context,
     build_semantic_signals,
 )
+from backend.evidence_pipeline_v2 import (
+    apply_bullet_escape_to_chapter_evidence_map,
+    apply_caps_to_chapter_evidence_map,
+    audit_length_density,
+    audit_llm_style_only,
+    pre_sanitize_global_evidence_items,
+    pre_sanitize_chapter_evidence_map,
+    prepatch_chapter_evidence_map,
+)
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
@@ -659,6 +668,7 @@ def _assemble_evidence_text(
     cache: dict[str, str],
     cache_key: str,
     max_chars: int,
+    pure_mode: bool = False,
 ) -> tuple[str, dict[str, Any]]:
     evidence_items_count = len(items)
     raw_lines: list[str] = []
@@ -685,17 +695,24 @@ def _assemble_evidence_text(
             "evidence_truncated": False,
             "evidence_chars_truncated_to": -1,
         }
-    if cache_key in cache:
-        escaped_text = cache[cache_key]
+    if pure_mode:
+        escaped_text = raw_text
+        after_len = len(escaped_text)
+        capped_text = escaped_text
+        truncated = False
+        truncated_to = -1
     else:
-        escaped_text = _escape_evidence_text(raw_text)
-        cache[cache_key] = escaped_text
-        escape_applied = True
-    after_len = len(escaped_text)
-    capped_text, truncated, truncated_to = _apply_evidence_soft_cap(escaped_text, max_chars)
-    # Remove label-only lines while preserving paragraph boundaries between evidence items.
-    capped_text = re.sub(r"^[^\S\n]*\([a-zA-Z_]+:[^\)]+\)[^\S\n]*\n?", "", capped_text, flags=re.MULTILINE)
-    capped_text = re.sub(r"\n{3,}", "\n\n", capped_text).rstrip()
+        if cache_key in cache:
+            escaped_text = cache[cache_key]
+        else:
+            escaped_text = _escape_evidence_text(raw_text)
+            cache[cache_key] = escaped_text
+            escape_applied = True
+        after_len = len(escaped_text)
+        capped_text, truncated, truncated_to = _apply_evidence_soft_cap(escaped_text, max_chars)
+        # Remove label-only lines while preserving paragraph boundaries between evidence items.
+        capped_text = re.sub(r"^[^\S\n]*\([a-zA-Z_]+:[^\)]+\)[^\S\n]*\n?", "", capped_text, flags=re.MULTILINE)
+        capped_text = re.sub(r"\n{3,}", "\n\n", capped_text).rstrip()
     return capped_text, {
         "evidence_items_count": evidence_items_count,
         "evidence_chars_before_escape": before_len,
@@ -810,6 +827,7 @@ def inject_evidence_blocks(
     global_evidence_items: list[dict[str, str]],
     *,
     hybrid_render_mode: bool,
+    pure_mode: bool = False,
     target_chapters: list[str] | None = None,
     max_evidence_chars_per_chapter: int = 1200,
 ) -> tuple[str, dict[str, dict]]:
@@ -895,6 +913,7 @@ def inject_evidence_blocks(
             cache=evidence_cache,
             cache_key=chapter_key or f"sec_{sec_idx}",
             max_chars=max_evidence_chars_per_chapter,
+            pure_mode=pure_mode,
         )
         stats.update(evidence_meta)
 
@@ -920,7 +939,22 @@ def inject_evidence_blocks(
                 tag_count,
             )
 
-        if stats["evidence_items_count"] == 0:
+        if pure_mode:
+            if tag_count == 0:
+                logger.warning("EVIDENCE_TAG_MISSING chapter=%s", chapter_key)
+                new_body = block_body
+            else:
+                used_first = False
+
+                def _tag_repl_pure(match: re.Match) -> str:
+                    nonlocal used_first
+                    if not used_first:
+                        used_first = True
+                        return evidence_text
+                    return ""
+
+                new_body = _EVIDENCE_TAG_RE.sub(_tag_repl_pure, block_body)
+        elif stats["evidence_items_count"] == 0:
             stats["no_evidence_empty_replace"] = True
             # TODO: global evidence fallback 정책 결정 후 구현
             _emit_warn(
@@ -984,7 +1018,7 @@ def inject_evidence_blocks(
                 ck,
             )
 
-    if _EVIDENCE_TAG_RE.search(modified_text):
+    if (not pure_mode) and _EVIDENCE_TAG_RE.search(modified_text):
         tag_matches = list(_EVIDENCE_TAG_RE.finditer(modified_text))
         if tag_matches:
             heading_positions = _extract_heading_positions(modified_text)
@@ -1034,6 +1068,15 @@ def inject_evidence_blocks(
             modified_text = _EVIDENCE_TAG_RE.sub(neutral, modified_text)
 
     return modified_text, per_chapter_stats
+
+
+def _strip_unresolved_evidence_tags_with_existing_re(text: str) -> tuple[str, int]:
+    if not isinstance(text, str):
+        return "", 0
+    hits = len(_EVIDENCE_TAG_RE.findall(text))
+    if hits:
+        text = _EVIDENCE_TAG_RE.sub("", text)
+    return text, hits
 
 
 _FALLBACK_PARAGRAPH_POOL = [
@@ -2476,6 +2519,7 @@ async def refine_reading_with_llm(
     evidence_total_chars_hard_max = int(os.getenv("LLM_EVIDENCE_TOTAL_CHARS_HARD_MAX", "15000"))
     hybrid_render_mode = (os.getenv("LLM_HYBRID_RENDER_MODE", "off") or "").strip().lower() == "on"
     max_evidence_chars_per_chapter = int(os.getenv("LLM_HYBRID_EVIDENCE_CHAPTER_MAX_CHARS", "1200"))
+    use_evidence_pipeline_v2 = (os.getenv("EVIDENCE_PIPELINE_V2", "0") or "").strip() == "1"
 
     evidence_pack = {"global_evidence": [], "chapter_evidence": {}, "stats": {}}
     if evidence_mode == "on":
@@ -2490,6 +2534,29 @@ async def refine_reading_with_llm(
         )
     global_evidence_items = evidence_pack.get("global_evidence", []) if isinstance(evidence_pack, dict) else []
     chapter_evidence_map = evidence_pack.get("chapter_evidence", {}) if isinstance(evidence_pack, dict) else {}
+    global_evidence_items_sanitized = global_evidence_items
+    if use_evidence_pipeline_v2 and isinstance(global_evidence_items, list):
+        global_evidence_items_sanitized = pre_sanitize_global_evidence_items(global_evidence_items, global_cap=1500)
+        logger.info(
+            "GLOBAL_EVIDENCE_SANITIZED items=%s chars=%s request_id=%s",
+            len(global_evidence_items_sanitized),
+            _evidence_chars(global_evidence_items_sanitized),
+            request_id,
+        )
+    if use_evidence_pipeline_v2 and isinstance(chapter_evidence_map, dict):
+        chapter_evidence_map = pre_sanitize_chapter_evidence_map(chapter_evidence_map)
+        chapter_evidence_map = apply_caps_to_chapter_evidence_map(
+            chapter_evidence_map,
+            chapter_cap=900,
+            global_cap=1500,
+        )
+        chapter_evidence_map = apply_bullet_escape_to_chapter_evidence_map(chapter_evidence_map)
+        chapter_evidence_map = await prepatch_chapter_evidence_map(
+            async_client,
+            chapter_evidence_map,
+            logger,
+            max_sentences=3,
+        )
     # Request-scope guard: main prompt may include global evidence once;
     # individual regen prompts should not re-inject it.
     global_evidence_injected_count = 0
@@ -2503,6 +2570,7 @@ async def refine_reading_with_llm(
         narrative_mode=narrative_mode,
         executive_summary=executive_summary,
         dasha_context=dasha_context,
+        global_evidence_items=global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else None,
         global_evidence_injected_count=global_evidence_injected_count,
     )
     logger.info(
@@ -2557,9 +2625,20 @@ async def refine_reading_with_llm(
                     f"{candidate_model}, finish_reason: "
                     f"{response.choices[0].finish_reason if response and response.choices else 'N/A'}"
                 )
+            raw_llm_text = response_text
             response_text = normalize_paragraphs_fn(response_text, max_chars=300)
             response_text = _sanitize_percent_phrasing_ko(response_text)
             response_text = _sanitize_meta_report_phrasing_ko(response_text)
+            if use_evidence_pipeline_v2:
+                style_audit = audit_llm_style_only(raw_llm_text)
+                logger.info(
+                    "[LLM STYLE V2] fail=%s reasons=%s explain_trigger_count=%s banned_set_count=%s triad_chapter_count=%s",
+                    style_audit.get("fail"),
+                    style_audit.get("fail_reasons"),
+                    style_audit.get("explain_trigger_count"),
+                    style_audit.get("banned_set_count"),
+                    style_audit.get("triad_chapter_count"),
+                )
             if hybrid_render_mode:
                 if inject_called:
                     logger.error("inject_double_call_prevented request_id=%s", request_id)
@@ -2567,11 +2646,20 @@ async def refine_reading_with_llm(
                     response_text, _inject_stats = inject_evidence_blocks(
                         response_text,
                         chapter_evidence_map if isinstance(chapter_evidence_map, dict) else {},
-                        global_evidence_items if isinstance(global_evidence_items, list) else [],
+                        global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else [],
                         hybrid_render_mode=hybrid_render_mode,
+                        pure_mode=use_evidence_pipeline_v2,
                         target_chapters=None,
                         max_evidence_chars_per_chapter=max_evidence_chars_per_chapter,
                     )
+                    if use_evidence_pipeline_v2:
+                        response_text, tag_hits = _strip_unresolved_evidence_tags_with_existing_re(response_text)
+                        if tag_hits:
+                            logger.warning(
+                                "UNRESOLVED_EVIDENCE_TAGS_REMOVED count=%s request_id=%s",
+                                tag_hits,
+                                request_id,
+                            )
                     inject_called = True
             has_timeline = ("## Life Timeline" in response_text or "## Life Timeline Interpretation" in response_text)
             timeline_raw_paragraphs = _raw_timeline_paragraph_count(response_text)
@@ -2597,11 +2685,20 @@ async def refine_reading_with_llm(
                         response_text, _regen_stats = inject_evidence_blocks(
                             response_text,
                             chapter_evidence_map if isinstance(chapter_evidence_map, dict) else {},
-                            global_evidence_items if isinstance(global_evidence_items, list) else [],
+                            global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else [],
                             hybrid_render_mode=hybrid_render_mode,
+                            pure_mode=use_evidence_pipeline_v2,
                             target_chapters=["Life Timeline Interpretation"],
                             max_evidence_chars_per_chapter=max_evidence_chars_per_chapter,
                         )
+                        if use_evidence_pipeline_v2:
+                            response_text, tag_hits = _strip_unresolved_evidence_tags_with_existing_re(response_text)
+                            if tag_hits:
+                                logger.warning(
+                                    "UNRESOLVED_EVIDENCE_TAGS_REMOVED count=%s request_id=%s",
+                                    tag_hits,
+                                    request_id,
+                                )
                 except Exception as timeline_err:
                     logger.warning(
                         "Life Timeline isolation fallback to base text request_id=%s selected_model=%s error_type=%s error=%s",
@@ -2613,12 +2710,23 @@ async def refine_reading_with_llm(
             response_text = _sanitize_percent_phrasing_ko(response_text)
             response_text = _sanitize_meta_report_phrasing_ko(response_text)
             response_text = normalize_llm_layout_strict(response_text)
-            if hybrid_render_mode:
+            if hybrid_render_mode and not use_evidence_pipeline_v2:
                 response_text = apply_bridge_to_all_chapters(response_text)
+            final_text = response_text
+            if use_evidence_pipeline_v2:
+                density_audit = audit_length_density(final_text)
+                logger.info(
+                    "[LLM LENGTH DENSITY V2] warn=%s warnings=%s heading_count=%s text_length=%s structural_ref_count=%s",
+                    density_audit.get("warn"),
+                    density_audit.get("warnings"),
+                    density_audit.get("heading_count"),
+                    density_audit.get("text_length"),
+                    density_audit.get("structural_ref_count"),
+                )
             min_chars = _resolve_min_chars_by_phase()
-            length_map = _chapter_nonspace_lengths(response_text)
-            prose_length_map = _chapter_prose_nonspace_lengths(response_text)
-            below_min = _length_violation_keys(response_text, min_chars)
+            length_map = _chapter_nonspace_lengths(final_text)
+            prose_length_map = _chapter_prose_nonspace_lengths(final_text)
+            below_min = _length_violation_keys(final_text, min_chars)
             if below_min:
                 logger.warning(
                     "[LLM LENGTH] below_min_chars=%s min_chars=%s request_id=%s selected_model=%s lengths=%s prose_lengths=%s",
@@ -2629,7 +2737,7 @@ async def refine_reading_with_llm(
                     length_map,
                     prose_length_map,
                 )
-            covered, total = _actionable_bullet_coverage(response_text)
+            covered, total = _actionable_bullet_coverage(final_text)
             if total > 0:
                 coverage_ratio = covered / max(total, 1)
                 if coverage_ratio < 0.7:
@@ -2641,7 +2749,7 @@ async def refine_reading_with_llm(
                         request_id,
                         candidate_model,
                     )
-            fallback_dup_hits = _fallback_duplication_hits(response_text)
+            fallback_dup_hits = _fallback_duplication_hits(final_text)
             if fallback_dup_hits > 0:
                 logger.warning(
                     "[LLM LAYOUT] duplicated_fallback_spread hits=%s request_id=%s selected_model=%s",
@@ -2649,9 +2757,9 @@ async def refine_reading_with_llm(
                     request_id,
                     candidate_model,
                 )
-            audit_report = audit_llm_output(response_text, structural_summary)
-            structural_errors = _structural_layout_error_codes(response_text)
-            if int(audit_report.get("overall_score", 0)) < 65 and structural_errors and "## Executive Summary" in response_text:
+            audit_report = audit_llm_output(final_text, structural_summary)
+            structural_errors = _structural_layout_error_codes(final_text)
+            if (not use_evidence_pipeline_v2) and int(audit_report.get("overall_score", 0)) < 65 and structural_errors and "## Executive Summary" in final_text:
                 try:
                     executive_regen_count += 1
                     new_exec = await generate_executive_chapter(
@@ -2664,13 +2772,13 @@ async def refine_reading_with_llm(
                         normalize_paragraphs_fn=normalize_paragraphs_fn,
                     )
                     if isinstance(new_exec, str) and new_exec.strip():
-                        response_text = replace_executive_block(response_text, new_exec)
-                        response_text = _sanitize_percent_phrasing_ko(response_text)
-                        response_text = _sanitize_meta_report_phrasing_ko(response_text)
-                        response_text = normalize_llm_layout_strict(response_text)
-                        if hybrid_render_mode:
-                            response_text = apply_bridge_to_all_chapters(response_text)
-                        audit_report = audit_llm_output(response_text, structural_summary)
+                        final_text = replace_executive_block(final_text, new_exec)
+                        final_text = _sanitize_percent_phrasing_ko(final_text)
+                        final_text = _sanitize_meta_report_phrasing_ko(final_text)
+                        final_text = normalize_llm_layout_strict(final_text)
+                        if hybrid_render_mode and not use_evidence_pipeline_v2:
+                            final_text = apply_bridge_to_all_chapters(final_text)
+                        audit_report = audit_llm_output(final_text, structural_summary)
                 except Exception as exec_err:
                     logger.warning(
                         "Executive isolation fallback to base text request_id=%s selected_model=%s error_type=%s error=%s",
@@ -2704,7 +2812,7 @@ async def refine_reading_with_llm(
                 model_used,
                 chapter_blocks_hash,
             )
-            return response_text
+            return final_text
         except Exception as e:
             last_error = e
             logger.warning(
@@ -2731,6 +2839,7 @@ def build_llm_structural_prompt(
     narrative_mode: str | None = None,
     executive_summary: str | None = None,
     dasha_context: dict[str, Any] | None = None,
+    global_evidence_items: list[dict[str, Any]] | None = None,
     global_evidence_injected_count: int = 0,
 ) -> str:
     import json
@@ -2783,11 +2892,15 @@ def build_llm_structural_prompt(
             total_chars_hard_max=evidence_total_chars_hard_max,
         )
 
-    global_evidence_items = evidence_pack.get("global_evidence", []) if isinstance(evidence_pack, dict) else []
+    prompt_global_evidence_items = (
+        global_evidence_items
+        if isinstance(global_evidence_items, list)
+        else (evidence_pack.get("global_evidence", []) if isinstance(evidence_pack, dict) else [])
+    )
     chapter_evidence_map = evidence_pack.get("chapter_evidence", {}) if isinstance(evidence_pack, dict) else {}
     evidence_stats = evidence_pack.get("stats", {}) if isinstance(evidence_pack, dict) else {}
     global_evidence_text = "\n".join(
-        f"- ({it.get('id','')}) {it.get('text','')}" for it in global_evidence_items if isinstance(it, dict)
+        f"- ({it.get('id','')}) {it.get('text','')}" for it in prompt_global_evidence_items if isinstance(it, dict)
     ).strip()
     chapter_evidence_lines: list[str] = []
     if isinstance(chapter_evidence_map, dict):
@@ -2845,8 +2958,8 @@ def build_llm_structural_prompt(
             "LLM evidence stats mode=%s priority=%s global_items=%s global_chars=%s total_chars=%s missing_ids=%s chapter_evidence_count=%s chapter_evidence_char_count=%s fallback_used=%s reused_in_final=%s evidence_trim_level=%s",
             evidence_mode,
             evidence_priority,
-            len(global_evidence_items),
-            _evidence_chars(global_evidence_items),
+            len(prompt_global_evidence_items),
+            _evidence_chars(prompt_global_evidence_items),
             int(evidence_stats.get("total_chars", 0)) if isinstance(evidence_stats, dict) else 0,
             (evidence_stats.get("missing_ids", []) if isinstance(evidence_stats, dict) else [])[:10],
             evidence_stats.get("chapter_evidence_count", {}) if isinstance(evidence_stats, dict) else {},
@@ -2855,8 +2968,8 @@ def build_llm_structural_prompt(
             evidence_stats.get("reused_in_final", []) if isinstance(evidence_stats, dict) else [],
             evidence_stats.get("evidence_trim_level", 0) if isinstance(evidence_stats, dict) else 0,
         )
-        if _evidence_chars(global_evidence_items) < 400:
-            logger.warning("[LLM EVIDENCE] warn_evidence_global_chars_low chars=%s", _evidence_chars(global_evidence_items))
+        if _evidence_chars(prompt_global_evidence_items) < 400:
+            logger.warning("[LLM EVIDENCE] warn_evidence_global_chars_low chars=%s", _evidence_chars(prompt_global_evidence_items))
         if int(evidence_stats.get("total_chars", 0)) > evidence_total_chars_hard_max:
             logger.warning("[LLM EVIDENCE] warn_evidence_total_chars_overflow_guard_applied total=%s hard=%s", int(evidence_stats.get("total_chars", 0)), evidence_total_chars_hard_max)
         if isinstance(chapter_evidence_map, dict):
