@@ -113,3 +113,4 @@ def test_exact_future_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
     assert exc.value.status_code == 400
     assert f"미래 이벤트는 사용할 수 없습니다: {future_year}" == exc.value.detail
+

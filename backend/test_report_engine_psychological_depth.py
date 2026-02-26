@@ -12,7 +12,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "deep_payload_block",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.deep", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100,
@@ -33,7 +33,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
             },
             {
                 "id": "high_pressure_identity_fragmentation",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 95,
@@ -53,7 +53,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
             },
             {
                 "id": "high_pressure_identity_fragmentation",
-                "chapter": "Final Summary",
+                "chapter": "Final Integration",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 80,
@@ -68,7 +68,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
             },
             {
                 "id": "recursive_correction_loop",
-                "chapter": "Life Timeline Interpretation",
+                "chapter": "Current Phase",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 90,
@@ -89,7 +89,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
             },
             {
                 "id": "legacy_block",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [{"field": "flags.legacy", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 70,
@@ -104,7 +104,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
         ] + [
             {
                 "id": f"cap_{idx}",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "flags.cap", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100 - idx,
@@ -153,7 +153,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 20},
             }
         )
-        block = payload["chapter_blocks"]["Psychological Architecture"][0]
+        block = payload["chapter_blocks"]["Core Disposition"][0]
         self.assertIn("shadow_pattern", block)
         self.assertIn("defense_mechanism", block)
         self.assertIn("emotional_trigger", block)
@@ -169,7 +169,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        self.assertIn("choice_fork", high["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertIn("choice_fork", high["chapter_blocks"]["Core Disposition"][0])
 
         moderate = report_engine.build_report_payload(
             {
@@ -179,7 +179,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 35},
             }
         )
-        self.assertIn("choice_fork", moderate["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertIn("choice_fork", moderate["chapter_blocks"]["Core Disposition"][0])
 
     def test_emotional_escalation_rule(self):
         selected = report_engine.select_template_blocks(
@@ -188,7 +188,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 40},
             }
         )
-        ids = [block["id"] for block in selected["Psychological Architecture"]]
+        ids = [block["id"] for block in selected["Core Disposition"]]
         self.assertIn("high_pressure_identity_fragmentation", ids)
 
     def test_recursive_correction_injection(self):
@@ -198,7 +198,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "behavioral_risk_profile": {"primary_risk": "impulsivity"},
             }
         )
-        ids = [block["id"] for block in selected["Life Timeline Interpretation"]]
+        ids = [block["id"] for block in selected["Current Phase"]]
         self.assertIn("recursive_correction_loop", ids)
 
     def test_psychological_echo(self):
@@ -208,7 +208,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 30},
             }
         )
-        final_ids = [block["id"] for block in selected["Final Summary"]]
+        final_ids = [block["id"] for block in selected["Final Integration"]]
         self.assertIn("high_pressure_identity_fragmentation", final_ids)
 
     def test_no_duplicate_injection(self):
@@ -218,11 +218,11 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 25},
             }
         )
-        psych_ids = [block["id"] for block in selected["Psychological Architecture"]]
+        psych_ids = [block["id"] for block in selected["Core Disposition"]]
         self.assertEqual(psych_ids.count("high_pressure_identity_fragmentation"), 1)
 
         payload = report_engine.build_report_payload({"flags": {"cap": True}})
-        self.assertLessEqual(len(payload["chapter_blocks"]["Love & Relationships"]), 5)
+        self.assertLessEqual(len(payload["chapter_blocks"]["Love & Relationship Patterns"]), 5)
 
     def test_backward_compatibility(self):
         payload = report_engine.build_report_payload(
@@ -232,7 +232,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 95},
             }
         )
-        block = payload["chapter_blocks"]["Behavioral Risks"][0]
+        block = payload["chapter_blocks"]["Emotional Fault Lines"][0]
         self.assertIn("title", block)
         self.assertIn("summary", block)
         self.assertIn("analysis", block)
@@ -240,3 +240,4 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

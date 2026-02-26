@@ -42,3 +42,4 @@ def test_pdf_output_has_no_forbidden_meta_terms(tmp_path: Path) -> None:
 
     assert not findings, f"Forbidden patterns detected: {findings[:8]}"
 
+

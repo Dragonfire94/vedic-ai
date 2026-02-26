@@ -34,16 +34,16 @@ class TestReportEngine(unittest.TestCase):
 
         selected = select_template_blocks(structural_summary)
 
-        self.assertIsInstance(selected["Purushartha Profile"], list)
-        self.assertGreaterEqual(len(selected["Psychological Architecture"]), 1)
-        self.assertEqual(selected["Purushartha Profile"][0]["id"], "dharma_dominant")
+        self.assertIsInstance(selected["Executive Diagnosis"], list)
+        self.assertGreaterEqual(len(selected["Core Disposition"]), 1)
+        self.assertEqual(selected["Executive Diagnosis"][0]["id"], "dharma_dominant")
 
     def test_chapter_structure_complete(self):
         payload = build_report_payload({"structural_summary": {}})
 
         self.assertIn("chapter_blocks", payload)
         self.assertEqual(list(payload["chapter_blocks"].keys()), REPORT_CHAPTERS)
-        self.assertEqual(len(payload["chapter_blocks"]), 15)
+        self.assertEqual(len(payload["chapter_blocks"]), 12)
         self.assertTrue(all(isinstance(payload["chapter_blocks"][c], list) for c in REPORT_CHAPTERS))
         self.assertTrue(all(len(payload["chapter_blocks"][c]) >= 1 for c in REPORT_CHAPTERS))
 
@@ -86,7 +86,7 @@ class TestReportEngine(unittest.TestCase):
             for fragment in fragments
             if isinstance(fragment, dict) and isinstance(fragment.get("key_forecast"), str)
         ]
-        self.assertTrue(any("high-signal likelihood" in value for value in key_forecast_values))
+        self.assertTrue(any("high-signal tendency" in value for value in key_forecast_values))
 
     def test_prompt_format_generation(self):
         payload = build_report_payload({"structural_summary": {"dominant_purushartha": "Dharma"}})
@@ -94,7 +94,7 @@ class TestReportEngine(unittest.TestCase):
 
         self.assertIn("<BEGIN STRUCTURED BLOCKS>", user_content)
         self.assertIn("<END STRUCTURED BLOCKS>", user_content)
-        self.assertIn("Purushartha Profile", user_content)
+        self.assertIn("Executive Diagnosis", user_content)
         self.assertIn("Chapters to include in exact order", SYSTEM_PROMPT)
 
     def test_system_prompts_require_markdown_chapter_contract(self):
@@ -140,9 +140,9 @@ class TestReportEngine(unittest.TestCase):
                 }
             }
         )
-        stability_blocks = payload["chapter_blocks"]["Stability Metrics"]
-        final_blocks = payload["chapter_blocks"]["Final Summary"]
-        remedy_blocks = payload["chapter_blocks"]["Remedies & Program"]
+        stability_blocks = payload["chapter_blocks"]["Risk Management Points"]
+        final_blocks = payload["chapter_blocks"]["Final Integration"]
+        remedy_blocks = payload["chapter_blocks"]["Growth Acceleration"]
         self.assertTrue(any(b.get("title") == "Shadbala & Avastha Snapshot" for b in stability_blocks if isinstance(b, dict)))
         self.assertTrue(any(b.get("title") == "Final Synthesis: Strength Axis" for b in final_blocks if isinstance(b, dict)))
         self.assertTrue(any(b.get("title") == "Remedy Priority by Shadbala" for b in remedy_blocks if isinstance(b, dict)))
@@ -150,3 +150,4 @@ class TestReportEngine(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

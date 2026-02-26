@@ -12,7 +12,7 @@ class TestReportEngineDensity(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "high_tension_risk_aggro",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.match", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 20,
@@ -27,7 +27,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "followup_same_chapter",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 15,
@@ -42,7 +42,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "high_stability_fall",
-                "chapter": "Stability Metrics",
+                "chapter": "Risk Management Points",
                 "conditions": [{"field": "flags.match", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 19,
@@ -57,7 +57,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "tension_stability_interaction",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 30,
@@ -72,7 +72,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "career_conflict_karma",
-                "chapter": "Career & Success",
+                "chapter": "Career & Money",
                 "conditions": [{"field": "flags.match", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 12,
@@ -87,7 +87,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "career_purushartha",
-                "chapter": "Career & Success",
+                "chapter": "Career & Money",
                 "conditions": [{"field": "flags.match", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 11,
@@ -102,7 +102,7 @@ class TestReportEngineDensity(unittest.TestCase):
             },
             {
                 "id": "career_karma_pattern_reinforcement",
-                "chapter": "Executive Summary",
+                "chapter": "Executive Diagnosis",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 31,
@@ -118,7 +118,7 @@ class TestReportEngineDensity(unittest.TestCase):
         ] + [
             {
                 "id": f"cap_block_{idx}",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "flags.cap", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100 - idx,
@@ -158,12 +158,12 @@ class TestReportEngineDensity(unittest.TestCase):
             {
                 "if_block_ids": ["high_tension_risk_aggro", "high_stability_fall"],
                 "add_block_id": "tension_stability_interaction",
-                "target_chapter": "Psychological Architecture",
+                "target_chapter": "Core Disposition",
             },
             {
                 "if_block_ids": ["career_conflict_karma", "career_purushartha"],
                 "add_block_id": "career_karma_pattern_reinforcement",
-                "target_chapter": "Executive Summary",
+                "target_chapter": "Executive Diagnosis",
             },
         ]
 
@@ -185,7 +185,7 @@ class TestReportEngineDensity(unittest.TestCase):
 
     def test_chain_followup_inclusion(self):
         selected = report_engine.select_template_blocks({"flags": {"match": True}})
-        ids = [b["id"] for b in selected["Psychological Architecture"]]
+        ids = [b["id"] for b in selected["Core Disposition"]]
         self.assertIn("high_tension_risk_aggro", ids)
         self.assertIn("followup_same_chapter", ids)
         self.assertEqual(ids.count("high_tension_risk_aggro"), 1)
@@ -199,13 +199,13 @@ class TestReportEngineDensity(unittest.TestCase):
                 "stability_metrics": {"stability_index": 5},
             }
         )
-        blocks = selected["Psychological Architecture"]
+        blocks = selected["Core Disposition"]
         self.assertEqual(blocks[0]["id"], "tension_stability_interaction")
 
     def test_cross_chapter_reinforcement(self):
         selected = report_engine.select_template_blocks({"flags": {"match": True}})
-        psych_ids = [b["id"] for b in selected["Psychological Architecture"]]
-        exec_ids = [b["id"] for b in selected["Executive Summary"]]
+        psych_ids = [b["id"] for b in selected["Core Disposition"]]
+        exec_ids = [b["id"] for b in selected["Executive Diagnosis"]]
         self.assertIn("tension_stability_interaction", psych_ids)
         self.assertIn("career_karma_pattern_reinforcement", exec_ids)
 
@@ -218,17 +218,17 @@ class TestReportEngineDensity(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        strong = payload["chapter_blocks"]["Psychological Architecture"][0]
+        strong = payload["chapter_blocks"]["Core Disposition"][0]
         self.assertIn("examples", strong)
 
         payload_low = report_engine.build_report_payload({"flags": {"match": True}, "stability_metrics": {"stability_index": 99}})
-        low = payload_low["chapter_blocks"]["Psychological Architecture"][0]
+        low = payload_low["chapter_blocks"]["Core Disposition"][0]
         self.assertIn("title", low)
         self.assertIn("summary", low)
 
     def test_max_block_cap_after_expansion(self):
         payload = report_engine.build_report_payload({"flags": {"cap": True}})
-        self.assertEqual(len(payload["chapter_blocks"]["Love & Relationships"]), 5)
+        self.assertEqual(len(payload["chapter_blocks"]["Love & Relationship Patterns"]), 5)
 
     def test_examples_field_presence_by_intensity(self):
         payload = report_engine.build_report_payload(
@@ -239,8 +239,9 @@ class TestReportEngineDensity(unittest.TestCase):
                 "stability_metrics": {"stability_index": 0},
             }
         )
-        self.assertIn("examples", payload["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertIn("examples", payload["chapter_blocks"]["Core Disposition"][0])
 
 
 if __name__ == "__main__":
     unittest.main()
+

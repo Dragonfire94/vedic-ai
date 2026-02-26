@@ -12,7 +12,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "structural_transition_window",
-                "chapter": "Final Summary",
+                "chapter": "Final Integration",
                 "priority": 98,
                 "content": {
                     "title": "Structural Transition Window (3–5 Years)",
@@ -26,7 +26,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
             },
             {
                 "id": "burnout_risk_window",
-                "chapter": "Stability Metrics",
+                "chapter": "Risk Management Points",
                 "priority": 97,
                 "content": {
                     "title": "Energy Collapse Risk Window",
@@ -57,11 +57,11 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
             for chapter in report_engine.REPORT_CHAPTERS
         }
 
-        report_engine.DEFAULT_BLOCKS["Final Summary"].extend(
+        report_engine.DEFAULT_BLOCKS["Final Integration"].extend(
             [
                 {
                     "id": f"overflow_final_{i}",
-                    "chapter": "Final Summary",
+                    "chapter": "Final Integration",
                     "conditions": [{"field": "flags.overflow", "operator": "==", "value": True}],
                     "logic": "AND",
                     "priority": i,
@@ -83,7 +83,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                     "probability_forecast.career_shift_3yr": {">=": 0.6},
                     "probability_forecast.marriage_5yr": {">=": 0.6},
                 },
-                "chapter": "Final Summary",
+                "chapter": "Final Integration",
                 "priority": 98,
             },
             {
@@ -92,7 +92,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                     "probability_forecast.burnout_2yr": {">=": 0.7},
                     "stability_metrics.stability_index": {"<=": 50},
                 },
-                "chapter": "Stability Metrics",
+                "chapter": "Risk Management Points",
                 "priority": 97,
             },
         ]
@@ -111,7 +111,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "stability_metrics": {"stability_index": 40},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         self.assertTrue(any(b.get("title") == "Structural Transition Window (3–5 Years)" for b in final_summary))
 
     def test_scenario_not_injected_when_conditions_not_met(self):
@@ -123,7 +123,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "stability_metrics": {"stability_index": 40},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         self.assertFalse(any(b.get("title") == "Structural Transition Window (3–5 Years)" for b in final_summary))
 
     def test_scenario_respects_intensity_gate(self):
@@ -135,7 +135,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "stability_metrics": {"stability_index": 90},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         self.assertFalse(any(b.get("title") == "Structural Transition Window (3–5 Years)" for b in final_summary))
 
     def test_scenario_preserves_nested_structure(self):
@@ -147,7 +147,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         block = next(b for b in final_summary if b.get("title") == "Structural Transition Window (3–5 Years)")
         self.assertIsInstance(block.get("predictive_compression"), dict)
         self.assertIn("window", block["predictive_compression"])
@@ -162,7 +162,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "flags": {"overflow": True},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         titles = [b.get("title") for b in final_summary]
         self.assertGreaterEqual(len(final_summary), 1)
         self.assertIn("Structural Transition Window (3–5 Years)", titles)
@@ -176,7 +176,7 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        final_summary = payload["chapter_blocks"]["Final Summary"]
+        final_summary = payload["chapter_blocks"]["Final Integration"]
         matches = [b for b in final_summary if b.get("title") == "Structural Transition Window (3–5 Years)"]
         self.assertEqual(len(matches), 1)
 
@@ -188,3 +188,4 @@ class TestReportEngineScenarioCompression(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

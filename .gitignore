@@ -193,3 +193,6 @@ cython_debug/
 node_modules/
 frontend/.next/
 frontend-old/
+logs/
+backend/server.err
+backend/server.out

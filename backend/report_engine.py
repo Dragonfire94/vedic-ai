@@ -11,17 +11,37 @@ from pathlib import Path
 from typing import Any
 
 REPORT_CHAPTERS = [
-    "Executive Summary",
-    "Life Timeline Interpretation",
-    "Career & Success",
-    "Stability Metrics",
-    "Love & Relationships",
-    "Karmic Patterns",
-    "Health & Body Patterns",
-    "Confidence & Forecast",
-    "Psychological Architecture",
-    "Final Summary",
+    "Executive Diagnosis",
+    "Current Phase",
+    "Core Disposition",
+    "Recurring Patterns",
+    "Emotional Fault Lines",
+    "Career & Money",
+    "Love & Relationship Patterns",
+    "Health & Energy Rhythm",
+    "Mid-Term Direction",
+    "Risk Management Points",
+    "Growth Acceleration",
+    "Final Integration",
 ]
+
+CHAPTER_ALIAS_MAP = {
+    "Executive Summary": "Executive Diagnosis",
+    "Purushartha Profile": "Executive Diagnosis",
+    "Psychological Architecture": "Core Disposition",
+    "Behavioral Risks": "Emotional Fault Lines",
+    "Karmic Patterns": "Recurring Patterns",
+    "Stability Metrics": "Risk Management Points",
+    "Personality Vector": "Growth Acceleration",
+    "Life Timeline Interpretation": "Current Phase",
+    "Career & Success": "Career & Money",
+    "Love & Relationships": "Love & Relationship Patterns",
+    "Health & Body Patterns": "Health & Energy Rhythm",
+    "Confidence & Forecast": "Mid-Term Direction",
+    "Remedies & Program": "Growth Acceleration",
+    "Final Summary": "Final Integration",
+    "Appendix (Optional)": "Final Integration",
+}
 
 SYSTEM_PROMPT = """You are a master narrative editor.
 Provided with structured interpretation blocks for each chapter,
@@ -55,6 +75,7 @@ Hard bans (never output these):
   activation intensity, structural momentum, any "index/score/%" style metrics.
 - Do not output probabilities, percentages, or numeric scores.
   Use frequency language instead (e.g., "자주/가끔/특히 ~할 때").
+Exception: Executive Diagnosis block labels may include structural terms.
 
 Astro identity (light touch):
 - Use familiar Korean zodiac sign language/metaphors naturally (예: 물병자리 같은 이미지).
@@ -71,20 +92,43 @@ Output format contract (deterministic):
 - Output must be Markdown text (no JSON).
 - Preserve deterministic chapter boundaries using level-2 markdown headings exactly as `## <Chapter Name>`.
 - Use the chapter heading list below in exact order with no omissions or renaming.
-- Within each chapter, you may include light emphasis markers only when helpful
+- Within each chapter, include semantic emphasis markers where appropriate
   (e.g., `**핵심 통찰**`, `*주의할 점*`, `**실행 단서**`), but avoid label-heavy formatting.
+- Exception: Executive Diagnosis must use the explicit block labels defined below.
+- Limit advice to max 3 bullet points per chapter.
+
+Executive Diagnosis strict format (override all prior flow rules):
+[Structural Diagnosis]
+(one sentence only)
+
+[Strengths]
+- ...
+- ...
+- ...
+
+[Structural Risks]
+- ...
+- ...
+After the risks, add one sentence: "이 흐름은 조정이 가능한 영역입니다."
+
+[Strategic Direction]
+(one line only)
+If stability is clearly low or tension is high, use a clear diagnostic tone and avoid excessive softening phrases.
+This structure overrides any previous narrative flow rules.
 
 Chapters to include in exact order:
-Executive Summary
-Life Timeline Interpretation
-Career & Success
-Stability Metrics
-Love & Relationships
-Karmic Patterns
-Health & Body Patterns
-Confidence & Forecast
-Psychological Architecture
-Final Summary
+Executive Diagnosis
+Current Phase
+Core Disposition
+Recurring Patterns
+Emotional Fault Lines
+Career & Money
+Love & Relationship Patterns
+Health & Energy Rhythm
+Mid-Term Direction
+Risk Management Points
+Growth Acceleration
+Final Integration
 """
 
 _TEMPLATE_FILES = [
@@ -221,12 +265,12 @@ REINFORCE_RULES = [
     {
         "if_block_ids": ["high_tension_risk_aggro", "high_stability_fall"],
         "add_block_id": "tension_stability_interaction",
-        "target_chapter": "Psychological Architecture",
+        "target_chapter": "Core Disposition",
     },
     {
         "if_block_ids": ["career_conflict_karma", "career_purushartha"],
         "add_block_id": "career_karma_pattern_reinforcement",
-        "target_chapter": "Executive Summary",
+        "target_chapter": "Executive Diagnosis",
     },
 ]
 
@@ -234,7 +278,7 @@ EMOTIONAL_ESCALATION_RULE = {
     "tension_threshold": 75,
     "stability_threshold": 45,
     "inject_block_id": "high_pressure_identity_fragmentation",
-    "target_chapter": "Psychological Architecture",
+    "target_chapter": "Emotional Fault Lines",
 }
 
 CHOICE_FORK_RULES = [
@@ -242,21 +286,21 @@ CHOICE_FORK_RULES = [
         "conditions": {
             "psychological_tension_axis.score": {">=": 70},
         },
-        "inject_into_chapter": "Psychological Architecture",
+        "inject_into_chapter": "Emotional Fault Lines",
         "fork_id": "tension_choice_fork",
     },
     {
         "conditions": {
             "behavioral_risk_profile.primary_risk": "impulsivity",
         },
-        "inject_into_chapter": "Behavioral Risks",
+        "inject_into_chapter": "Emotional Fault Lines",
         "fork_id": "impulsivity_choice_fork",
     },
     {
         "conditions": {
             "stability_metrics.stability_index": {"<=": 45},
         },
-        "inject_into_chapter": "Stability Metrics",
+        "inject_into_chapter": "Risk Management Points",
         "fork_id": "stability_choice_fork",
     },
 ]
@@ -268,7 +312,7 @@ SCENARIO_COMPRESSION_RULES = [
             "probability_forecast.career_shift_3yr": {">=": 0.6},
             "probability_forecast.marriage_5yr": {">=": 0.6},
         },
-        "chapter": "Final Summary",
+        "chapter": "Final Integration",
         "priority": 98,
     },
     {
@@ -277,7 +321,7 @@ SCENARIO_COMPRESSION_RULES = [
             "probability_forecast.burnout_2yr": {">=": 0.7},
             "stability_metrics.stability_index": {"<=": 50},
         },
-        "chapter": "Stability Metrics",
+        "chapter": "Risk Management Points",
         "priority": 97,
     },
     {
@@ -285,7 +329,7 @@ SCENARIO_COMPRESSION_RULES = [
         "conditions": {
             "probability_forecast.financial_instability_3yr": {">=": 0.65},
         },
-        "chapter": "Final Summary",
+        "chapter": "Final Integration",
         "priority": 96,
     },
 ]
@@ -409,6 +453,11 @@ def _load_templates_for_language(language: str) -> tuple[list[dict[str, Any]], d
                 else:
                     block = _localize_block_ko(block)
             chapter = block.get("chapter")
+            mapped = CHAPTER_ALIAS_MAP.get(chapter, chapter)
+            if mapped != chapter:
+                block = dict(block)
+                block["chapter"] = mapped
+            chapter = mapped
             if chapter not in REPORT_CHAPTERS:
                 logger.warning("Template block has unknown chapter '%s': id=%s", chapter, block.get("id"))
             templates.append(block)
@@ -428,6 +477,11 @@ def _load_templates_for_language(language: str) -> tuple[list[dict[str, Any]], d
             else:
                 block = _localize_block_ko(block)
         chapter = block.get("chapter")
+        mapped = CHAPTER_ALIAS_MAP.get(chapter, chapter)
+        if mapped != chapter:
+            block = dict(block)
+            block["chapter"] = mapped
+        chapter = mapped
         if chapter in defaults:
             defaults[chapter].append(block)
         else:
@@ -513,14 +567,32 @@ def _inject_structural_state_fragments(
     if not narrative:
         return
 
+    axis_level = ""
+    axis_coherence = structural_summary.get("axis_coherence")
+    if isinstance(axis_coherence, dict):
+        axis_level = str(axis_coherence.get("axis_coherence_level", "")).strip()
+    saturation_band = ""
+    saturation = structural_summary.get("structural_saturation")
+    if isinstance(saturation, dict):
+        saturation_band = str(saturation.get("band", "")).strip()
+    state_label = ""
+    if isinstance(state, dict):
+        state_label = str(state.get("state_label", "")).strip()
+    stability_anchor = ""
+    if axis_level == "high" or saturation_band == "low_density" or state_label == "structural_equilibrium":
+        stability_anchor = "흐름이 흩어지지 않은 상태라 큰 붕괴 위험은 낮습니다."
+
     def _insert_or_merge(chapter: str, prepend: bool) -> None:
         blocks = chapter_blocks.get(chapter, [])
         if not isinstance(blocks, list):
             return
         limit = int(chapter_limits.get(chapter, len(blocks)))
+        fragment_summary = narrative
+        if chapter == "Final Integration" and stability_anchor:
+            fragment_summary = f"{narrative}\n\n{stability_anchor}"
         fragment = {
             "title": "",
-            "summary": narrative,
+            "summary": fragment_summary,
             "analysis": "",
             "implication": "",
             "examples": "",
@@ -541,9 +613,8 @@ def _inject_structural_state_fragments(
             existing = ""
         target["summary"] = (f"{narrative}\n\n{existing}" if prepend else f"{existing}\n\n{narrative}").strip()
 
-    _insert_or_merge("Executive Summary", prepend=True)
-    _insert_or_merge("Stability Metrics", prepend=True)
-    _insert_or_merge("Final Summary", prepend=False)
+    _insert_or_merge("Risk Management Points", prepend=True)
+    _insert_or_merge("Final Integration", prepend=False)
 
 
 def get_template_libraries(language: str = "en") -> dict[str, Any]:
@@ -840,10 +911,45 @@ def _inject_scenario_compression(
 
 
 def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: str) -> dict[str, Any] | None:
-    del structural_summary
-    del chapter
-    # Phase 13: disable this injection source to prevent meta/report-word leakage.
-    return None
+    shadbala_summary = structural_summary.get("shadbala_summary")
+    if not isinstance(shadbala_summary, dict) or not shadbala_summary:
+        return None
+
+    top3 = shadbala_summary.get("top3_planets", [])
+    if isinstance(top3, list):
+        top3_text = ", ".join(str(p) for p in top3 if p)
+    else:
+        top3_text = ""
+
+    if chapter == "Risk Management Points":
+        title = "Shadbala & Avastha Snapshot"
+        summary = "행성 힘과 상태 흐름을 간단히 스냅샷으로 정리합니다."
+        analysis = f"상위 강도 축은 {top3_text}로 나타납니다." if top3_text else "상위 강도 축이 두드러지는 구간입니다."
+        implication = "강한 축은 유지하고, 약한 축은 보완 순서를 앞에 둡니다."
+    elif chapter == "Final Integration":
+        title = "Final Synthesis: Strength Axis"
+        summary = "강도 축을 최종 요약합니다."
+        analysis = f"전체 구조에서 가장 일관된 힘의 축은 {top3_text}입니다." if top3_text else "전체 구조에서 일관된 힘의 축이 확인됩니다."
+        implication = "강한 축을 기준으로 균형을 재배치하는 접근이 유효합니다."
+    elif chapter == "Growth Acceleration":
+        title = "Remedy Priority by Shadbala"
+        summary = "보완 우선순위를 정리합니다."
+        analysis = "약한 축부터 순차 보완하는 방식이 안정적입니다."
+        implication = "과도한 축은 완충하고 부족한 축은 리듬을 세웁니다."
+    else:
+        return None
+
+    return {
+        "id": f"shadbala::{chapter.lower().replace(' ', '_')}",
+        "chapter": chapter,
+        "priority": 85,
+        "content": {
+            "title": title,
+            "summary": summary,
+            "analysis": analysis,
+            "implication": implication,
+        },
+    }
 
 
 def _inject_shadbala_insight(
@@ -852,11 +958,40 @@ def _inject_shadbala_insight(
     chapter_meta: dict[str, list[dict[str, Any]]],
     chapter_limits: dict[str, int],
 ) -> None:
-    del structural_summary
-    del chapter_blocks
-    del chapter_meta
-    del chapter_limits
-    return None
+    shadbala_summary = structural_summary.get("shadbala_summary")
+    if not isinstance(shadbala_summary, dict) or not shadbala_summary:
+        return None
+
+    for chapter in ("Risk Management Points", "Final Integration", "Growth Acceleration"):
+        if chapter not in chapter_blocks or chapter not in chapter_meta:
+            continue
+
+        block = _build_shadbala_insight_block(structural_summary, chapter)
+        if not block:
+            continue
+
+        if any(existing.get("id") == block.get("id") for existing in chapter_meta[chapter]):
+            continue
+
+        rendered = _render_payload_fragment(block, chapter, intensity=0.85)
+        if not rendered:
+            continue
+
+        chapter_limit = max(0, int(chapter_limits.get(str(chapter), 5)))
+        if chapter_limit == 0:
+            continue
+
+        existing = chapter_blocks[chapter]
+        meta = chapter_meta[chapter]
+
+        if len(meta) < chapter_limit:
+            meta.insert(0, block)
+            existing.insert(0, rendered)
+            continue
+
+        lowest_idx = min(range(len(meta)), key=lambda i: meta[i].get("priority", 0))
+        meta[lowest_idx] = block
+        existing[lowest_idx] = rendered
 
 
 def _append_unique_block(
@@ -938,17 +1073,17 @@ def _apply_recursive_correction(selected: dict[str, list[dict[str, Any]]], struc
         return
 
     block_id = "recursive_correction_loop"
-    target_chapter = "Life Timeline Interpretation"
+    target_chapter = "Current Phase"
     add_block = _lookup_template_by_id(block_id, chapter=target_chapter)
     _append_unique_block(selected, target_chapter, add_block, structural_summary)
 
 
 def _apply_psychological_echo(selected: dict[str, list[dict[str, Any]]], structural_summary: dict[str, Any]) -> None:
-    psych_ids = {block.get("id") for block in selected.get("Psychological Architecture", []) if block.get("id")}
+    psych_ids = {block.get("id") for block in selected.get("Core Disposition", []) if block.get("id")}
 
     for psych_id in psych_ids:
-        summary_match = _lookup_template_by_id(str(psych_id), chapter="Final Summary")
-        _append_unique_block(selected, "Final Summary", summary_match, structural_summary)
+        summary_match = _lookup_template_by_id(str(psych_id), chapter="Final Integration")
+        _append_unique_block(selected, "Final Integration", summary_match, structural_summary)
 
 
 def _is_korean_language(structural_summary: dict[str, Any]) -> bool:
@@ -1020,21 +1155,18 @@ def _flatten_deterministic_signals(structural_summary: dict[str, Any]) -> list[t
 
 def _chapter_signal_priorities(chapter: str) -> list[str]:
     mapping = {
-        "Executive Summary": ["life_purpose_vector", "planet_power_ranking", "stability_metrics", "psychological_tension_axis"],
-        "Purushartha Profile": ["purushartha_profile", "life_purpose_vector", "dominant_house_cluster"],
-        "Psychological Architecture": ["psychological_tension_axis", "personality_vector", "engine.influence_matrix", "interaction_risks"],
-        "Behavioral Risks": ["behavioral_risk_profile", "enhanced_behavioral_risks", "interaction_risks", "stability_metrics"],
-        "Karmic Patterns": ["karmic_pattern_profile", "life_purpose_vector", "engine.influence_matrix", "varga_alignment"],
-        "Stability Metrics": ["stability_metrics", "engine.stability_metrics", "engine.influence_matrix", "behavioral_risk_profile"],
-        "Personality Vector": ["personality_vector", "engine.personality_vector", "stability_metrics", "psychological_tension_axis"],
-        "Life Timeline Interpretation": ["probability_forecast", "karmic_pattern_profile", "stability_metrics", "varga_alignment"],
-        "Career & Success": ["probability_forecast", "varga_alignment.career_alignment", "life_purpose_vector", "engine.house_clusters"],
-        "Love & Relationships": ["varga_alignment.relationship_alignment", "personality_vector.emotional_regulation", "behavioral_risk_profile", "karmic_pattern_profile"],
-        "Health & Body Patterns": ["stability_metrics", "behavioral_risk_profile", "personality_vector.discipline_index", "engine.house_clusters"],
-        "Confidence & Forecast": ["probability_forecast", "stability_metrics", "psychological_tension_axis", "personality_vector"],
-        "Remedies & Program": ["behavioral_risk_profile", "stability_metrics", "personality_vector", "varga_alignment"],
-        "Final Summary": ["life_purpose_vector", "stability_metrics", "personality_vector", "varga_alignment", "probability_forecast"],
-        "Appendix (Optional)": ["planet_power_ranking", "varga_alignment", "stability_metrics", "personality_vector", "engine.influence_matrix"],
+        "Executive Diagnosis": ["life_purpose_vector", "planet_power_ranking", "stability_metrics", "psychological_tension_axis"],
+        "Current Phase": ["probability_forecast", "karmic_pattern_profile", "stability_metrics", "varga_alignment"],
+        "Core Disposition": ["psychological_tension_axis", "personality_vector", "engine.influence_matrix", "interaction_risks"],
+        "Recurring Patterns": ["karmic_pattern_profile", "life_purpose_vector", "engine.influence_matrix", "varga_alignment"],
+        "Emotional Fault Lines": ["behavioral_risk_profile", "enhanced_behavioral_risks", "interaction_risks", "stability_metrics"],
+        "Career & Money": ["probability_forecast", "varga_alignment.career_alignment", "life_purpose_vector", "engine.house_clusters"],
+        "Love & Relationship Patterns": ["varga_alignment.relationship_alignment", "personality_vector.emotional_regulation", "behavioral_risk_profile", "karmic_pattern_profile"],
+        "Health & Energy Rhythm": ["stability_metrics", "behavioral_risk_profile", "personality_vector.discipline_index", "engine.house_clusters"],
+        "Mid-Term Direction": ["probability_forecast", "stability_metrics", "psychological_tension_axis", "personality_vector"],
+        "Risk Management Points": ["stability_metrics", "engine.stability_metrics", "engine.influence_matrix", "behavioral_risk_profile"],
+        "Growth Acceleration": ["personality_vector", "life_purpose_vector", "varga_alignment", "engine.house_clusters"],
+        "Final Integration": ["life_purpose_vector", "stability_metrics", "personality_vector", "varga_alignment", "probability_forecast"],
     }
     return mapping.get(chapter, ["stability_metrics", "personality_vector", "psychological_tension_axis"])
 
@@ -1678,10 +1810,9 @@ def _high_signal_forecast_line(signal_path: str, signal_value: Any, *, ko_mode: 
     if probability < 0.65:
         return ""
     label = str(signal_path).split(".")[-1].replace("_", " ").strip()
-    pct = int(round(probability * 100)) if probability <= 1 else int(round(probability))
     if ko_mode:
-        return f"{label}: 고신호 확률 {pct}%"
-    return f"{label}: high-signal likelihood {pct}%"
+        return f"{label}: 고신호 흐름"
+    return f"{label}: high-signal tendency"
 
 def _create_signal_fragment(
     *,
@@ -2156,6 +2287,8 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
     chapter_limits: dict[str, int] = {}
     chapter_spikes: dict[str, list[str]] = {}
     atomic_fragments_per_chapter: dict[str, int] = {chapter: 0 for chapter in REPORT_CHAPTERS}
+    allowed_atomic_chapters = {"Executive Diagnosis", "Core Disposition"}
+    excluded_atomic_chapters = {"Final Integration"}
 
     def _build_atomic_anchor_fragment(chapter_name: str, key_label: str, text: str, index_seed: int) -> tuple[dict[str, Any], dict[str, Any]]:
         integrated = _integrate_atomic_with_signals(text, structural)
@@ -2190,29 +2323,30 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         chunks = [c for c in (asc_text, sun_text, moon_text) if isinstance(c, str) and c.strip()]
         if not chunks:
             return []
-        if chapter_name == "Life Timeline Interpretation":
+        if chapter_name == "Current Phase":
             return [("asc_sun_moon", "\n\n".join(chunks))]
         chapter_key_map = {
-            "Executive Summary": "asc",
-            "Personality Vector": "moon",
-            "Career & Success": "sun",
-            "Love & Relationships": "moon",
-            "Psychological Architecture": "moon",
-            "Behavioral Risks": "moon",
-            "Stability Metrics": "asc",
-            "Confidence & Forecast": "sun",
-            "Final Summary": "asc",
-            "Remedies & Program": "asc",
-            "Karmic Patterns": "asc",
-            "Purushartha Profile": "asc",
-            "Health & Body Patterns": "asc",
-            "Appendix (Optional)": "asc",
+            "Executive Diagnosis": "asc",
+            "Core Disposition": "moon",
+            "Emotional Fault Lines": "moon",
+            "Career & Money": "sun",
+            "Love & Relationship Patterns": "moon",
+            "Risk Management Points": "asc",
+            "Mid-Term Direction": "sun",
+            "Final Integration": "asc",
+            "Growth Acceleration": "asc",
+            "Recurring Patterns": "asc",
+            "Health & Energy Rhythm": "asc",
         }
         preferred_key = chapter_key_map.get(chapter_name, "asc")
         preferred_text = atomic_interpretations.get(preferred_key, "")
         if isinstance(preferred_text, str) and preferred_text.strip():
             return [(preferred_key, preferred_text)]
         return [("asc_sun_moon", "\n\n".join(chunks))]
+
+    def _select_atomic_anchor(chapter_name: str) -> tuple[str, str] | None:
+        anchors = _chapter_atomic_anchors(chapter_name)
+        return anchors[0] if anchors else None
 
     for chapter in REPORT_CHAPTERS:
         blocks = raw_blocks.get(chapter, [])
@@ -2245,18 +2379,7 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
         chapter_payload: list[dict[str, Any]] = []
         chapter_payload_meta: list[dict[str, Any]] = []
 
-        anchors = _chapter_atomic_anchors(chapter)
-        for idx_anchor, (anchor_key, anchor_text) in enumerate(anchors, start=1):
-            if not isinstance(anchor_text, str) or not anchor_text.strip():
-                continue
-            anchor_fragment, anchor_meta = _build_atomic_anchor_fragment(chapter, anchor_key, anchor_text.strip(), idx_anchor)
-            chapter_payload.append(anchor_fragment)
-            chapter_payload_meta.append(anchor_meta)
-            atomic_fragments_per_chapter[chapter] = int(atomic_fragments_per_chapter.get(chapter, 0)) + 1
-
-        has_atomic = len(chapter_payload) > 0 and any(isinstance(f, dict) and f.get("_source") == "atomic" for f in chapter_payload)
-
-        if use_fallback_builders and not has_atomic:
+        if use_fallback_builders:
             fallback_payload, fallback_meta = _build_deterministic_fallback_fragments(
                 chapter,
                 structural,
@@ -2278,6 +2401,33 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
                     payload_block["_source"] = payload_block.get("_source", "signal")
                     chapter_payload.append(payload_block)
                     chapter_payload_meta.append(block)
+
+        evidence_count = len(
+            [
+                f
+                for f in chapter_payload
+                if isinstance(f, dict) and f.get("_source") != "atomic"
+            ]
+        )
+        allow_atomic = chapter in allowed_atomic_chapters or (
+            chapter not in excluded_atomic_chapters and evidence_count < 2
+        )
+        if allow_atomic:
+            selected_anchor = _select_atomic_anchor(chapter)
+            if selected_anchor:
+                anchor_key, anchor_text = selected_anchor
+                anchor_fragment, anchor_meta = _build_atomic_anchor_fragment(
+                    chapter,
+                    anchor_key,
+                    str(anchor_text).strip(),
+                    1,
+                )
+                chapter_payload.insert(0, anchor_fragment)
+                chapter_payload_meta.insert(0, anchor_meta)
+                atomic_fragments_per_chapter[chapter] = int(atomic_fragments_per_chapter.get(chapter, 0)) + 1
+                if len(chapter_payload) > chapter_limit:
+                    chapter_payload = chapter_payload[:chapter_limit]
+                    chapter_payload_meta = chapter_payload_meta[:chapter_limit]
 
         chapter_blocks[chapter] = chapter_payload
         chapter_meta[chapter] = chapter_payload_meta

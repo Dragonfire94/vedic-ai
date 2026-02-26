@@ -25,7 +25,7 @@ from backend.main import (
 )
 
 
-_TARGET_STYLE_CHAPTERS = ["Career & Success", "Love & Relationships", "Stability Metrics"]
+_TARGET_STYLE_CHAPTERS = ["Career & Money", "Love & Relationship Patterns", "Risk Management Points"]
 _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|(?<=다\.)\s+|(?<=요\.)\s+|(?<=니다\.)\s+|(?<=…)\s+")
 
 
@@ -121,7 +121,7 @@ def _mrc_similarity_hits(md_text: str, threshold: float = 0.82) -> int:
     import difflib
 
     blocks = _extract_chapter_blocks(md_text)
-    targets = ["Career & Success", "Love & Relationships", "Stability Metrics"]
+    targets = ["Career & Money", "Love & Relationship Patterns", "Risk Management Points"]
     first_paras: list[str] = []
     for key in targets:
         p = _first_paragraph(blocks.get(key, ""))
@@ -334,7 +334,7 @@ def _cross_dynamics_priority_coverage(md_text: str, structural_summary: dict[str
 
 def _executive_impact_checkpoint(md_text: str) -> dict[str, int]:
     blocks = _extract_chapter_blocks(md_text)
-    body = blocks.get("Executive Summary", "")
+    body = blocks.get("Executive Diagnosis", "")
     if not body:
         return {
             "missing_contradiction": 1,

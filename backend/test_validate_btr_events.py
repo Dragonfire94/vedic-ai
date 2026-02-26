@@ -117,3 +117,4 @@ def test_other_requires_label() -> None:
 
     ev = BTREvent(event_type="other", other_label="graduation", precision_level="exact", year=2020)
     assert ev.other_label == "graduation"
+

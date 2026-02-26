@@ -44,11 +44,11 @@ class TestPdfNarrativeSelection(unittest.TestCase):
     def test_pdf_prefers_polished_reading_when_cached_for_same_hash(self):
         ai_reading = {
             "chapter_blocks_hash": "hash-polished",
-            "chapter_blocks": {"Executive Summary": [{"title": "Deep", "summary": "Deterministic deep summary"}]},
+            "chapter_blocks": {"Executive Diagnosis": [{"title": "Deep", "summary": "Deterministic deep summary"}]},
             "reading": "stale reading",
             "model": "gpt-4o-mini",
         }
-        polished_text = "# 1. Executive Summary\nPolished narrative"
+        polished_text = "# 1. Executive Diagnosis\nPolished narrative"
 
         with patch.object(main, "PDF_FEATURE_AVAILABLE", True), \
              patch.object(main, "get_chart", return_value=_chart_fixture()), \
@@ -84,8 +84,8 @@ class TestPdfNarrativeSelection(unittest.TestCase):
 
     def test_pdf_uses_deep_deterministic_chapter_blocks_when_no_polished_cache(self):
         deep_payload = {
-            "Executive Summary": [{"title": "Deep", "summary": "Deterministic deep summary from chapter blocks"}],
-            "Final Summary": [{"title": "Deep Final", "analysis": "Long deterministic analysis"}],
+            "Executive Diagnosis": [{"title": "Deep", "summary": "Deterministic deep summary from chapter blocks"}],
+            "Final Integration": [{"title": "Deep Final", "analysis": "Long deterministic analysis"}],
         }
         ai_reading = {
             "chapter_blocks_hash": "hash-deterministic",
@@ -131,3 +131,4 @@ class TestPdfNarrativeSelection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

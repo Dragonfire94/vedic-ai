@@ -12,7 +12,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "psych_base",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.psych", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 40,
@@ -26,7 +26,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
             },
             {
                 "id": "risk_base",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [{"field": "flags.risk", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 40,
@@ -40,7 +40,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
             },
             {
                 "id": "stability_base",
-                "chapter": "Stability Metrics",
+                "chapter": "Risk Management Points",
                 "conditions": [{"field": "flags.stability", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 40,
@@ -54,7 +54,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
             },
             {
                 "id": "tension_choice_fork",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 95,
@@ -69,7 +69,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
             },
             {
                 "id": "impulsivity_choice_fork",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 95,
@@ -84,7 +84,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
             },
             {
                 "id": "stability_choice_fork",
-                "chapter": "Stability Metrics",
+                "chapter": "Risk Management Points",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 95,
@@ -100,7 +100,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
         ] + [
             {
                 "id": f"overflow_{i}",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.overflow", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": i,
@@ -136,17 +136,17 @@ class TestReportEngineChoiceFork(unittest.TestCase):
         report_engine.CHOICE_FORK_RULES = [
             {
                 "conditions": {"psychological_tension_axis.score": {">=": 70}},
-                "inject_into_chapter": "Psychological Architecture",
+                "inject_into_chapter": "Core Disposition",
                 "fork_id": "tension_choice_fork",
             },
             {
                 "conditions": {"behavioral_risk_profile.primary_risk": "impulsivity"},
-                "inject_into_chapter": "Behavioral Risks",
+                "inject_into_chapter": "Emotional Fault Lines",
                 "fork_id": "impulsivity_choice_fork",
             },
             {
                 "conditions": {"stability_metrics.stability_index": {"<=": 45}},
-                "inject_into_chapter": "Stability Metrics",
+                "inject_into_chapter": "Risk Management Points",
                 "fork_id": "stability_choice_fork",
             },
         ]
@@ -164,7 +164,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         self.assertTrue(any(block.get("title") == "Tension fork" for block in psych))
 
     def test_choice_fork_not_injected_when_condition_not_met(self):
@@ -175,7 +175,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 80},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         self.assertFalse(any(block.get("title") == "Tension fork" for block in psych))
 
     def test_choice_fork_respects_intensity_gate(self):
@@ -186,7 +186,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 100},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         self.assertFalse(any(block.get("title") == "Tension fork" for block in psych))
 
     def test_choice_fork_position_priority(self):
@@ -198,7 +198,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         self.assertEqual(psych[0].get("title"), "Tension fork")
 
     def test_choice_fork_replaces_lowest_priority_on_overflow(self):
@@ -210,7 +210,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         titles = [b.get("title") for b in psych]
         self.assertEqual(len(psych), 5)
         self.assertIn("Tension fork", titles)
@@ -223,7 +223,7 @@ class TestReportEngineChoiceFork(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        psych = payload["chapter_blocks"]["Psychological Architecture"]
+        psych = payload["chapter_blocks"]["Core Disposition"]
         fork = next(block for block in psych if block.get("title") == "Tension fork")
         self.assertIsInstance(fork.get("choice_fork"), dict)
         self.assertIn("path_a", fork["choice_fork"])
@@ -238,3 +238,4 @@ class TestReportEngineChoiceFork(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

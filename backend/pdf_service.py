@@ -478,11 +478,11 @@ _META_LINE_PATTERNS = [
 ]
 
 _KO_BRIDGE_BY_CHAPTER = {
-    "Stability Metrics": [
+    "Risk Management Points": [
         "버티는 힘은 있는데, 무리하면 회복 속도가 눈에 띄게 느려질 수 있습니다.",
         "지금은 크게 밀어붙이기보다 리듬을 고르게 맞추는 편이 더 유리합니다.",
     ],
-    "Final Summary": [
+    "Final Integration": [
         "핵심은 더 많이 하는 것이 아니라 덜 소모되는 방식으로 가는 것입니다.",
         "같은 상황에서도 선택을 조금만 바꾸면 흐름은 충분히 달라질 수 있습니다.",
     ],

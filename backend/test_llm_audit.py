@@ -69,8 +69,8 @@ class TestLLMAudit(unittest.TestCase):
         self.assertEqual(h1, h2)
 
     def test_hashing_changes_when_blocks_change(self) -> None:
-        blocks_a = {"Executive Summary": [{"title": "A"}]}
-        blocks_b = {"Executive Summary": [{"title": "B"}]}
+        blocks_a = {"Executive Diagnosis": [{"title": "A"}]}
+        blocks_b = {"Executive Diagnosis": [{"title": "B"}]}
         h1 = main._sha256_hex(blocks_a)
         h2 = main._sha256_hex(blocks_b)
         self.assertNotEqual(h1, h2)
@@ -99,3 +99,4 @@ class TestLLMAudit(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

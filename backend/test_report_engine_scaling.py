@@ -11,7 +11,7 @@ class TestReportEngineScaling(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "scaling_block",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.use_scaling", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100,
@@ -40,7 +40,7 @@ class TestReportEngineScaling(unittest.TestCase):
         ] + [
             {
                 "id": f"cap_block_{idx}",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "flags.cap", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100 - idx,
@@ -89,7 +89,7 @@ class TestReportEngineScaling(unittest.TestCase):
 
     def test_moderate_scaling_applied(self):
         payload = self._payload_for_intensity(tension=80, risk=80, stability=40)
-        fragment = payload["chapter_blocks"]["Psychological Architecture"][0]
+        fragment = payload["chapter_blocks"]["Core Disposition"][0]
 
         self.assertIn("Moderate analysis extension.", fragment["analysis"])
         self.assertIn("Moderate implication extension.", fragment["implication"])
@@ -97,7 +97,7 @@ class TestReportEngineScaling(unittest.TestCase):
 
     def test_high_scaling_applied(self):
         payload = self._payload_for_intensity(tension=90, risk=90, stability=10)
-        fragment = payload["chapter_blocks"]["Psychological Architecture"][0]
+        fragment = payload["chapter_blocks"]["Core Disposition"][0]
 
         self.assertIn("High analysis extension.", fragment["analysis"])
         self.assertIn("High implication extension.", fragment["implication"])
@@ -107,7 +107,7 @@ class TestReportEngineScaling(unittest.TestCase):
 
     def test_no_scaling_when_intensity_low(self):
         payload = self._payload_for_intensity(tension=30, risk=30, stability=90)
-        fragment = payload["chapter_blocks"]["Psychological Architecture"][0]
+        fragment = payload["chapter_blocks"]["Core Disposition"][0]
 
         self.assertNotIn("extension", fragment["analysis"])
         self.assertNotIn("extension", fragment.get("implication", ""))
@@ -118,15 +118,15 @@ class TestReportEngineScaling(unittest.TestCase):
         moderate = self._payload_for_intensity(tension=80, risk=80, stability=40)
         high = self._payload_for_intensity(tension=90, risk=90, stability=10)
 
-        self.assertNotIn("micro_scenario", moderate["chapter_blocks"]["Psychological Architecture"][0])
-        self.assertIn("micro_scenario", high["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertNotIn("micro_scenario", moderate["chapter_blocks"]["Core Disposition"][0])
+        self.assertIn("micro_scenario", high["chapter_blocks"]["Core Disposition"][0])
 
     def test_long_term_projection_only_high(self):
         moderate = self._payload_for_intensity(tension=80, risk=80, stability=40)
         high = self._payload_for_intensity(tension=90, risk=90, stability=10)
 
-        self.assertNotIn("long_term_projection", moderate["chapter_blocks"]["Psychological Architecture"][0])
-        self.assertIn("long_term_projection", high["chapter_blocks"]["Psychological Architecture"][0])
+        self.assertNotIn("long_term_projection", moderate["chapter_blocks"]["Core Disposition"][0])
+        self.assertIn("long_term_projection", high["chapter_blocks"]["Core Disposition"][0])
 
     def test_no_fragment_count_increase(self):
         payload = report_engine.build_report_payload(
@@ -137,13 +137,13 @@ class TestReportEngineScaling(unittest.TestCase):
                 "stability_metrics": {"stability_index": 5},
             }
         )
-        self.assertEqual(len(payload["chapter_blocks"]["Love & Relationships"]), 5)
+        self.assertEqual(len(payload["chapter_blocks"]["Love & Relationship Patterns"]), 5)
 
     def test_backward_compatibility_without_scaling(self):
         report_engine.TEMPLATES = [
             {
                 "id": "legacy_block",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.legacy", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100,
@@ -164,7 +164,7 @@ class TestReportEngineScaling(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        fragment = payload["chapter_blocks"]["Psychological Architecture"][0]
+        fragment = payload["chapter_blocks"]["Core Disposition"][0]
 
         self.assertTrue(fragment["analysis"].startswith("Legacy analysis"))
         self.assertNotIn("micro_scenario", fragment)
@@ -173,3 +173,4 @@ class TestReportEngineScaling(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

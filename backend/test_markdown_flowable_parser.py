@@ -146,7 +146,7 @@ class TestPromptContract(unittest.TestCase):
             structural_summary={"signal": "test"},
             language="en",
             atomic_interpretations={"asc": "asc", "sun": "sun", "moon": "moon"},
-            chapter_blocks={"Executive Summary": [{"title": "t", "summary": "s"}]},
+            chapter_blocks={"Executive Diagnosis": [{"title": "t", "summary": "s"}]},
         )
 
         self.assertIn("ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE", prompt)
@@ -156,3 +156,4 @@ class TestPromptContract(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

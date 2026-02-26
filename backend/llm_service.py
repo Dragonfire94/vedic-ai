@@ -29,49 +29,48 @@ LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
 logger = logging.getLogger("vedic_ai")
 
 _SHORT_TITLE_BY_KEY = {
-    "Executive Summary": "당신의 흐름",
-    "Purushartha Profile": "삶의 우선순위",
-    "Psychological Architecture": "마음이 움직이는 방식",
-    "Behavioral Risks": "무너지는 습관",
-    "Karmic Patterns": "반복 패턴",
-    "Stability Metrics": "버티는 힘",
-    "Personality Vector": "반응 방식",
-    "Life Timeline Interpretation": "시간의 흐름",
-    "Career & Success": "일과 성취",
-    "Love & Relationships": "관계의 결",
-    "Health & Body Patterns": "몸의 리듬",
-    "Confidence & Forecast": "앞으로의 흐름",
-    "Remedies & Program": "회복의 방향",
-    "Final Summary": "마지막 정리",
-    "Appendix (Optional)": "보충 메모",
+    "Executive Diagnosis": "핵심 진단",
+    "Current Phase": "현재 흐름",
+    "Core Disposition": "핵심 기질",
+    "Recurring Patterns": "반복 패턴",
+    "Emotional Fault Lines": "감정 구조",
+    "Career & Money": "커리어/돈",
+    "Love & Relationship Patterns": "관계 패턴",
+    "Health & Energy Rhythm": "에너지 리듬",
+    "Mid-Term Direction": "중기 흐름",
+    "Risk Management Points": "리스크 관리",
+    "Growth Acceleration": "성장 가속",
+    "Final Integration": "마지막 통합",
 }
 
-_PREMIUM_10_KEYS = [
-    "Executive Summary",                 # 본질/방향성
-    "Life Timeline Interpretation",      # 큰 흐름/사이클
-    "Career & Success",                  # 커리어
-    "Stability Metrics",                 # 재물 구조(프레이밍)
-    "Love & Relationships",              # 연애/배우자
-    "Karmic Patterns",                   # 결혼 후/가족 카르마
-    "Health & Body Patterns",            # 건강/체질
-    "Confidence & Forecast",             # 해외/이동(타이밍형)
-    "Psychological Architecture",        # 영성/내면
-    "Final Summary",                     # 시험/돌파구
+_PREMIUM_12_KEYS = [
+    "Executive Diagnosis",
+    "Current Phase",
+    "Core Disposition",
+    "Recurring Patterns",
+    "Emotional Fault Lines",
+    "Career & Money",
+    "Love & Relationship Patterns",
+    "Health & Energy Rhythm",
+    "Mid-Term Direction",
+    "Risk Management Points",
+    "Growth Acceleration",
+    "Final Integration",
 ]
 
 _ACTIONABLE_CHAPTER_KEYS = {
-    "Career & Success",
-    "Stability Metrics",
-    "Love & Relationships",
-    "Karmic Patterns",
-    "Health & Body Patterns",
-    "Psychological Architecture",
-    "Confidence & Forecast",
+    "Career & Money",
+    "Risk Management Points",
+    "Love & Relationship Patterns",
+    "Health & Energy Rhythm",
+    "Core Disposition",
+    "Mid-Term Direction",
+    "Growth Acceleration",
 }
 _BULLET_EXEMPT_CHAPTER_KEYS = {
-    "Executive Summary",
-    "Life Timeline Interpretation",
-    "Final Summary",
+    "Executive Diagnosis",
+    "Current Phase",
+    "Final Integration",
 }
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+).+")
 _EVIDENCE_TAG_RE = re.compile(
@@ -79,9 +78,9 @@ _EVIDENCE_TAG_RE = re.compile(
     re.IGNORECASE,
 )
 _CONDITIONAL_REGEN_CHAPTERS_DEFAULT = {
-    "Psychological Architecture",
-    "Love & Relationships",
-    "Career & Success",
+    "Core Disposition",
+    "Love & Relationship Patterns",
+    "Career & Money",
 }
 _CHAPTER_REGEN_EVIDENCE_COUNTS: dict[str, int] = {}
 _MAX_CONDITIONAL_REGEN_PER_REQUEST = 1
@@ -90,27 +89,31 @@ _INTERPRETATIONS_INDEX_CACHE: dict[str, dict[str, str]] | None = None
 _HYBRID_EVIDENCE_ESCAPE_CACHE: dict[int, dict[str, str]] = {}
 _HYBRID_EVIDENCE_ESCAPE_CACHE_LIMIT = 64
 _EVIDENCE_FALLBACK_PATTERNS = {
-    "Executive Summary": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:upachaya_emphasis"],
-    "Life Timeline Interpretation": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
-    "Career & Success": ["pat:strong_10th_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
-    "Stability Metrics": ["pat:strong_moon", "pat:afflicted_moon", "pat:combust_emphasis"],
-    "Love & Relationships": ["pat:benefic_support", "pat:malefic_overload"],
-    "Karmic Patterns": ["pat:dusthana_focus", "pat:scattered_energy"],
-    "Health & Body Patterns": ["pat:malefic_overload", "pat:combust_emphasis"],
-    "Confidence & Forecast": ["pat:trikona_emphasis", "pat:upachaya_emphasis", "pat:benefic_support"],
-    "Psychological Architecture": ["pat:scattered_energy", "pat:kendra_emphasis"],
+    "Executive Diagnosis": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:upachaya_emphasis"],
+    "Current Phase": ["pat:strong_lagna_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
+    "Core Disposition": ["pat:scattered_energy", "pat:kendra_emphasis"],
+    "Recurring Patterns": ["pat:dusthana_focus", "pat:scattered_energy"],
+    "Emotional Fault Lines": ["pat:strong_moon", "pat:afflicted_moon", "pat:combust_emphasis"],
+    "Career & Money": ["pat:strong_10th_lord", "pat:kendra_emphasis", "pat:trikona_emphasis"],
+    "Love & Relationship Patterns": ["pat:benefic_support", "pat:malefic_overload"],
+    "Health & Energy Rhythm": ["pat:malefic_overload", "pat:combust_emphasis"],
+    "Mid-Term Direction": ["pat:trikona_emphasis", "pat:upachaya_emphasis", "pat:benefic_support"],
+    "Risk Management Points": ["pat:strong_moon", "pat:afflicted_moon", "pat:combust_emphasis"],
+    "Growth Acceleration": ["pat:kendra_emphasis", "pat:upachaya_emphasis"],
 }
 CHAPTER_EVIDENCE_RULES: dict[str, dict[str, int]] = {
-    "Executive Summary": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
-    "Life Timeline Interpretation": {"patterns": 2, "yogas": 0, "lagna_lord": 2},
-    "Career & Success": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
-    "Stability Metrics": {"patterns": 3, "yogas": 0, "lagna_lord": 0},
-    "Love & Relationships": {"patterns": 2, "yogas": 1, "lagna_lord": 0},
-    "Karmic Patterns": {"patterns": 3, "yogas": 1, "lagna_lord": 1},
-    "Health & Body Patterns": {"patterns": 2, "yogas": 0, "lagna_lord": 1},
-    "Confidence & Forecast": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
-    "Psychological Architecture": {"patterns": 3, "yogas": 0, "lagna_lord": 1},
-    "Final Summary": {"reuse_top": 3},
+    "Executive Diagnosis": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Current Phase": {"patterns": 2, "yogas": 0, "lagna_lord": 2},
+    "Core Disposition": {"patterns": 3, "yogas": 0, "lagna_lord": 1},
+    "Recurring Patterns": {"patterns": 3, "yogas": 1, "lagna_lord": 1},
+    "Emotional Fault Lines": {"patterns": 2, "yogas": 0, "lagna_lord": 0},
+    "Career & Money": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Love & Relationship Patterns": {"patterns": 2, "yogas": 1, "lagna_lord": 0},
+    "Health & Energy Rhythm": {"patterns": 2, "yogas": 0, "lagna_lord": 1},
+    "Mid-Term Direction": {"patterns": 2, "yogas": 1, "lagna_lord": 1},
+    "Risk Management Points": {"patterns": 3, "yogas": 0, "lagna_lord": 0},
+    "Growth Acceleration": {"patterns": 2, "yogas": 0, "lagna_lord": 1},
+    "Final Integration": {"reuse_top": 3},
 }
 _ENGINE_YOGA_KEY_TO_INTERP: dict[str, str] = {
     "raja_yoga": "yoga:RajayogaGeneral",
@@ -137,14 +140,14 @@ _ENGINE_AVASTHA_TO_LL_STATE: dict[str, str] = {
     "madhya": "ll:state:neutral",
 }
 _EVIDENCE_LOW_PRIORITY_CHAPTERS = [
-    "Executive Summary",
-    "Final Summary",
-    "Confidence & Forecast",
+    "Executive Diagnosis",
+    "Final Integration",
+    "Mid-Term Direction",
 ]
 
 
 def _active_report_chapters() -> list[str]:
-    return list(_PREMIUM_10_KEYS)
+    return list(_PREMIUM_12_KEYS)
 
 
 def _flatten_interpretation_section(section: Any) -> dict[str, str]:
@@ -344,7 +347,7 @@ def build_evidence_packs(
         )
         return True
 
-    normal_chapters = [ck for ck in chapter_keys if ck != "Final Summary"]
+    normal_chapters = [ck for ck in chapter_keys if ck != "Final Integration"]
     for chapter in normal_chapters:
         rule = CHAPTER_EVIDENCE_RULES.get(chapter, {"patterns": 2, "yogas": 1, "lagna_lord": 1})
         items: list[dict[str, Any]] = []
@@ -470,8 +473,8 @@ def build_evidence_packs(
             for x in chapter_evidence_raw.get(chapter, [])
         )
 
-    # Final Summary: process last using strongest evidence from other chapters.
-    if "Final Summary" in chapter_keys:
+    # Final Integration: process last using strongest evidence from other chapters.
+    if "Final Integration" in chapter_keys:
         pool: list[dict[str, Any]] = []
         for chapter in normal_chapters:
             for item in chapter_evidence_raw.get(chapter, []):
@@ -486,7 +489,7 @@ def build_evidence_packs(
         )
         final_items: list[dict[str, Any]] = []
         seen_final: set[str] = set()
-        reuse_top = int(CHAPTER_EVIDENCE_RULES.get("Final Summary", {}).get("reuse_top", 2))
+        reuse_top = int(CHAPTER_EVIDENCE_RULES.get("Final Integration", {}).get("reuse_top", 2))
         for item in pool:
             iid = str(item.get("id", "")).strip()
             if not iid or iid in seen_final:
@@ -499,13 +502,13 @@ def build_evidence_packs(
                     "text": str(item.get("text", "")).strip(),
                     "_kind": "reused",
                     "_score": int(item.get("_score", 0)),
-                    "_chapter": "Final Summary",
+                    "_chapter": "Final Integration",
                 }
             )
             if len(final_items) >= reuse_top:
                 break
-        chapter_evidence_raw["Final Summary"] = final_items
-        fallback_used_by_chapter["Final Summary"] = False
+        chapter_evidence_raw["Final Integration"] = final_items
+        fallback_used_by_chapter["Final Integration"] = False
 
     chapter_evidence: dict[str, list[dict[str, str]]] = {}
     chapter_evidence_count: dict[str, int] = {}
@@ -521,7 +524,7 @@ def build_evidence_packs(
         chapter_evidence_char_count[chapter] = _evidence_chars(safe_items)
         if len(safe_items) == 0:
             no_evidence_keys.append(chapter)
-        if chapter != "Final Summary" and len(safe_items) < 3:
+        if chapter != "Final Integration" and len(safe_items) < 3:
             low_density_keys.append(chapter)
 
     def _recompute_total() -> int:
@@ -546,8 +549,8 @@ def build_evidence_packs(
     total_chars = _recompute_total()
     while total_chars > total_chars_hard_max:
         changed = False
-        # 1) remove reused evidence in Final Summary
-        if _pop_one_by_kind("Final Summary", {"reused"}):
+        # 1) remove reused evidence in Final Integration
+        if _pop_one_by_kind("Final Integration", {"reused"}):
             evidence_trim_level = max(evidence_trim_level, 1)
             changed = True
         # 2) remove fallback evidence
@@ -606,7 +609,7 @@ def build_evidence_packs(
 
     # Re-sync density keys after trimming
     no_evidence_keys = [k for k in chapter_keys if len(chapter_evidence.get(k, [])) == 0]
-    low_density_keys = [k for k in chapter_keys if k != "Final Summary" and len(chapter_evidence.get(k, [])) < 3]
+    low_density_keys = [k for k in chapter_keys if k != "Final Integration" and len(chapter_evidence.get(k, [])) < 3]
 
     return {
         "global_evidence": global_items,
@@ -732,13 +735,13 @@ def _assemble_evidence_text(
 
 
 _BRIDGE_FALLBACK_BY_CHAPTER: dict[str, str] = {
-    "Career & Success": "이 흐름을 실제 선택에 연결하면 다음과 같은 방향이 나옵니다.",
-    "Stability Metrics": "이 구조를 바탕으로 지금 단계에서 취할 수 있는 방향은 다음과 같습니다.",
-    "Love & Relationships": "이 패턴을 관계 안에서 구체적으로 다루려면 아래를 참고하세요.",
-    "Karmic Patterns": "이 반복을 알아차리는 것이 출발점이고, 실천은 여기서 시작됩니다.",
-    "Health & Body Patterns": "이 리듬을 몸에서 실제로 관리하려면 다음 방향이 유효합니다.",
-    "Confidence & Forecast": "이 흐름을 자기확신으로 연결하려면 아래 방향을 참고하세요.",
-    "Psychological Architecture": "이 내적 구조를 일상에서 다루는 실천 방향은 다음과 같습니다.",
+    "Career & Money": "이 흐름을 실제 선택에 연결하면 다음과 같은 방향이 나옵니다.",
+    "Risk Management Points": "이 구조를 바탕으로 지금 단계에서 취할 수 있는 방향은 다음과 같습니다.",
+    "Love & Relationship Patterns": "이 패턴을 관계 안에서 구체적으로 다루려면 아래를 참고하세요.",
+    "Recurring Patterns": "이 반복을 알아차리는 것이 출발점이고, 실천은 여기서 시작됩니다.",
+    "Health & Energy Rhythm": "이 리듬을 몸에서 실제로 관리하려면 다음 방향이 유효합니다.",
+    "Mid-Term Direction": "이 흐름을 현재 방향에 연결하려면 아래 기준을 참고하세요.",
+    "Core Disposition": "이 내적 흐름을 일상에서 다루는 실천 방향은 다음과 같습니다.",
 }
 _BRIDGE_FALLBACK_DEFAULT = "이 흐름을 실생활에 연결하면 다음과 같은 방향이 도움이 됩니다."
 
@@ -1913,7 +1916,7 @@ def _enforce_three_paragraphs(body: str) -> list[str]:
 
 
 def _ensure_first_paragraph_three_sentences(key: str, paragraphs: list[str]) -> list[str]:
-    target_keys = {"Career & Success", "Love & Relationships", "Stability Metrics"}
+    target_keys = {"Career & Money", "Love & Relationship Patterns", "Risk Management Points"}
     if key not in target_keys or not paragraphs:
         return paragraphs
     first = paragraphs[0] if isinstance(paragraphs[0], str) else ""
@@ -1928,15 +1931,15 @@ def _ensure_first_paragraph_three_sentences(key: str, paragraphs: list[str]) -> 
 
     # len(sentences) < 3: keep meaning and only add short bridge sentence(s), no reinterpretation.
     bridge_by_key = {
-        "Stability Metrics": [
-            "돈 앞에서 불안이 올라올 때는 속도를 늦추는 선택이 도움이 됩니다.",
+        "Risk Management Points": [
+            "불안이 올라올 때는 속도를 늦추는 선택이 도움이 됩니다.",
             "오늘 당장 가능한 작은 확인부터 시작해도 충분합니다.",
         ],
-        "Love & Relationships": [
+        "Love & Relationship Patterns": [
             "관계에서는 확인의 속도를 늦추면 마음이 덜 흔들립니다.",
             "이번에는 반응보다 표현을 먼저 골라보는 편이 맞습니다.",
         ],
-        "Career & Success": [
+        "Career & Money": [
             "일에서는 완벽보다 리듬을 먼저 지키는 쪽이 오래 갑니다.",
             "지금은 큰 결정보다 작은 전환을 먼저 확인해도 좋습니다.",
         ],
@@ -2241,7 +2244,7 @@ def build_life_timeline_prompt(
     }
 
     return f"""
-Write ONLY the body content for the chapter "Life Timeline Interpretation" in Korean.
+Write ONLY the body content for the chapter "Current Phase" in Korean.
 Do NOT output any heading or bullet labels.
 
 Dasha Integrity + SAFE_A:
@@ -2270,11 +2273,11 @@ def replace_life_timeline_block(full_text: str, new_block: str) -> str:
     if not isinstance(new_block, str) or not new_block.strip():
         return full_text
 
-    block = re.sub(r"^\s*##\s+Life Timeline(?: Interpretation)?\s*\n*", "", new_block.strip(), flags=re.IGNORECASE)
+    block = re.sub(r"^\s*##\s+Current Phase\s*\n*", "", new_block.strip(), flags=re.IGNORECASE)
     if not block:
         return full_text
 
-    pattern = re.compile(r"(?ms)^(##\s+Life Timeline(?: Interpretation)?\s*$)(.*?)(?=^##\s+|\Z)")
+    pattern = re.compile(r"(?ms)^(##\s+Current Phase\s*$)(.*?)(?=^##\s+|\Z)")
 
     def _repl(match: re.Match) -> str:
         header = match.group(1)
@@ -2315,16 +2318,16 @@ async def generate_life_timeline_chapter(
     text = response.choices[0].message.content if response and response.choices else ""
     out = text if isinstance(text, str) else ""
     if not out.strip():
-        raise RuntimeError("Life Timeline generation returned empty text.")
+        raise RuntimeError("Current Phase generation returned empty text.")
     return normalize_paragraphs_fn(out, max_chars=300)
 
 
 def _raw_timeline_paragraph_count(text: str) -> int:
-    """Count Life Timeline paragraphs from pre-normalize raw text (blank-line split)."""
+    """Count Current Phase paragraphs from pre-normalize raw text (blank-line split)."""
     if not isinstance(text, str) or not text.strip():
         return 0
     match = re.search(
-        r"(?ms)^##\s+Life Timeline(?: Interpretation)?\s*$\n(.*?)(?=^##\s+|\Z)",
+        r"(?ms)^##\s+Current Phase\s*$\n(.*?)(?=^##\s+|\Z)",
         text,
         flags=re.IGNORECASE,
     )
@@ -2351,62 +2354,91 @@ def build_executive_prompt(
     if not isinstance(current_vector, dict):
         current_vector = {}
 
+    def _float_or_none(value: Any) -> float | None:
+        try:
+            return float(value)
+        except Exception:
+            return None
+
+    stability_index = _float_or_none((source.get("stability_metrics") or {}).get("stability_index"))
+    tension_score = _float_or_none((source.get("psychological_tension_axis") or {}).get("score"))
+    risk_index = _float_or_none((source.get("stability_metrics") or {}).get("risk_index"))
+
+    narrative_risk_mode = "normal"
+    if stability_index is not None and stability_index <= 45:
+        narrative_risk_mode = "elevated"
+    elif (
+        stability_index is not None
+        and tension_score is not None
+        and tension_score >= 75
+        and stability_index <= 60
+    ):
+        narrative_risk_mode = "elevated"
+    elif risk_index is not None and risk_index >= 7.0:
+        narrative_risk_mode = "elevated"
+
+    axis_level = ""
+    axis_coherence = source.get("axis_coherence")
+    if isinstance(axis_coherence, dict):
+        axis_level = str(axis_coherence.get("axis_coherence_level", "")).strip()
+    saturation_band = ""
+    saturation = source.get("structural_saturation")
+    if isinstance(saturation, dict):
+        saturation_band = str(saturation.get("band", "")).strip()
+    state_label = ""
+    structural_state = source.get("structural_state")
+    if isinstance(structural_state, dict):
+        state_label = str(structural_state.get("state_label", "")).strip()
+    stability_anchor_line = ""
+    if axis_level == "high" or saturation_band == "low_density" or state_label == "structural_equilibrium":
+        stability_anchor_line = "흐름이 흩어지지 않은 상태라 큰 붕괴 위험은 낮습니다."
+
     executive_context = {
         "current_theme": current_vector.get("current_theme"),
         "dominant_axis": current_vector.get("dominant_axis"),
         "risk_factor": current_vector.get("risk_factor"),
         "opportunity_factor": current_vector.get("opportunity_factor"),
-        "stability_index": ((source.get("stability_metrics") or {}).get("stability_index")),
+        "stability_index": stability_index,
+        "tension_score": tension_score,
+        "risk_index": risk_index,
+        "narrative_risk_mode": narrative_risk_mode,
+        "stability_anchor_line": stability_anchor_line,
         "semantic_signals": signals,
         "dasha_context": timing,
     }
 
     return f"""
-Write ONLY the body content for the chapter "Executive Summary" in Korean.
+Write ONLY the body content for the chapter "Executive Diagnosis" in Korean.
 Do NOT output a chapter heading.
 
 Rules:
-- This is not a meta introduction ("이 보고서는..." style is forbidden).
-- Start from the person's current life state immediately.
-- 2-4 paragraphs total.
-- Each paragraph must be separated with one blank line.
-- Prefer concise paragraphs (usually 1-4 sentences).
-- Split only when readability clearly suffers.
-- Warm, grounded, and human tone.
-- Avoid managerial, advisory, or report-style phrasing.
-- Metaphor is allowed, exaggeration is not.
-- Hint the direction of the whole report, but do not explain every section.
-- Caution is optional (0-1 sentence), not mandatory.
+Follow this structure exactly, with one blank line between blocks:
+
+[Structural Diagnosis]
+(one sentence only)
+
+[Strengths]
+- ...
+- ...
+- ...
+
+[Structural Risks]
+- ...
+- ...
+After the risks, add one sentence: "이 흐름은 조정이 가능한 영역입니다."
+
+[Strategic Direction]
+(one line only)
+If stability_anchor_line is provided in context, place it immediately after Strategic Direction on its own line.
+This structure overrides any previous narrative flow rules.
+
+Style:
+- Use abstract personality language; avoid repeating planet or zodiac names.
 - Avoid repetitive structural keyword loops.
-- In this Executive chapter only: do not expose raw numeric values.
-- Do not structure the paragraph as a checklist.
-- Executive should remain tighter than other chapters; avoid turning it into a full analysis section.
-- Paragraphs should feel layered: observation naturally blends with pattern and direction.
-- Do not enumerate analytic components explicitly.
-
-Impact Calibration:
-- In the first paragraph, include one clear internal contradiction.
-- Safe contradiction style examples:
-  - strong in public, hesitant in private
-  - decisive in action, easily exhausted afterward
-- In the second paragraph, imply one meaningful fork or choice currently faced.
-- End with one concise directional statement.
-- Directional statement length guard: keep it short (roughly one line, about 8-20 Korean words).
-- The directional statement must feel firm but not deterministic.
-
-Intensity Balance:
-- Slightly increase emotional sharpness compared to other chapters.
-- Prefer active verbs over abstract nouns.
-- Avoid neutral academic tone.
-
-Do not:
-- Turn this chapter into a prediction section.
-- Mention specific calendar years.
-- Use standalone shock-style lines more than once in this chapter.
-
-Avoid:
-- Reusing Life Timeline phrasing.
-- Repeating the same structural sentence templates.
+- Do not expose raw numeric values.
+- Do not mention dates or prediction language.
+- Strengths/risks should be noun-phrase bullets with soft descriptive tone.
+- If narrative_risk_mode is "elevated", use clear diagnostic tone and avoid excessive softening phrases.
 
 Context (read-only):
 {json.dumps(executive_context, ensure_ascii=False, indent=2)}
@@ -2450,6 +2482,7 @@ Rules:
 - Do not introduce new astrology claims or technical terms.
 - Do not use prediction language or dates.
 - Avoid meta/report phrasing.
+- Limit advice to max 3 bullet points per chapter.
 
 Context (read-only):
 {json.dumps(context, ensure_ascii=False, indent=2)}
@@ -2462,11 +2495,11 @@ def replace_executive_block(full_text: str, new_block: str) -> str:
     if not isinstance(new_block, str) or not new_block.strip():
         return full_text
 
-    block = re.sub(r"^\s*##\s+Executive Summary\s*\n*", "", new_block.strip(), flags=re.IGNORECASE)
+    block = re.sub(r"^\s*##\s+Executive Diagnosis\s*\n*", "", new_block.strip(), flags=re.IGNORECASE)
     if not block:
         return full_text
 
-    pattern = re.compile(r"(?ms)^(##\s+Executive Summary\s*$)(.*?)(?=^##\s+|\Z)")
+    pattern = re.compile(r"(?ms)^(##\s+Executive Diagnosis\s*$)(.*?)(?=^##\s+|\Z)")
 
     def _repl(match: re.Match) -> str:
         header = match.group(1)
@@ -2813,7 +2846,7 @@ async def refine_reading_with_llm(
                                 request_id,
                             )
                     inject_called = True
-            has_timeline = ("## Life Timeline" in response_text or "## Life Timeline Interpretation" in response_text)
+            has_timeline = ("## Current Phase" in response_text)
             timeline_raw_paragraphs = _raw_timeline_paragraph_count(response_text)
             timeline_structural_errors = _structural_layout_error_codes(response_text)
             timeline_should_regen = has_timeline and (
@@ -2840,7 +2873,7 @@ async def refine_reading_with_llm(
                             global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else [],
                             hybrid_render_mode=hybrid_render_mode,
                             pure_mode=use_evidence_pipeline_v2,
-                            target_chapters=["Life Timeline Interpretation"],
+                            target_chapters=["Current Phase"],
                             max_evidence_chars_per_chapter=max_evidence_chars_per_chapter,
                         )
                         if use_evidence_pipeline_v2:
@@ -2853,7 +2886,7 @@ async def refine_reading_with_llm(
                                 )
                 except Exception as timeline_err:
                     logger.warning(
-                        "Life Timeline isolation fallback to base text request_id=%s selected_model=%s error_type=%s error=%s",
+                        "Current Phase isolation fallback to base text request_id=%s selected_model=%s error_type=%s error=%s",
                         request_id,
                         candidate_model,
                         type(timeline_err).__name__,
@@ -2911,7 +2944,7 @@ async def refine_reading_with_llm(
                 )
             audit_report = audit_llm_output(final_text, structural_summary)
             structural_errors = _structural_layout_error_codes(final_text)
-            if (not use_evidence_pipeline_v2) and int(audit_report.get("overall_score", 0)) < 65 and structural_errors and "## Executive Summary" in final_text:
+            if (not use_evidence_pipeline_v2) and int(audit_report.get("overall_score", 0)) < 65 and structural_errors and "## Executive Diagnosis" in final_text:
                 try:
                     executive_regen_count += 1
                     new_exec = await generate_executive_chapter(
@@ -3247,15 +3280,15 @@ STYLE OVERRIDE (run151158_like)
 """
     chapter_hook_hint_block = """
 [챕터별 Hook 감정 힌트]
-- Career & Success: "책임은 늘었는데 인정은 부족한 느낌", "잘하고 있는데 왜 불안한지 모르는 상태"
-- Stability Metrics: "안정을 원하면서도 변화가 두려운 역설", "기반을 다지려 할수록 흔들리는 느낌"
-- Love & Relationships: "가까워질수록 오히려 어색해지는 패턴", "관계에서 반복되는 같은 상처"
-- Karmic Patterns: "분명히 알면서도 또 같은 선택을 하는 자신", "끊고 싶은데 끊기지 않는 반복"
-- Health & Body Patterns: "머리는 괜찮다고 하는데 몸이 먼저 신호를 보내는 상황", "에너지가 갑자기 바닥나는 패턴"
-- Confidence & Forecast: "잘 될 것 같으면서도 확신이 없는 상태", "준비는 됐는데 시작을 못 하는 느낌"
-- Psychological Architecture: "겉으로는 괜찮아 보이지만 안에서 다른 목소리가 들리는 상태"
-- Executive Summary: "내가 어떤 사람인지 알 것 같으면서도 모르는 느낌"
-- Life Timeline Interpretation: "지금 이 시기가 전환점인 것 같은 막연한 감각"
+- Career & Money: "책임은 늘었는데 인정은 부족한 느낌", "잘하고 있는데 왜 불안한지 모르는 상태"
+- Risk Management Points: "안정을 원하면서도 변화가 두려운 역설", "기반을 다지려 할수록 흔들리는 느낌"
+- Love & Relationship Patterns: "가까워질수록 오히려 어색해지는 패턴", "관계에서 반복되는 같은 상처"
+- Recurring Patterns: "분명히 알면서도 또 같은 선택을 하는 자신", "끊고 싶은데 끊기지 않는 반복"
+- Health & Energy Rhythm: "머리는 괜찮다고 하는데 몸이 먼저 신호를 보내는 상황", "에너지가 갑자기 바닥나는 패턴"
+- Mid-Term Direction: "잘 될 것 같으면서도 확신이 없는 상태", "준비는 됐는데 시작을 못 하는 느낌"
+- Core Disposition: "겉으로는 괜찮아 보이지만 안에서 다른 목소리가 들리는 상태"
+- Executive Diagnosis: "내가 어떤 사람인지 알 것 같으면서도 모르는 느낌"
+- Current Phase: "지금 이 시기가 전환점인 것 같은 막연한 감각"
 """
     anti_repeat_rules = """
 [반복 구조 금지]
@@ -3283,7 +3316,7 @@ STYLE OVERRIDE (run151158_like)
     chapter_rhythm_line = "- 챕터 리듬(Hook/요약/주의/실행팁)은 권장이지 강제가 아니다."
     chapter_paragraph_line = "- 각 챕터는 2~4문단(2문단도 허용), 문단은 가독성 있게 분리한다."
     actionable_bullet_line = f"- Actionable 챕터({', '.join(sorted(_ACTIONABLE_CHAPTER_KEYS))})는 마지막에 행동 팁 불릿 최소 3개를 둔다."
-    bullet_exempt_line = "- Executive Summary/Life Timeline Interpretation/Final Summary는 불릿 강제를 적용하지 않는다."
+    bullet_exempt_line = "- Executive Diagnosis/Current Phase/Final Integration는 불릿 강제를 적용하지 않는다."
     if hybrid_render_mode:
         hybrid_output_contract = f"""
 HYBRID RENDER OUTPUT CONTRACT
@@ -3294,7 +3327,7 @@ HYBRID RENDER OUTPUT CONTRACT
   - 불릿1
   - 불릿2
   - 불릿3
-- 불릿 면제 챕터(Executive Summary, Life Timeline Interpretation, Final Summary) 출력 순서:
+- 불릿 면제 챕터(Executive Diagnosis, Current Phase, Final Integration) 출력 순서:
   Hook: 2~3문장 (80~150자 목표)
   <EVIDENCE_BLOCK>
   Bridge: 2~3문장 (100~200자 목표)
@@ -3466,7 +3499,7 @@ CORE WRITING GUIDANCE
 - {bullet_exempt_line[2:] if bullet_exempt_line.startswith('- ') else bullet_exempt_line}
 - Avoid repeatedly using similar softening or mitigating phrases across multiple chapters (e.g., "지금은...", "무리하지 말고...", "당장은...").
 - Allow at least a few sentences per report that feel emotionally decisive rather than explanatory.
-- HOT 섹션(Executive Summary, Karmic Patterns, Love & Relationships, Confidence & Forecast)에서는 긴장이 자연스럽게 존재할 때만, 섹션당 sharp line을 최대 1회 허용한다.
+- HOT 섹션(Executive Diagnosis, Recurring Patterns, Love & Relationship Patterns, Mid-Term Direction)에서는 긴장이 자연스럽게 존재할 때만, 섹션당 sharp line을 최대 1회 허용한다.
 - Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
 - 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
 {jargon_transform_rules}
@@ -3482,7 +3515,7 @@ META REPORT-VOICE BAN
   - "이 리포트는"
   - "본 해석은"
   - "이 보고서는"
-- 챕터 제목/키 표기는 예외다. (예: Appendix (Optional), 보충 메모 표기 자체는 허용)
+- 챕터 제목/키 표기는 예외다. (예: Final Integration, 표기 자체는 허용)
 - 본문에서 메타 설명 라벨(예: "보충 메모:")은 금지한다.
 
 STANDALONE LINE CAP
@@ -3490,7 +3523,7 @@ STANDALONE LINE CAP
 - 단독 문장을 연속으로 배치하지 않는다.
 
 FINAL SUMMARY MINIMUM INSIGHTS
-- Final Summary에는 아래 통찰 2개를 반드시 포함:
+- Final Integration에는 아래 통찰 2개를 반드시 포함:
   1) 영역 간 연결 통찰 1개
   2) 반복 패턴 통찰 1개
 - 강제 체크리스트 문구는 쓰지 않는다.

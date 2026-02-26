@@ -25,8 +25,8 @@ class TestToneNormalization(unittest.TestCase):
         self.assertEqual(out, text)
 
     def test_chapter_scope(self):
-        text = "## [Executive Summary]\n- 작성해볼까?\n## [Career & Success]\n- 작성해볼까?"
-        out = normalize_recommendation_tone(text, language="ko", allowed_chapters={"Career & Success"})
+        text = "## [Executive Diagnosis]\n- 작성해볼까?\n## [Career & Money]\n- 작성해볼까?"
+        out = normalize_recommendation_tone(text, language="ko", allowed_chapters={"Career & Money"})
         lines = out.splitlines()
         self.assertEqual(lines[1], "- 작성해볼까?")
         self.assertEqual(lines[3], "- 작성해보기")
@@ -35,3 +35,4 @@ class TestToneNormalization(unittest.TestCase):
         text = "- 한 번 시도 후 회고하는 습관 가져볼까?"
         out = normalize_recommendation_tone(text, language="ko")
         self.assertEqual(out.strip(), "- 한 번 시도 후 회고하는 습관 가져보기")
+

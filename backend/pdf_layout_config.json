@@ -26,12 +26,11 @@
     "summary_accent": "#8D3D56"
   },
   "chapters": {
-    "Executive Summary": { "break_before": true },
-    "Purushartha Profile": { "break_before": true },
-    "Psychological Architecture": { "break_before": true },
-    "Behavioral Risks": { "break_before": true },
-    "Stability Metrics": { "break_before": true },
-    "Wealth & Material Flow": { "break_before": true },
-    "Final Summary": { "break_before": true }
+    "Executive Diagnosis": { "break_before": true },
+    "Core Disposition": { "break_before": true },
+    "Emotional Fault Lines": { "break_before": true },
+    "Risk Management Points": { "break_before": true },
+    "Career & Money": { "break_before": true },
+    "Final Integration": { "break_before": true }
   }
 }

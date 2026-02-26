@@ -90,16 +90,16 @@ class TestPdfLayoutStability(unittest.TestCase):
     def test_render_report_payload_renders_key_forecast_blocks_and_chapter_snapshot(self):
         payload = {
             "chapter_blocks": {
-                "Confidence & Forecast": [
+                "Mid-Term Direction": [
                     {
                         "title": "Forecast focus",
                         "summary": "Directional confidence",
-                        "key_forecast": "career shift: high-signal likelihood 78%",
+                        "key_forecast": "career shift: high-signal tendency",
                         "analysis": "Signal blend suggests pivot window.",
                     },
                     {
                         "title": "Backup signal",
-                        "key_forecast": ["burnout risk: high-signal likelihood 70%"],
+                        "key_forecast": ["burnout risk: high-signal tendency"],
                     },
                 ]
             }
@@ -110,14 +110,14 @@ class TestPdfLayoutStability(unittest.TestCase):
 
         paragraph_texts = [f.getPlainText() for f in story if hasattr(f, "getPlainText")]
         self.assertTrue(any("Forecast Snapshot" in t for t in paragraph_texts))
-        self.assertTrue(any("career shift: high-signal likelihood 78%" in t for t in paragraph_texts))
-        self.assertTrue(any("burnout risk: high-signal likelihood 70%" in t for t in paragraph_texts))
+        self.assertTrue(any("career shift: high-signal tendency" in t for t in paragraph_texts))
+        self.assertTrue(any("burnout risk: high-signal tendency" in t for t in paragraph_texts))
 
     def test_render_report_payload_handles_very_long_table_cells(self):
         long_text = " ".join(["Long content for wrapping"] * 200)
         payload = {
             "chapter_blocks": {
-                "Behavioral Risks": [
+                "Emotional Fault Lines": [
                     {
                         "title": "Stress Fork",
                         "summary": "High-pressure decision split",
@@ -157,3 +157,4 @@ class TestPdfLayoutStability(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

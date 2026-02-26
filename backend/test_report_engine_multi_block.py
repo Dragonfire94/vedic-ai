@@ -11,7 +11,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "numeric_match",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "score", "operator": ">=", "value": 70}],
                 "logic": "AND",
                 "priority": 10,
@@ -19,7 +19,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
             },
             {
                 "id": "and_match",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [
                     {"field": "left", "operator": ">=", "value": 1},
                     {"field": "right", "operator": ">=", "value": 1},
@@ -30,7 +30,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
             },
             {
                 "id": "or_match",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [
                     {"field": "left", "operator": ">=", "value": 5},
                     {"field": "right", "operator": ">=", "value": 5},
@@ -41,7 +41,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
             },
             {
                 "id": "nested_path",
-                "chapter": "Karmic Patterns",
+                "chapter": "Recurring Patterns",
                 "conditions": [{"field": "nested.value", "operator": "==", "value": 3}],
                 "logic": "AND",
                 "priority": 4,
@@ -49,7 +49,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
             },
             {
                 "id": "priority_high",
-                "chapter": "Career & Success",
+                "chapter": "Career & Money",
                 "conditions": [{"field": "career", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100,
@@ -57,7 +57,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
             },
             {
                 "id": "priority_low",
-                "chapter": "Career & Success",
+                "chapter": "Career & Money",
                 "conditions": [{"field": "career", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 1,
@@ -66,7 +66,7 @@ class TestReportEngineMultiBlock(unittest.TestCase):
         ] + [
             {
                 "id": f"cap_{i}",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "cap", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 10 - i,
@@ -100,32 +100,32 @@ class TestReportEngineMultiBlock(unittest.TestCase):
 
     def test_numeric_operator_matching(self):
         selected = report_engine.select_template_blocks({"score": 75})
-        self.assertEqual(selected["Psychological Architecture"][0]["id"], "numeric_match")
+        self.assertEqual(selected["Core Disposition"][0]["id"], "numeric_match")
 
     def test_and_logic(self):
         selected = report_engine.select_template_blocks({"left": 1, "right": 1})
-        self.assertTrue(any(b["id"] == "and_match" for b in selected["Behavioral Risks"]))
+        self.assertTrue(any(b["id"] == "and_match" for b in selected["Emotional Fault Lines"]))
 
     def test_or_logic(self):
         selected = report_engine.select_template_blocks({"left": 0, "right": 6})
-        self.assertTrue(any(b["id"] == "or_match" for b in selected["Behavioral Risks"]))
+        self.assertTrue(any(b["id"] == "or_match" for b in selected["Emotional Fault Lines"]))
 
     def test_nested_field_path(self):
         selected = report_engine.select_template_blocks({"nested": {"value": 3}})
-        self.assertEqual(selected["Karmic Patterns"][0]["id"], "nested_path")
+        self.assertEqual(selected["Recurring Patterns"][0]["id"], "nested_path")
 
     def test_priority_sorting(self):
         selected = report_engine.select_template_blocks({"career": True})
-        self.assertEqual(selected["Career & Success"][0]["id"], "priority_high")
-        self.assertEqual(selected["Career & Success"][1]["id"], "priority_low")
+        self.assertEqual(selected["Career & Money"][0]["id"], "priority_high")
+        self.assertEqual(selected["Career & Money"][1]["id"], "priority_low")
 
     def test_block_cap_5(self):
         payload = report_engine.build_report_payload({"cap": True})
-        self.assertGreaterEqual(len(payload["chapter_blocks"]["Love & Relationships"]), 1)
+        self.assertGreaterEqual(len(payload["chapter_blocks"]["Love & Relationship Patterns"]), 1)
 
     def test_deterministic_fallback_when_empty(self):
         payload = report_engine.build_report_payload({})
-        summary_text = payload["chapter_blocks"]["Executive Summary"][0]["summary"]
+        summary_text = payload["chapter_blocks"]["Executive Diagnosis"][0]["summary"]
         self.assertTrue(isinstance(summary_text, str) and summary_text.strip())
 
     def test_payload_contains_no_structural_data(self):
@@ -144,3 +144,4 @@ class TestReportEngineMultiBlock(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

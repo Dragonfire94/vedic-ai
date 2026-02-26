@@ -114,36 +114,38 @@ if _missing("openai"):
     sys.modules["openai"] = types.SimpleNamespace(AsyncOpenAI=lambda *args, **kwargs: object())
 
 from backend import main
+from backend import pdf_service
+from backend import report_engine
 
 
 class TestLLMBoundary(unittest.TestCase):
     def _valid_blocks(self) -> dict[str, list[dict[str, str]]]:
         return {
             chapter: [{"title": chapter, "summary": "s", "analysis": "a", "implication": "i"}]
-            for chapter in main.REPORT_CHAPTERS
+            for chapter in report_engine.REPORT_CHAPTERS
         }
 
     def test_valid_chapter_blocks_pass(self) -> None:
         blocks = self._valid_blocks()
         out = main._validate_deterministic_llm_blocks(blocks)
-        self.assertEqual(set(out.keys()), set(main.REPORT_CHAPTERS))
+        self.assertEqual(set(out.keys()), set(report_engine.REPORT_CHAPTERS))
 
 
     def test_accepts_key_forecast_fragment_key(self) -> None:
         blocks = self._valid_blocks()
-        blocks["Confidence & Forecast"][0]["key_forecast"] = "career shift: high-signal likelihood 72%"
+        blocks["Mid-Term Direction"][0]["key_forecast"] = "career shift: high-signal tendency"
         out = main._validate_deterministic_llm_blocks(blocks)
-        self.assertIn("key_forecast", out["Confidence & Forecast"][0])
+        self.assertIn("key_forecast", out["Mid-Term Direction"][0])
 
     def test_rejects_unknown_fragment_keys(self) -> None:
         blocks = self._valid_blocks()
-        blocks["Executive Summary"][0]["engine"] = "forbidden"
+        blocks["Executive Diagnosis"][0]["engine"] = "forbidden"
         with self.assertRaises(ValueError):
             main._validate_deterministic_llm_blocks(blocks)
 
     def test_rejects_missing_chapters(self) -> None:
         blocks = self._valid_blocks()
-        blocks.pop("Appendix (Optional)")
+        blocks.pop("Final Integration")
         with self.assertRaises(ValueError):
             main._validate_deterministic_llm_blocks(blocks)
 
@@ -182,21 +184,21 @@ class TestLLMBoundary(unittest.TestCase):
                 self.fontSize = font_size
                 self.leading = leading
 
-        original_paragraph = main.Paragraph
-        original_table = main.Table
-        original_spacer = main.Spacer
-        original_pagestyle = main.ParagraphStyle
-        original_colors = main.colors
-        original_a4 = main.A4
-        original_tablestyle = main.TableStyle
+        original_paragraph = pdf_service.Paragraph
+        original_table = pdf_service.Table
+        original_spacer = pdf_service.Spacer
+        original_pagestyle = pdf_service.ParagraphStyle
+        original_colors = pdf_service.colors
+        original_a4 = pdf_service.A4
+        original_tablestyle = pdf_service.TableStyle
         try:
-            main.Paragraph = _FakeParagraph
-            main.Table = _FakeTable
-            main.Spacer = _FakeSpacer
-            main.ParagraphStyle = lambda *args, **kwargs: _FakeStyle(font_size=14, leading=20)
-            main.colors = types.SimpleNamespace(HexColor=lambda value: value, white="white")
-            main.A4 = (595.0, 842.0)
-            main.TableStyle = lambda *args, **kwargs: None
+            pdf_service.Paragraph = _FakeParagraph
+            pdf_service.Table = _FakeTable
+            pdf_service.Spacer = _FakeSpacer
+            pdf_service.ParagraphStyle = lambda *args, **kwargs: _FakeStyle(font_size=14, leading=20)
+            pdf_service.colors = types.SimpleNamespace(HexColor=lambda value: value, white="white")
+            pdf_service.A4 = (595.0, 842.0)
+            pdf_service.TableStyle = lambda *args, **kwargs: None
 
             styles = {
                 "SummaryLead": _FakeStyle(font_size=12, leading=16),
@@ -211,24 +213,25 @@ class TestLLMBoundary(unittest.TestCase):
             config = {"colors": {}, "page": {}, "chapters": {}}
             payload = {
                 "chapter_blocks": {
-                    "Confidence & Forecast": [
-                        {"title": "Forecast", "key_forecast": "career shift: high-signal likelihood 74%"}
+                    "Mid-Term Direction": [
+                        {"title": "Forecast", "key_forecast": "career shift: high-signal likelihood"}
                     ]
                 }
             }
-            flowables = main.render_report_payload_to_pdf(payload, styles, config)
+            flowables = pdf_service.render_report_payload_to_pdf(payload, styles, config)
             paragraph_texts = [f.getPlainText() for f in flowables if hasattr(f, "getPlainText")]
             self.assertTrue(any("Forecast Snapshot" in text for text in paragraph_texts))
-            self.assertTrue(any("career shift: high-signal likelihood 74%" in text for text in paragraph_texts))
+            self.assertTrue(any("career shift" in text for text in paragraph_texts))
         finally:
-            main.Paragraph = original_paragraph
-            main.Table = original_table
-            main.Spacer = original_spacer
-            main.ParagraphStyle = original_pagestyle
-            main.colors = original_colors
-            main.A4 = original_a4
-            main.TableStyle = original_tablestyle
+            pdf_service.Paragraph = original_paragraph
+            pdf_service.Table = original_table
+            pdf_service.Spacer = original_spacer
+            pdf_service.ParagraphStyle = original_pagestyle
+            pdf_service.colors = original_colors
+            pdf_service.A4 = original_a4
+            pdf_service.TableStyle = original_tablestyle
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -17,7 +17,7 @@ class TestAtomicPrimaryNarrative(unittest.TestCase):
             },
         }
         payload = report_engine.build_report_payload({"structural_summary": structural_summary, "language": "ko"})
-        executive = payload.get("chapter_blocks", {}).get("Executive Summary", [])
+        executive = payload.get("chapter_blocks", {}).get("Executive Diagnosis", [])
         self.assertTrue(executive)
         first_fragment = executive[0]
         self.assertIsInstance(first_fragment, dict)
@@ -35,3 +35,4 @@ class TestAtomicPrimaryNarrative(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -12,7 +12,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
         report_engine.TEMPLATES = [
             {
                 "id": "high_spike_block",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.high", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100,
@@ -21,7 +21,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             },
             {
                 "id": "low_spike_block",
-                "chapter": "Psychological Architecture",
+                "chapter": "Core Disposition",
                 "conditions": [{"field": "flags.low", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 90,
@@ -30,7 +30,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             },
             {
                 "id": "dup_spike_a",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "flags.dup", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 90,
@@ -39,7 +39,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             },
             {
                 "id": "dup_spike_b",
-                "chapter": "Love & Relationships",
+                "chapter": "Love & Relationship Patterns",
                 "conditions": [{"field": "flags.dup", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 80,
@@ -48,7 +48,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             },
             {
                 "id": "legacy_no_spike",
-                "chapter": "Behavioral Risks",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [{"field": "flags.legacy", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 70,
@@ -57,7 +57,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
         ] + [
             {
                 "id": f"cap_{idx}",
-                "chapter": "Career & Success",
+                "chapter": "Career & Money",
                 "conditions": [{"field": "flags.cap", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 100 - idx,
@@ -101,7 +101,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
                 "stability_metrics": {"stability_index": 10},
             }
         )
-        chapter = payload["chapter_blocks"]["Psychological Architecture"]
+        chapter = payload["chapter_blocks"]["Core Disposition"]
         self.assertIn({"spike_text": "Spike high."}, chapter)
 
     def test_spike_not_injected_when_low_intensity(self):
@@ -113,7 +113,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
                 "stability_metrics": {"stability_index": 95},
             }
         )
-        chapter = payload["chapter_blocks"]["Psychological Architecture"]
+        chapter = payload["chapter_blocks"]["Core Disposition"]
         self.assertFalse(any(fragment.get("spike_text") == "Spike low should not show." for fragment in chapter))
 
     def test_spike_position_at_top(self):
@@ -125,7 +125,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
                 "stability_metrics": {"stability_index": 20},
             }
         )
-        chapter = payload["chapter_blocks"]["Psychological Architecture"]
+        chapter = payload["chapter_blocks"]["Core Disposition"]
         self.assertEqual(chapter[0], {"spike_text": "Spike high."})
         self.assertIn("title", chapter[1])
 
@@ -138,7 +138,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
                 "stability_metrics": {"stability_index": 20},
             }
         )
-        chapter = payload["chapter_blocks"]["Love & Relationships"]
+        chapter = payload["chapter_blocks"]["Love & Relationship Patterns"]
         spike_count = sum(1 for fragment in chapter if fragment.get("spike_text") == "Duplicate spike")
         self.assertEqual(spike_count, 1)
 
@@ -151,13 +151,13 @@ class TestReportEngineInsightSpike(unittest.TestCase):
                 "stability_metrics": {"stability_index": 90},
             }
         )
-        chapter = payload["chapter_blocks"]["Career & Success"]
+        chapter = payload["chapter_blocks"]["Career & Money"]
         self.assertLessEqual(len(chapter), 5)
         self.assertTrue(all("spike_text" in fragment for fragment in chapter))
 
     def test_backward_compatibility_without_spike(self):
         payload = report_engine.build_report_payload({"flags": {"legacy": True}})
-        chapter = payload["chapter_blocks"]["Behavioral Risks"]
+        chapter = payload["chapter_blocks"]["Emotional Fault Lines"]
         self.assertEqual(chapter[0]["title"], "Legacy")
         self.assertIn("summary", chapter[0])
         self.assertIn("analysis", chapter[0])
@@ -165,3 +165,4 @@ class TestReportEngineInsightSpike(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

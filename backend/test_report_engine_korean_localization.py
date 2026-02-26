@@ -46,7 +46,7 @@ class TestReportEngineKoreanLocalization(unittest.TestCase):
         payload = report_engine.build_report_payload(
             {"structural_summary": self._structural(), "language": "ko"}
         )
-        text = self._chapter_text(payload, "Executive Summary")
+        text = self._chapter_text(payload, "Executive Diagnosis")
         self.assertRegex(text, r"[가-힣]")
         self.assertNotIn("No dominant", text)
 
@@ -74,3 +74,4 @@ class TestReportEngineKoreanLocalization(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

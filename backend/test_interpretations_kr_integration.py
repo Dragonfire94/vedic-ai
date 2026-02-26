@@ -1,4 +1,4 @@
-﻿import ast
+import ast
 import unittest
 
 import backend.report_engine as report_engine
@@ -129,3 +129,4 @@ class TestInterpretationsKrIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
