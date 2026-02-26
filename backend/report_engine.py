@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import operator as op
 from pathlib import Path
 from typing import Any
@@ -111,6 +112,94 @@ _DEFAULTS_BY_LANG: dict[str, dict[str, list[dict[str, Any]]]] = {}
 _ACTIVE_LANGUAGE = "en"
 logger = logging.getLogger("report_engine")
 REPORT_MAPPING_DEBUG = str(os.getenv("REPORT_MAPPING_DEBUG", "1")).strip().lower() not in {"0", "false", "no", "off"}
+
+
+def normalize_recommendation_tone(
+    text: str,
+    *,
+    language: str = "ko",
+    allowed_chapters: set[str] | None = None,
+) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text
+    lang_norm = str(language or "").strip().lower()
+    if not lang_norm.startswith("ko"):
+        return text
+
+    def extract_chapter_key(line: str) -> str | None:
+        stripped = line.strip()
+        if "chapter_key:" in stripped:
+            marker = stripped.split("chapter_key:", 1)[-1]
+            marker = marker.split("-->", 1)[0]
+            key = marker.strip(" -:>\"\t")
+            return key or None
+        if stripped.startswith("##"):
+            rest = stripped[2:].strip()
+            if rest.startswith("["):
+                end = rest.find("]")
+                if end > 1:
+                    return rest[1:end].strip() or None
+            return rest or None
+        if stripped.startswith("#"):
+            rest = stripped[1:].strip()
+            if rest and rest[0].isdigit() and "." in rest:
+                parts = rest.split(".", 1)
+                if len(parts) == 2 and parts[0].strip().isdigit():
+                    key = parts[1].strip()
+                    return key or None
+        return None
+
+    replacements = [
+        ("작성해볼까", "작성해보기"),
+        ("만들어볼까", "만들어보기"),
+        ("해볼까요", "해보기"),
+        ("해볼까", "해보기"),
+        ("가져볼까", "가져보기"),
+    ]
+
+    lines = text.splitlines()
+    out: list[str] = []
+    current_chapter: str | None = None
+    for line in lines:
+        chapter_key = extract_chapter_key(line)
+        if chapter_key:
+            current_chapter = chapter_key
+            out.append(line)
+            continue
+
+        if allowed_chapters is not None and current_chapter not in allowed_chapters:
+            out.append(line)
+            continue
+
+        leading = line[: len(line) - len(line.lstrip(" \t"))]
+        body = line.lstrip(" \t")
+        if not body.startswith(("-", "•")):
+            out.append(line)
+            continue
+
+        tail = body[1:]
+        bullet_space = tail[: len(tail) - len(tail.lstrip(" \t"))]
+        content = tail[len(bullet_space) :]
+        if not content:
+            out.append(line)
+            continue
+
+        content_rstrip = content.rstrip()
+        if not (content_rstrip.endswith("?") or ("볼까" in content_rstrip) or ("볼까요" in content_rstrip)):
+            out.append(line)
+            continue
+
+        if content_rstrip.endswith("?"):
+            content_rstrip = content_rstrip[:-1].rstrip()
+
+        for src, dst in replacements:
+            if src in content_rstrip:
+                content_rstrip = content_rstrip.replace(src, dst)
+
+        content_rstrip = re.sub(r"[ \t]{2,}", " ", content_rstrip).rstrip()
+        out.append(f"{leading}{body[0]}{bullet_space}{content_rstrip}")
+
+    return "\n".join(out)
 
 INTERPRETATIONS_KR_FILE = Path(__file__).resolve().parent.parent / "assets" / "data" / "interpretations.kr_final.json"
 INTERPRETATIONS_KR: dict[str, Any] = {}
@@ -382,6 +471,79 @@ def _ensure_loaded(language: str = "en") -> None:
         TEMPLATES = _TEMPLATES_BY_LANG.get("en", [])
         DEFAULT_BLOCKS = _DEFAULTS_BY_LANG.get("en", {chapter: [] for chapter in REPORT_CHAPTERS})
         _ACTIVE_LANGUAGE = "en"
+
+
+def render_structural_state_narrative(state: dict[str, Any], language: str) -> str:
+    if not isinstance(state, dict):
+        return ""
+    label = str(state.get("state_label", "")).strip()
+    if not label:
+        return ""
+    ko = {
+        "fragmented_high_density": "지금은 여러 삶의 영역이 동시에 움직이지만, 내부 리듬은 아직 완전히 맞춰지지 않은 상태입니다. 선택의 일관성을 지키는 것이 핵심 과제입니다.",
+        "coherent_high_pressure": "압박은 높은 편이지만 방향성은 비교적 선명합니다. 속도를 조절하면서도 흔들리지 않는 기준을 유지하는 것이 중요합니다.",
+        "misaligned_transition": "주된 흐름과 보조 흐름이 어긋나기 쉬운 구간입니다. 중심을 재정렬하는 선택이 필요합니다.",
+        "elevated_reconfiguration": "흐름이 재배치되는 힘이 강하게 진행 중입니다. 큰 결정보다는 조정과 정렬에 초점을 두는 편이 좋습니다.",
+        "active_stabilization": "에너지가 정돈되는 국면으로 이동하고 있습니다. 리듬을 고정하는 선택이 도움이 됩니다.",
+        "structural_equilibrium": "전반적으로 균형이 유지되는 편입니다. 현재의 리듬을 지키는 것이 안정에 유리합니다.",
+    }
+    en = {
+        "fragmented_high_density": "Multiple areas are moving at once, but internal rhythm is not fully aligned. Maintaining consistency in choices is the key task.",
+        "coherent_high_pressure": "Pressure is high, yet direction remains relatively clear. Keep a steady frame while managing pace.",
+        "misaligned_transition": "The primary and secondary currents can drift apart. Realignment of the core is needed.",
+        "elevated_reconfiguration": "A structural reshaping phase is underway. Prioritize adjustment and alignment over large leaps.",
+        "active_stabilization": "Energy is moving toward consolidation. Establishing rhythm will help.",
+        "structural_equilibrium": "Overall balance is holding. Keeping the current rhythm supports stability.",
+    }
+    mapping = ko if _is_korean_language({"language": language}) else en
+    return mapping.get(label, "")
+
+
+def _inject_structural_state_fragments(
+    *,
+    chapter_blocks: dict[str, list[dict[str, Any]]],
+    chapter_limits: dict[str, int],
+    structural_summary: dict[str, Any],
+    language: str,
+) -> None:
+    if not isinstance(structural_summary, dict):
+        return
+    state = structural_summary.get("structural_state")
+    narrative = render_structural_state_narrative(state if isinstance(state, dict) else {}, language)
+    if not narrative:
+        return
+
+    def _insert_or_merge(chapter: str, prepend: bool) -> None:
+        blocks = chapter_blocks.get(chapter, [])
+        if not isinstance(blocks, list):
+            return
+        limit = int(chapter_limits.get(chapter, len(blocks)))
+        fragment = {
+            "title": "",
+            "summary": narrative,
+            "analysis": "",
+            "implication": "",
+            "examples": "",
+            "_source": "state",
+        }
+        if len(blocks) < limit:
+            if prepend:
+                blocks.insert(0, fragment)
+            else:
+                blocks.append(fragment)
+            return
+        if not blocks:
+            blocks.append(fragment)
+            return
+        target = blocks[0] if prepend else blocks[-1]
+        existing = target.get("summary", "")
+        if not isinstance(existing, str):
+            existing = ""
+        target["summary"] = (f"{narrative}\n\n{existing}" if prepend else f"{existing}\n\n{narrative}").strip()
+
+    _insert_or_merge("Executive Summary", prepend=True)
+    _insert_or_merge("Stability Metrics", prepend=True)
+    _insert_or_merge("Final Summary", prepend=False)
 
 
 def get_template_libraries(language: str = "en") -> dict[str, Any]:
@@ -2153,6 +2315,13 @@ def build_report_payload(rectified_structural_summary: dict[str, Any]) -> dict[s
             structural,
             mapping_audit=mapping_audit,
         )
+
+    _inject_structural_state_fragments(
+        chapter_blocks=chapter_blocks,
+        chapter_limits=chapter_limits,
+        structural_summary=structural,
+        language=requested_language,
+    )
 
     final_chapter_blocks: dict[str, list[dict[str, Any]]] = {}
     for chapter in REPORT_CHAPTERS:

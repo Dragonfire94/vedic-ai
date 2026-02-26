@@ -42,6 +42,7 @@ from backend.report_engine import (
     build_gpt_user_content,
     SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
     _get_atomic_chart_interpretations,
+    normalize_recommendation_tone,
 )
 from backend.cache_manager import cache
 from backend.swe_config import initialize_swe_context
@@ -610,6 +611,16 @@ def _render_chapter_blocks_deterministic(chapter_blocks: dict[str, Any], languag
             qa_forbidden_hits,
         )
     return rendered
+
+
+def _apply_recommendation_tone_normalization(text: str | None, language: str) -> str | None:
+    if not isinstance(text, str) or not text.strip():
+        return text
+    return normalize_recommendation_tone(
+        text,
+        language=language,
+        allowed_chapters=set(_active_chapter_order_for_style()),
+    )
 
 
 _STYLE_LABEL_PATTERNS = [
@@ -2590,6 +2601,8 @@ async def get_ai_reading(
 
             final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks, language=language)
             final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
+            final_text = _apply_recommendation_tone_normalization(final_text, language)
+            final_polished = _apply_recommendation_tone_normalization(final_polished, language)
 
             production_result = {
                 "report_text": final_text,
@@ -2674,6 +2687,7 @@ async def get_ai_reading(
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_reading = deterministic_reading
         final_polished = None
+        final_reading = _apply_recommendation_tone_normalization(final_reading, language)
         result = {
             "cached": False,
             "fallback": True,
@@ -2751,6 +2765,8 @@ async def get_ai_reading(
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
         final_reading = final_polished if final_polished else deterministic_reading
+        final_reading = _apply_recommendation_tone_normalization(final_reading, language)
+        final_polished = _apply_recommendation_tone_normalization(final_polished, language)
         fallback_used = final_polished is None
 
         result = {
@@ -2804,6 +2820,7 @@ async def get_ai_reading(
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
         final_reading = deterministic_reading
         final_polished = None
+        final_reading = _apply_recommendation_tone_normalization(final_reading, language)
         result = {
             "cached": False,
             "fallback": True,

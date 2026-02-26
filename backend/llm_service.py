@@ -3,6 +3,7 @@ import logging
 import re
 import asyncio
 import hashlib
+import httpx
 import json
 from pathlib import Path
 from datetime import datetime
@@ -77,6 +78,13 @@ _EVIDENCE_TAG_RE = re.compile(
     r'(?:<\s*EVIDENCE_BLOCK\s*>|\[EVIDENCE_BLOCK\]|EVIDENCE_BLOCK)',
     re.IGNORECASE,
 )
+_CONDITIONAL_REGEN_CHAPTERS_DEFAULT = {
+    "Psychological Architecture",
+    "Love & Relationships",
+    "Career & Success",
+}
+_CHAPTER_REGEN_EVIDENCE_COUNTS: dict[str, int] = {}
+_MAX_CONDITIONAL_REGEN_PER_REQUEST = 1
 _INTERPRETATIONS_PATH = Path("assets/data/interpretations.kr_final.json")
 _INTERPRETATIONS_INDEX_CACHE: dict[str, dict[str, str]] | None = None
 _HYBRID_EVIDENCE_ESCAPE_CACHE: dict[int, dict[str, str]] = {}
@@ -2405,6 +2413,49 @@ Context (read-only):
 """
 
 
+def build_single_chapter_prompt(
+    chapter_key: str,
+    structural_summary: dict[str, Any],
+    semantic_signals: dict[str, Any] | None,
+    dasha_context: dict[str, Any] | None,
+    chapter_blocks: dict[str, Any] | None,
+) -> str:
+    import json
+
+    source = structural_summary if isinstance(structural_summary, dict) else {}
+    signals = semantic_signals if isinstance(semantic_signals, dict) else {}
+    timing = dasha_context if isinstance(dasha_context, dict) else {}
+    compact = build_relationship_signal_context(source, signals, timing)
+    compact_blocks = {}
+    if isinstance(chapter_blocks, dict):
+        selected = _select_chapter_blocks_source(chapter_blocks)
+        if isinstance(selected, dict) and chapter_key in selected:
+            compact_blocks = _compact_chapter_blocks_for_prompt({chapter_key: selected.get(chapter_key)})
+
+    context = {
+        "chapter_key": chapter_key,
+        "chapter_tone_hints": compact.get("chapter_tone_hints", {}) if isinstance(compact, dict) else {},
+        "cross_dynamics": compact.get("cross_dynamics", []) if isinstance(compact, dict) else [],
+        "chapter_blocks": compact_blocks,
+    }
+
+    return f"""
+Write ONLY the body content for the chapter "{chapter_key}" in Korean.
+Do NOT output any heading or labels.
+
+Rules:
+- 2-4 paragraphs total.
+- Separate paragraphs with one blank line.
+- Keep paragraphs concise and readable.
+- Do not introduce new astrology claims or technical terms.
+- Do not use prediction language or dates.
+- Avoid meta/report phrasing.
+
+Context (read-only):
+{json.dumps(context, ensure_ascii=False, indent=2)}
+"""
+
+
 def replace_executive_block(full_text: str, new_block: str) -> str:
     if not isinstance(full_text, str) or not full_text.strip():
         return full_text
@@ -2423,6 +2474,34 @@ def replace_executive_block(full_text: str, new_block: str) -> str:
 
     replaced, count = pattern.subn(_repl, full_text, count=1)
     return replaced if count > 0 else full_text
+
+
+def replace_chapter_block(full_text: str, chapter_key: str, new_block: str) -> str:
+    if not isinstance(full_text, str) or not full_text.strip():
+        return full_text
+    if not isinstance(new_block, str) or not new_block.strip():
+        return full_text
+    key = re.escape(str(chapter_key or "").strip())
+    if not key:
+        return full_text
+
+    block = re.sub(rf"^\s*##\s*(?:\[{key}\]|{key}).*\n*", "", new_block.strip(), flags=re.IGNORECASE)
+    if not block:
+        return full_text
+
+    patterns = [
+        re.compile(rf"(?ms)^(##\s+\[{key}\].*$)(.*?)(?=^##\s+|\Z)", re.IGNORECASE),
+        re.compile(rf"(?ms)^(##\s+{key}\s*$)(.*?)(?=^##\s+|\Z)", re.IGNORECASE),
+    ]
+    for pattern in patterns:
+        def _repl(match: re.Match) -> str:
+            header = match.group(1)
+            return f"{header}\n\n{block}\n\n"
+
+        replaced, count = pattern.subn(_repl, full_text, count=1)
+        if count > 0:
+            return replaced
+    return full_text
 
 
 async def generate_executive_chapter(
@@ -2460,6 +2539,45 @@ async def generate_executive_chapter(
         return normalize_paragraphs_fn(out, max_chars=300)
     except Exception:
         return None
+
+
+async def generate_single_chapter(
+    *,
+    chapter_key: str,
+    structural_summary: dict[str, Any],
+    semantic_signals: dict[str, Any] | None,
+    dasha_context: dict[str, Any] | None,
+    chapter_blocks: dict[str, Any] | None,
+    selected_model: str,
+    async_client: Any,
+    build_payload_fn: Any,
+    normalize_paragraphs_fn: Any,
+    max_tokens: int = 900,
+) -> str | None:
+    if async_client is None:
+        return None
+    prompt = build_single_chapter_prompt(
+        chapter_key=chapter_key,
+        structural_summary=structural_summary,
+        semantic_signals=semantic_signals,
+        dasha_context=dasha_context,
+        chapter_blocks=chapter_blocks,
+    )
+    payload = build_payload_fn(
+        model=selected_model,
+        system_message="Follow the user prompt exactly.",
+        user_message=prompt,
+        max_completion_tokens=max_tokens,
+    )
+    response = await asyncio.wait_for(
+        async_client.chat.completions.create(**payload),
+        timeout=90,
+    )
+    text = response.choices[0].message.content if response and response.choices else ""
+    out = text if isinstance(text, str) else ""
+    if not out.strip():
+        return None
+    return normalize_paragraphs_fn(out, max_chars=300)
 
 
 async def refine_reading_with_llm(
@@ -2585,10 +2703,15 @@ async def refine_reading_with_llm(
     candidate_models = candidate_models_fn(selected_model)
     last_error: Optional[Exception] = None
 
+    timeout_retries_left = 1
+    stage = "pdf" if str(endpoint or "").strip().lower() == "/pdf" else "ai_reading"
+
     for candidate_model in candidate_models:
         inject_called = False
         timeline_regen_count = 0
         executive_regen_count = 0
+        conditional_regen_count = 0
+        conditional_regen_chapter = None
         payload = build_payload_fn(
             model=candidate_model,
             system_message=system_message,
@@ -2596,13 +2719,42 @@ async def refine_reading_with_llm(
             max_completion_tokens=max_tokens,
         )
         try:
-            logger.info(
-                "LLM API call started request_id=%s selected_model=%s chapter_blocks_hash=%s",
-                request_id,
-                candidate_model,
-                chapter_blocks_hash,
-            )
-            response = await async_client.chat.completions.create(**payload)
+            while True:
+                logger.info(
+                    "LLM API call started request_id=%s selected_model=%s chapter_blocks_hash=%s",
+                    request_id,
+                    candidate_model,
+                    chapter_blocks_hash,
+                )
+                try:
+                    response = await async_client.chat.completions.create(**payload)
+                except Exception as call_err:
+                    is_timeout = isinstance(call_err, (asyncio.TimeoutError, TimeoutError, httpx.TimeoutException))
+                    if (not is_timeout) and "timeout" in type(call_err).__name__.lower():
+                        is_timeout = True
+                    if is_timeout:
+                        logger.warning(
+                            "TIMEOUT_OCCURRED stage=%s request_id=%s selected_model=%s chapter_blocks_hash=%s error_type=%s error=%s",
+                            stage,
+                            request_id,
+                            candidate_model,
+                            chapter_blocks_hash,
+                            type(call_err).__name__,
+                            str(call_err),
+                        )
+                        if timeout_retries_left > 0:
+                            timeout_retries_left -= 1
+                            logger.info(
+                                "TIMEOUT_RETRY stage=%s request_id=%s selected_model=%s chapter_blocks_hash=%s retries_left=%s",
+                                stage,
+                                request_id,
+                                candidate_model,
+                                chapter_blocks_hash,
+                                timeout_retries_left,
+                            )
+                            continue
+                    raise
+                break
             text = response.choices[0].message.content if response and response.choices else ""
             response_text = text if isinstance(text, str) else ""
             logger.debug(
@@ -2787,11 +2939,74 @@ async def refine_reading_with_llm(
                         type(exec_err).__name__,
                         str(exec_err),
                     )
+            # Conditional regen for additional chapters based on accumulated evidence.
+            try:
+                evidence_threshold = int(os.getenv("LLM_REGEN_EVIDENCE_THRESHOLD", "3"))
+            except Exception:
+                evidence_threshold = 3
+            regen_env = os.getenv("LLM_REGEN_CHAPTERS", "")
+            if regen_env.strip():
+                allowlist = {c.strip() for c in regen_env.split(",") if c.strip()}
+            else:
+                allowlist = set(_CONDITIONAL_REGEN_CHAPTERS_DEFAULT)
+
+            if below_min and conditional_regen_count < _MAX_CONDITIONAL_REGEN_PER_REQUEST:
+                for key in below_min:
+                    if key not in allowlist:
+                        continue
+                    _CHAPTER_REGEN_EVIDENCE_COUNTS[key] = _CHAPTER_REGEN_EVIDENCE_COUNTS.get(key, 0) + 1
+                    if _CHAPTER_REGEN_EVIDENCE_COUNTS[key] == evidence_threshold:
+                        logger.info(
+                            "[LLM REGEN EVIDENCE] threshold_reached chapter=%s count=%s",
+                            key,
+                            _CHAPTER_REGEN_EVIDENCE_COUNTS[key],
+                        )
+
+                eligible = [
+                    key
+                    for key in below_min
+                    if key in allowlist and _CHAPTER_REGEN_EVIDENCE_COUNTS.get(key, 0) >= evidence_threshold
+                ]
+                if eligible:
+                    candidate_key = min(
+                        eligible,
+                        key=lambda k: prose_length_map.get(k, length_map.get(k, 0)),
+                    )
+                    new_block = await generate_single_chapter(
+                        chapter_key=candidate_key,
+                        structural_summary=structural_summary,
+                        semantic_signals=semantic_signals,
+                        dasha_context=dasha_context,
+                        chapter_blocks=chapter_blocks,
+                        selected_model=candidate_model,
+                        async_client=async_client,
+                        build_payload_fn=build_payload_fn,
+                        normalize_paragraphs_fn=normalize_paragraphs_fn,
+                    )
+                    if isinstance(new_block, str) and new_block.strip():
+                        conditional_regen_count += 1
+                        conditional_regen_chapter = candidate_key
+                        final_text = replace_chapter_block(final_text, candidate_key, new_block)
+                        final_text = _sanitize_percent_phrasing_ko(final_text)
+                        final_text = _sanitize_meta_report_phrasing_ko(final_text)
+                        final_text = normalize_llm_layout_strict(final_text)
+                        if hybrid_render_mode and not use_evidence_pipeline_v2:
+                            final_text = apply_bridge_to_all_chapters(final_text)
+                        audit_report = audit_llm_output(final_text, structural_summary)
+            if conditional_regen_count:
+                logger.info(
+                    "[LLM REGEN EXTRA] chapter=%s count=%s request_id=%s selected_model=%s",
+                    conditional_regen_chapter,
+                    conditional_regen_count,
+                    request_id,
+                    candidate_model,
+                )
             logger.info("[LLM AUDIT] score=%s flags=%s", audit_report.get("overall_score"), audit_report.get("flags"))
             logger.info(
-                "[LLM REGEN] timeline=%s executive=%s request_id=%s selected_model=%s",
+                "[LLM REGEN] timeline=%s executive=%s conditional=%s request_id=%s selected_model=%s",
                 timeline_regen_count,
                 executive_regen_count,
+                conditional_regen_count,
                 request_id,
                 candidate_model,
             )

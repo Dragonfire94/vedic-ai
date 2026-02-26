@@ -80,12 +80,9 @@ if _missing("timezonefinder"):
     tz_mod.TimezoneFinder = TimezoneFinder
     sys.modules["timezonefinder"] = tz_mod
 
-from backend.main import (
-    _normalize_long_paragraphs,
-    build_llm_structural_prompt,
-    create_pdf_styles,
-    parse_markdown_to_flowables,
-)
+from backend.main import _normalize_long_paragraphs
+from backend.llm_service import build_llm_structural_prompt
+from backend.pdf_service import create_pdf_styles, parse_markdown_to_flowables
 
 
 class TestMarkdownFlowableParser(unittest.TestCase):

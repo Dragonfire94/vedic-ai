@@ -1,0 +1,25 @@
+{
+  "endpoint": "/ai_reading",
+  "query": {
+    "year": 1990,
+    "month": 1,
+    "day": 1,
+    "hour": 12.5,
+    "lat": 37.5665,
+    "lon": 126.978,
+    "house_system": "W",
+    "include_nodes": 1,
+    "include_d9": 1,
+    "include_vargas": "",
+    "language": "ko",
+    "gender": "male",
+    "analysis_mode": "standard",
+    "detail_level": "full",
+    "use_cache": 0,
+    "production_mode": 0,
+    "events_json": "[]",
+    "timezone": null,
+    "debug_payload": 1,
+    "audit_debug": 1
+  }
+}

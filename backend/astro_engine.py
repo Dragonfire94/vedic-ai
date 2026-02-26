@@ -8,11 +8,12 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-ENGINE_VERSION = "1.0.1"
-ENGINE_SIGNATURE = "STRUCTURAL_CORE_V1"
+ENGINE_VERSION = "1.4.1"
+ENGINE_SIGNATURE = "STRUCTURAL_CORE_V5_STATE_SYNTHESIS_TONE_NORMALIZED"
 
 PLANET_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu", "Ketu"]
 
@@ -335,6 +336,250 @@ def _planet_house(planets: dict[str, Any], name: str) -> int | None:
     if isinstance(house, int) and 1 <= house <= 12:
         return house
     return None
+
+
+def _transit_house(transit_planets: dict[str, Any], name: str) -> int | None:
+    data = transit_planets.get(name, {}) if isinstance(transit_planets, dict) else {}
+    for key in ("relative_house", "natal_relative_house", "house"):
+        value = data.get(key)
+        if isinstance(value, int) and 1 <= value <= 12:
+            return value
+    return None
+
+
+def calculate_sub_dasha_bias(
+    planets: dict,
+    strengths: dict,
+    influence_matrix: dict,
+    house_clusters: dict,
+    houses: dict,
+    mahadasha: str,
+    sub_dasha: str,
+) -> dict:
+    del house_clusters
+    if mahadasha not in PLANET_ORDER or sub_dasha not in PLANET_ORDER:
+        return {
+            "bias_multiplier": 1.0,
+            "bias_axis": "growth_execution_axis",
+            "volatility_shift": 0.0,
+            "coherence_index": 0.5,
+        }
+
+    bias_multiplier = 1.0
+    volatility_shift = 0.0
+
+    maha_strength = _safe_float((strengths.get(mahadasha, {}) or {}).get("score", 5.0), 5.0) / 10.0
+    sub_strength = _safe_float((strengths.get(sub_dasha, {}) or {}).get("score", 5.0), 5.0) / 10.0
+
+    if sub_strength > maha_strength:
+        bias_multiplier += 0.05
+    if sub_strength < 0.4:
+        bias_multiplier -= 0.05
+
+    maha_house = _planet_house(planets, mahadasha)
+    sub_house = _planet_house(planets, sub_dasha)
+    if isinstance(maha_house, int) and isinstance(sub_house, int):
+        if maha_house == sub_house:
+            bias_multiplier += 0.08
+        elif _opposite_house(maha_house) == sub_house:
+            volatility_shift += 0.10
+
+    if isinstance(sub_house, int) and sub_house in DUSTHANA_HOUSES:
+        volatility_shift += 0.08
+        bias_multiplier -= 0.04
+
+    matrix = influence_matrix.get("matrix", {}) if isinstance(influence_matrix, dict) else {}
+    weight = _safe_float(matrix.get((sub_dasha, mahadasha), 0.0), 0.0)
+    if weight > 0.5:
+        bias_multiplier += 0.07
+
+    conflict_axis = influence_matrix.get("most_conflicted_axis", []) if isinstance(influence_matrix, dict) else []
+    if isinstance(conflict_axis, list) and set(conflict_axis) == {mahadasha, sub_dasha}:
+        volatility_shift += 0.12
+
+    functional_map = compute_functional_nature(houses)
+    functional_data = functional_map.get(sub_dasha, {}) if isinstance(functional_map, dict) else {}
+    is_yogakaraka = bool(functional_data.get("yogakaraka", False))
+    nature = functional_data.get("nature")
+    if is_yogakaraka:
+        bias_multiplier += 0.06
+    elif nature == "malefic":
+        bias_multiplier -= 0.05
+
+    bias_multiplier = _clamp(bias_multiplier, 0.85, 1.20)
+    volatility_shift = _clamp(volatility_shift, -0.15, 0.15)
+
+    coherence_index = (
+        (maha_strength * 0.5)
+        + (sub_strength * 0.3)
+        + (1.0 - abs(volatility_shift)) * 0.2
+    )
+    coherence_index = _clamp(coherence_index, 0.0, 1.0)
+
+    axis_map = {
+        1: "self_identity_axis",
+        4: "home_career_axis",
+        7: "relationship_axis",
+        10: "status_dharma_axis",
+        6: "service_conflict_axis",
+        8: "transformation_axis",
+        12: "release_loss_axis",
+    }
+    bias_axis = axis_map.get(sub_house, "growth_execution_axis")
+
+    return {
+        "bias_multiplier": float(bias_multiplier),
+        "bias_axis": bias_axis,
+        "volatility_shift": float(volatility_shift),
+        "coherence_index": float(coherence_index),
+    }
+
+
+def calculate_axis_coherence_drift(
+    maha_axis: str,
+    sub_axis: str,
+    transit_axis: str,
+) -> dict:
+    axis_map = {
+        "emotional": "relationship_axis",
+        "authority": "status_dharma_axis",
+        "risk": "growth_execution_axis",
+        "opportunity": "growth_execution_axis",
+        "neutral": "neutral",
+    }
+    mapped_transit = axis_map.get(str(transit_axis or "").strip().lower(), "neutral")
+    active_axes = {
+        str(maha_axis or "").strip(),
+        str(sub_axis or "").strip(),
+        mapped_transit,
+    }
+    active_axes.discard("neutral")
+    axis_unique_count = len(active_axes)
+    if axis_unique_count <= 1:
+        level = "high"
+    elif axis_unique_count == 2:
+        level = "moderate"
+    else:
+        level = "fragmented"
+    return {
+        "axis_unique_count": axis_unique_count,
+        "axis_coherence_level": level,
+    }
+
+
+def calculate_structural_saturation(
+    influence_score: float,
+    pressure_score: float,
+    volatility_shift: float,
+) -> dict:
+    influence = _safe_float(influence_score, 0.0)
+    pressure = _safe_float(pressure_score, 0.0)
+    volatility = abs(_safe_float(volatility_shift, 0.0))
+    saturation = ((influence / 2.0) * 0.4) + ((pressure / 2.0) * 0.4) + (volatility * 0.2)
+    saturation = _clamp(saturation, 0.0, 1.0)
+    if saturation < 0.35:
+        band = "low_density"
+    elif saturation < 0.65:
+        band = "active"
+    else:
+        band = "saturated"
+    return {"value": float(saturation), "band": band}
+
+
+def calculate_sub_dasha_resonance(
+    maha_strength: float,
+    sub_strength: float,
+) -> dict:
+    maha = _safe_float(maha_strength, 0.5)
+    sub = _safe_float(sub_strength, 0.5)
+    resonance = 1.0 - abs(maha - sub)
+    resonance = _clamp(resonance, 0.0, 1.0)
+    if resonance < 0.4:
+        band = "dissonant"
+    elif resonance < 0.7:
+        band = "mixed"
+    else:
+        band = "harmonic"
+    return {"value": float(resonance), "band": band}
+
+
+def synthesize_structural_state(structural_summary: dict) -> dict:
+    summary = structural_summary if isinstance(structural_summary, dict) else {}
+    stability = summary.get("stability_metrics", {}) if isinstance(summary.get("stability_metrics"), dict) else {}
+    axis_coherence = summary.get("axis_coherence", {}) if isinstance(summary.get("axis_coherence"), dict) else {}
+    saturation = summary.get("structural_saturation", {}) if isinstance(summary.get("structural_saturation"), dict) else {}
+    resonance = summary.get("sub_dasha_resonance", {}) if isinstance(summary.get("sub_dasha_resonance"), dict) else {}
+    current_dasha = summary.get("current_dasha_vector", {}) if isinstance(summary.get("current_dasha_vector"), dict) else {}
+    sub_bias = current_dasha.get("sub_dasha_bias", {}) if isinstance(current_dasha.get("sub_dasha_bias"), dict) else {}
+
+    stability_index = _safe_float(stability.get("stability_index", 50.0), 50.0)
+    tension_score = 0.0
+    tension = summary.get("psychological_tension_axis")
+    if isinstance(tension, dict):
+        tension_score = _safe_float(tension.get("score", 0.0), 0.0)
+
+    axis_level = str(axis_coherence.get("axis_coherence_level", "")).strip()
+    saturation_value = saturation.get("value")
+    resonance_value = resonance.get("value")
+    volatility_shift = sub_bias.get("volatility_shift")
+
+    if not axis_level or saturation_value is None or resonance_value is None or volatility_shift is None:
+        return {
+            "state_label": "structural_equilibrium",
+            "state_intensity": 0.0,
+            "integration_theme": "Relative coherence and manageable structural load.",
+        }
+
+    stability_norm = _clamp(1.0 - (stability_index / 100.0), 0.0, 1.0)
+    tension_norm = _clamp(_safe_float(tension_score, 0.0) / 100.0, 0.0, 1.0)
+    saturation_norm = _clamp(_safe_float(saturation_value, 0.0), 0.0, 1.0)
+    resonance_norm = _clamp(1.0 - _safe_float(resonance_value, 0.0), 0.0, 1.0)
+    volatility_norm = _clamp(abs(_safe_float(volatility_shift, 0.0)) / 0.15, 0.0, 1.0)
+
+    state_intensity = (
+        (stability_norm * 0.25)
+        + (tension_norm * 0.25)
+        + (saturation_norm * 0.20)
+        + (resonance_norm * 0.15)
+        + (volatility_norm * 0.15)
+    )
+    state_intensity = _clamp(state_intensity, 0.0, 1.0)
+
+    if axis_level == "high":
+        coherence_score = 0.0
+    elif axis_level == "moderate":
+        coherence_score = 0.5
+    else:
+        coherence_score = 1.0
+    state_intensity = _clamp(state_intensity + (coherence_score * 0.1), 0.0, 1.0)
+
+    if state_intensity >= 0.75 and axis_level == "fragmented":
+        state_label = "fragmented_high_density"
+    elif state_intensity >= 0.75:
+        state_label = "coherent_high_pressure"
+    elif state_intensity >= 0.55 and resonance_norm > 0.5:
+        state_label = "misaligned_transition"
+    elif state_intensity >= 0.55:
+        state_label = "elevated_reconfiguration"
+    elif state_intensity >= 0.35:
+        state_label = "active_stabilization"
+    else:
+        state_label = "structural_equilibrium"
+
+    integration_map = {
+        "fragmented_high_density": "Multiple life vectors active without internal synchronization.",
+        "coherent_high_pressure": "High structural pressure but directional clarity present.",
+        "misaligned_transition": "Current period emphasizes adjustment between dominant and sub-dominant structures.",
+        "elevated_reconfiguration": "Structural reordering phase with moderate internal friction.",
+        "active_stabilization": "Energy moving toward consolidation and rhythm building.",
+        "structural_equilibrium": "Relative coherence and manageable structural load.",
+    }
+
+    return {
+        "state_label": state_label,
+        "state_intensity": float(state_intensity),
+        "integration_theme": integration_map.get(state_label, "Relative coherence and manageable structural load."),
+    }
 
 
 def _planet_features(planets: dict[str, Any], name: str) -> dict[str, Any]:
@@ -1055,6 +1300,7 @@ def summarize_dasha_timeline(
     house_clusters: dict[str, Any],
     houses: dict[str, Any],
     current_dasha: str,
+    current_sub_dasha: str | None = None,
     stability_index: float | None = None,
     debug_metrics: dict | None = None,
 ) -> dict[str, Any]:
@@ -1139,8 +1385,27 @@ def summarize_dasha_timeline(
     }
     dominant_axis = axis_map.get(house, "growth_execution_axis")
 
+    sub_dasha_bias = None
+    if isinstance(current_sub_dasha, str) and current_sub_dasha in PLANET_ORDER:
+        sub_dasha_bias = calculate_sub_dasha_bias(
+            planets=planets,
+            strengths=strength_data,
+            influence_matrix=influence_matrix,
+            house_clusters=house_clusters,
+            houses=houses,
+            mahadasha=current_dasha,
+            sub_dasha=current_sub_dasha,
+        )
+        influence_score *= float(sub_dasha_bias.get("bias_multiplier", 1.0))
+        influence_score = _clamp(influence_score, 0.0, 2.0)
+
     risk_factor = round(max(0.0, min(1.0, 0.70 - influence_score + (0.2 if house in DUSTHANA_HOUSES else 0.0))), 2)
     opportunity_factor = round(max(0.0, min(1.0, influence_score)), 2)
+
+    if sub_dasha_bias:
+        volatility_shift = _safe_float(sub_dasha_bias.get("volatility_shift", 0.0), 0.0)
+        risk_factor = _clamp(risk_factor + volatility_shift, 0.0, 1.0)
+        opportunity_factor = _clamp(opportunity_factor * float(sub_dasha_bias.get("bias_multiplier", 1.0)), 0.0, 1.0)
 
     if isinstance(debug_metrics, dict):
         debug_metrics.setdefault("dominant_score", []).append(dominant_score)
@@ -1169,6 +1434,8 @@ def summarize_dasha_timeline(
         "dominant_axis": dominant_axis,
         "risk_factor": risk_factor,
         "opportunity_factor": opportunity_factor,
+        "influence_score": round(float(influence_score), 4),
+        "sub_dasha_bias": sub_dasha_bias,
     }
 
 
@@ -1183,11 +1450,233 @@ def _angle_distance(a: float, b: float) -> float:
     return min(diff, 360.0 - diff)
 
 
+def _planet_lon(planets: dict[str, Any], name: str) -> float | None:
+    data = planets.get(name, {})
+    for key in ("longitude", "lon"):
+        value = data.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return None
+
+
+def _transit_aspect_houses(planet: str) -> set[int]:
+    if planet == "Saturn":
+        return {3, 7, 10}
+    if planet == "Mars":
+        return {4, 7, 8}
+    if planet == "Jupiter":
+        return {5, 7, 9}
+    if planet == "Rahu":
+        return {5, 7, 9}
+    if planet == "Ketu":
+        return {5, 7, 9}
+    return {7}
+
+
+def _transit_aspects_natal(
+    transit_planets: dict[str, Any],
+    transit_name: str,
+    natal_planets: dict[str, Any],
+    natal_name: str,
+    *,
+    orb: float = 3.0,
+) -> bool:
+    aspect_houses = set(_transit_aspect_houses(transit_name))
+    aspect_houses.add(1)  # conjunction
+
+    transit_lon = _planet_lon(transit_planets, transit_name)
+    natal_lon = _planet_lon(natal_planets, natal_name)
+    if transit_lon is not None and natal_lon is not None:
+        for rel_house in aspect_houses:
+            exact_angle = ((rel_house - 1) * 30.0) % 360.0
+            actual_angle = (natal_lon - transit_lon) % 360.0
+            if _angle_distance(actual_angle, exact_angle) <= orb:
+                return True
+        return False
+
+    transit_house = _transit_house(transit_planets, transit_name)
+    natal_house = _planet_house(natal_planets, natal_name)
+    if not transit_house or not natal_house:
+        return False
+    rel = _relative_house(transit_house, natal_house)
+    return rel in aspect_houses
+
+
 def _aspect_orb(rel_house: int, source_lon: float, target_lon: float) -> float:
     """Compute orb from exact aspect angle mapped from relative house geometry."""
     exact_angle = ((rel_house - 1) * 30.0) % 360.0
     actual_angle = (target_lon - source_lon) % 360.0
     return _angle_distance(actual_angle, exact_angle)
+
+
+def calculate_monthly_transit_pressure(
+    natal_planets: dict,
+    natal_strengths: dict,
+    natal_clusters: dict,
+    natal_influence: dict,
+    transit_planets: dict,
+) -> dict:
+    del natal_strengths
+    # Transit planets must provide natal-relative houses. Use relative_house/natal_relative_house
+    # if supplied; fallback to house assumes it is already natal-relative.
+    pressure = 1.0
+    risk_amp = 0.0
+    opp_amp = 0.0
+    emotional_delta = 0.0
+    authority_delta = 0.0
+
+    dusthana_hits = 0
+    for planet in transit_planets:
+        house = _transit_house(transit_planets, planet)
+        if isinstance(house, int) and house in DUSTHANA_HOUSES:
+            dusthana_hits += 1
+    if dusthana_hits:
+        pressure += min(dusthana_hits * 0.08, 0.25)
+        risk_amp += dusthana_hits * 0.05
+
+    dominant_house = natal_clusters.get("dominant_house") if isinstance(natal_clusters, dict) else None
+    if isinstance(dominant_house, int) and 1 <= dominant_house <= 12:
+        for planet in transit_planets:
+            house = _transit_house(transit_planets, planet)
+            if house == dominant_house:
+                pressure += 0.15
+                opp_amp += 0.08
+                break
+
+    axis_planets = []
+    if isinstance(natal_influence, dict):
+        axis_planets = natal_influence.get("most_conflicted_axis", []) or []
+    axis_planets = [p for p in axis_planets if isinstance(p, str) and p in natal_planets]
+    if axis_planets:
+        conflict_hit = False
+        for transit_name in ("Saturn", "Mars", "Rahu"):
+            if transit_name not in transit_planets:
+                continue
+            if any(_transit_aspects_natal(transit_planets, transit_name, natal_planets, axis) for axis in axis_planets):
+                conflict_hit = True
+                break
+        if conflict_hit:
+            pressure += 0.20
+            risk_amp += 0.10
+
+    moon_hit = False
+    if "Moon" in natal_planets:
+        for transit_name in ("Saturn", "Rahu"):
+            if transit_name in transit_planets and _transit_aspects_natal(transit_planets, transit_name, natal_planets, "Moon"):
+                moon_hit = True
+                break
+    if moon_hit:
+        emotional_delta += 0.25
+        pressure += 0.10
+
+    sun_hit = False
+    if "Sun" in natal_planets:
+        for transit_name in ("Rahu", "Saturn"):
+            if transit_name in transit_planets and _transit_aspects_natal(transit_planets, transit_name, natal_planets, "Sun"):
+                sun_hit = True
+                break
+    if sun_hit:
+        authority_delta += 0.25
+        pressure += 0.10
+
+    jupiter_house = _transit_house(transit_planets, "Jupiter") if isinstance(transit_planets, dict) else None
+    if isinstance(jupiter_house, int) and (jupiter_house in TRINE_HOUSES or jupiter_house in KENDRA_HOUSES):
+        opp_amp += 0.15
+        pressure -= 0.05
+
+    venus_house = _transit_house(transit_planets, "Venus") if isinstance(transit_planets, dict) else None
+    if isinstance(venus_house, int) and (venus_house in TRINE_HOUSES or venus_house in KENDRA_HOUSES):
+        opp_amp += 0.08
+        pressure -= 0.03
+
+    benefic_support = False
+    if "Moon" in natal_planets:
+        for transit_name in ("Jupiter", "Venus"):
+            if transit_name in transit_planets and _transit_aspects_natal(transit_planets, transit_name, natal_planets, "Moon"):
+                benefic_support = True
+                break
+    if benefic_support:
+        emotional_delta -= 0.10
+        pressure -= 0.04
+
+    pressure_score = _clamp(pressure, 0.5, 2.0)
+    risk_amp = _clamp(risk_amp, 0.0, 1.0)
+    opp_amp = _clamp(opp_amp, 0.0, 1.0)
+
+    axis_candidates = [
+        ("emotional", abs(emotional_delta)),
+        ("authority", abs(authority_delta)),
+        ("risk", risk_amp),
+        ("opportunity", opp_amp),
+    ]
+    axis_candidates.sort(key=lambda item: item[1], reverse=True)
+    dominant_axis = axis_candidates[0][0] if axis_candidates and axis_candidates[0][1] >= 0.05 else "neutral"
+
+    return {
+        "pressure_score": float(pressure_score),
+        "dominant_pressure_axis": dominant_axis,
+        "risk_amplification": float(risk_amp),
+        "opportunity_amplification": float(opp_amp),
+        "emotional_pressure_delta": float(emotional_delta),
+        "authority_pressure_delta": float(authority_delta),
+    }
+
+
+def build_three_month_structural_outlook(
+    natal_data: dict,
+    start_date: datetime,
+    transit_provider,
+) -> dict:
+    natal_planets = natal_data.get("natal_planets") or natal_data.get("planets") or {}
+    natal_strengths = natal_data.get("natal_strengths") or natal_data.get("strengths") or {}
+    natal_clusters = natal_data.get("natal_clusters") or natal_data.get("house_clusters") or {}
+    natal_influence = natal_data.get("natal_influence") or natal_data.get("influence_matrix") or {}
+
+    def _mid_month(base: datetime, offset: int) -> datetime:
+        month_index = (base.month - 1) + offset
+        year = base.year + (month_index // 12)
+        month = (month_index % 12) + 1
+        return datetime(
+            year,
+            month,
+            15,
+            base.hour,
+            base.minute,
+            base.second,
+            base.microsecond,
+            tzinfo=base.tzinfo,
+        )
+
+    outputs: dict[str, dict[str, Any]] = {}
+    for idx in range(1, 4):
+        target_date = _mid_month(start_date, idx)
+        transit_planets = transit_provider(target_date) if callable(transit_provider) else {}
+        if not isinstance(transit_planets, dict):
+            transit_planets = {}
+        outputs[f"month_{idx}"] = calculate_monthly_transit_pressure(
+            natal_planets=natal_planets,
+            natal_strengths=natal_strengths,
+            natal_clusters=natal_clusters,
+            natal_influence=natal_influence,
+            transit_planets=transit_planets,
+        )
+
+    month_1 = outputs.get("month_1", {})
+    month_3 = outputs.get("month_3", {})
+    score_1 = _safe_float(month_1.get("pressure_score"), 1.0)
+    score_3 = _safe_float(month_3.get("pressure_score"), 1.0)
+
+    if score_3 - score_1 > 0.2:
+        trend = "increasing"
+    elif score_1 - score_3 > 0.2:
+        trend = "decreasing"
+    else:
+        trend = "stable"
+
+    return {
+        **outputs,
+        "trend": trend,
+    }
 
 
 def _aspect_weight(source: str, rel_house: int) -> float:
@@ -1885,12 +2374,15 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
     )
 
     current_dasha = chart_data.get("current_dasha")
+    current_sub_dasha = chart_data.get("current_sub_dasha") or chart_data.get("sub_dasha")
     if not current_dasha or current_dasha not in planets:
         current_dasha = max(
             (p for p in strength if p in planets),
             key=lambda p: strength[p]["score"],
             default="Moon",
         )
+    if not current_sub_dasha or current_sub_dasha not in PLANET_ORDER:
+        current_sub_dasha = None
 
     dasha_summary = summarize_dasha_timeline(
         planets,
@@ -1900,7 +2392,69 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         house_clusters,
         houses,
         current_dasha,
+        current_sub_dasha=current_sub_dasha,
         stability_index=stability_metrics.get("stability_index", 50),
+    )
+    sub_dasha_bias = dasha_summary.get("sub_dasha_bias") if isinstance(dasha_summary, dict) else None
+    maha_axis = dasha_summary.get("dominant_axis", "neutral") if isinstance(dasha_summary, dict) else "neutral"
+    sub_axis = (
+        sub_dasha_bias.get("bias_axis", "neutral")
+        if isinstance(sub_dasha_bias, dict)
+        else "neutral"
+    )
+    transit_axis = "neutral"
+    transit_outlook = chart_data.get("transit_outlook") if isinstance(chart_data, dict) else None
+    if isinstance(transit_outlook, dict):
+        month_2 = transit_outlook.get("month_2", {})
+        if isinstance(month_2, dict):
+            transit_axis = month_2.get("dominant_pressure_axis", "neutral") or "neutral"
+    transit_axis = str(transit_axis or "neutral")
+    axis_coherence = calculate_axis_coherence_drift(
+        maha_axis=maha_axis,
+        sub_axis=sub_axis,
+        transit_axis=transit_axis,
+    )
+    influence_score = (
+        float(dasha_summary.get("influence_score", 0.0))
+        if isinstance(dasha_summary, dict)
+        else 0.0
+    )
+    volatility_shift = (
+        float(sub_dasha_bias.get("volatility_shift", 0.0))
+        if isinstance(sub_dasha_bias, dict)
+        else 0.0
+    )
+    pressure_score = 0.0
+    if isinstance(transit_outlook, dict):
+        month_2 = transit_outlook.get("month_2", {})
+        if isinstance(month_2, dict):
+            pressure_score = float(month_2.get("pressure_score", 0.0) or 0.0)
+    structural_saturation = calculate_structural_saturation(
+        influence_score=influence_score,
+        pressure_score=pressure_score,
+        volatility_shift=volatility_shift,
+    )
+    if current_sub_dasha in PLANET_ORDER:
+        maha_strength = _safe_float((strength.get(current_dasha, {}) or {}).get("score", 5.0), 5.0) / 10.0
+        sub_strength = _safe_float((strength.get(current_sub_dasha, {}) or {}).get("score", 5.0), 5.0) / 10.0
+        sub_dasha_resonance = calculate_sub_dasha_resonance(
+            maha_strength=maha_strength,
+            sub_strength=sub_strength,
+        )
+    else:
+        sub_dasha_resonance = calculate_sub_dasha_resonance(maha_strength=0.5, sub_strength=0.5)
+
+    stability_metrics_alias = dict(stability_metrics)
+    stability_metrics_alias["grade"] = stability_metrics.get("stability_grade", "D")
+    structural_state = synthesize_structural_state(
+        {
+            "stability_metrics": stability_metrics_alias,
+            "psychological_tension_axis": influence_matrix.get("most_conflicted_axis", []),
+            "axis_coherence": axis_coherence,
+            "structural_saturation": structural_saturation,
+            "sub_dasha_resonance": sub_dasha_resonance,
+            "current_dasha_vector": dasha_summary,
+        }
     )
     probability_forecast = calculate_probability_forecast(strength, house_clusters, dasha_summary, behavioral_risks)
     varga_alignment = compute_varga_alignment(chart_data)
@@ -1918,9 +2472,6 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         key=lambda p: strength[p]["score"],
         reverse=True,
     )
-
-    stability_metrics_alias = dict(stability_metrics)
-    stability_metrics_alias["grade"] = stability_metrics.get("stability_grade", "D")
 
     return {
         "ascendant_sign": asc_sign,
@@ -1952,6 +2503,10 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         "shadbala_summary": shadbala_summary,
         "karmic_pattern_profile": karmic_profile,
         "current_dasha_vector": dasha_summary,
+        "axis_coherence": axis_coherence,
+        "structural_saturation": structural_saturation,
+        "sub_dasha_resonance": sub_dasha_resonance,
+        "structural_state": structural_state,
         "dominant_life_theme": dominant_theme,
         "psychological_axis": dasha_summary["dominant_axis"],
         "relationship_vector": relationship_vector,

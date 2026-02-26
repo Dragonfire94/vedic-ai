@@ -913,3 +913,10 @@ Engine marked production-safe.
 - Verification:
   - `python -m py_compile backend/main.py backend/pdf_service.py` PASS
   - `/pdf` generation PASS: `logs/pdf_quality_check/sample_report_post_revert_20260221_203049.pdf`
+- Added transit overlay helpers (monthly pressure + 3-month outlook), updated engine signature/version, and added transit overlay tests.
+- Hardened transit overlay: use natal-relative house keys for transits, added dominant axis threshold, and safer mid-month date construction.
+- Added sub-dasha bias layer (calculate_sub_dasha_bias) and integrated into dasha summary with version bump and tests.
+- Added stability metrics (axis coherence, structural saturation, sub-dasha resonance) with output integration and version bump to 1.3.0.
+- Added structural state synthesizer, narrative injection in report engine, and updated version to 1.4.0 with tests.
+- Added conditional chapter regeneration based on accumulated evidence (default allowlist: Psychological Architecture, Love & Relationships, Career & Success).
+- Added sample ai_reading request JSON under samples/.
