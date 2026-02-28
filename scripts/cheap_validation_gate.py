@@ -29,6 +29,7 @@ from backend.main import (
     get_chart,
 )
 from backend.report_engine import build_dasha_narrative_context, build_report_payload, build_semantic_signals
+from backend.vedic_lexicon import scan_vedic_term_budget
 
 
 OUT_DIR = Path("logs/cheap_validation_gate")
@@ -110,12 +111,69 @@ def _static_prompt_check(prompt: str) -> dict[str, Any]:
     }
 
 
-def _dry_structure_check(chapter_blocks: dict[str, Any]) -> dict[str, Any]:
+def _strict_vedic_failed(scan: dict[str, Any] | None) -> bool:
+    if not isinstance(scan, dict):
+        return False
+    if bool(scan.get("doc_over")):
+        return True
+    for chapter in scan.get("chapters", []) if isinstance(scan.get("chapters"), list) else []:
+        if bool(chapter.get("over")):
+            return True
+        if int(chapter.get("stacking_hits", 0)) > 0:
+            return True
+    return False
+
+
+def _strict_vedic_violations(scan: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(scan, dict):
+        return {
+            "doc_over": False,
+            "chapter_budget_over": [],
+            "chapter_stacking_over": [],
+        }
+    chapters = scan.get("chapters", []) if isinstance(scan.get("chapters"), list) else []
+    chapter_budget_over = [c for c in chapters if bool(c.get("over"))]
+    chapter_stacking_over = [c for c in chapters if int(c.get("stacking_hits", 0)) > 0]
+    return {
+        "doc_over": bool(scan.get("doc_over")),
+        "chapter_budget_over": chapter_budget_over,
+        "chapter_stacking_over": chapter_stacking_over,
+    }
+
+
+def _log_strict_vedic_fail(stage: str, scan: dict[str, Any] | None) -> None:
+    if not isinstance(scan, dict):
+        logger.error("[STRICT_VEDIC] stage=%s missing_scan_payload", stage)
+        return
+    logger.error(
+        "[STRICT_VEDIC] stage=%s doc_total=%s max_total=%s doc_over=%s",
+        stage,
+        scan.get("doc_total"),
+        scan.get("max_terms_total"),
+        scan.get("doc_over"),
+    )
+    for chapter in scan.get("chapters", []) if isinstance(scan.get("chapters"), list) else []:
+        if not bool(chapter.get("over")) and int(chapter.get("stacking_hits", 0)) <= 0:
+            continue
+        logger.error(
+            "[STRICT_VEDIC] stage=%s chapter=%s chapter_total=%s max_per_chapter=%s terms=%s axis_tokens=%s stacking_hits=%s",
+            stage,
+            chapter.get("chapter_heading"),
+            chapter.get("chapter_total"),
+            chapter.get("max_terms_per_chapter"),
+            chapter.get("terms"),
+            chapter.get("axis_tokens"),
+            chapter.get("stacking_hits"),
+        )
+
+
+def _dry_structure_check(chapter_blocks: dict[str, Any], *, strict_vedic: bool = False) -> dict[str, Any]:
     deterministic = _render_chapter_blocks_deterministic(chapter_blocks, language="ko")
     normalized = normalize_llm_layout_strict(deterministic)
-    remediated = _apply_style_remediation(normalized)
+    remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
     style_errors = _reading_style_error_codes(remediated)
     forbidden_hits = scan_forbidden_patterns(remediated)
+    vedic_scan = scan_vedic_term_budget(remediated) if strict_vedic else None
 
     warn_only = {"label_pattern_detected", "paragraph_too_long"}
     hard_style_errors = [e for e in style_errors if e not in warn_only]
@@ -127,6 +185,8 @@ def _dry_structure_check(chapter_blocks: dict[str, Any]) -> dict[str, Any]:
         "hard_style_errors": hard_style_errors,
         "warn_style_errors": warn_style_errors,
         "forbidden_hits": len(forbidden_hits),
+        "vedic_scan": vedic_scan,
+        "vedic_violation": _strict_vedic_violations(vedic_scan) if strict_vedic else None,
     }
 
 
@@ -148,7 +208,12 @@ def _save_hash_guard(profile_name: str, prompt_hash: str) -> None:
     _json_dump(HASH_GUARD_PATH, payload)
 
 
-def _run_single_true_path(candidate: dict[str, Any], timeout_seconds: int = 180) -> dict[str, Any]:
+def _run_single_true_path(
+    candidate: dict[str, Any],
+    timeout_seconds: int = 180,
+    *,
+    strict_vedic: bool = False,
+) -> dict[str, Any]:
     payload = candidate["input"]
     params = {
         "year": payload["year"],
@@ -193,6 +258,7 @@ def _run_single_true_path(candidate: dict[str, Any], timeout_seconds: int = 180)
     data = resp.json()
     ai_cache_key = data.get("ai_cache_key")
     reading_text = str(data.get("reading") or "")
+    vedic_scan = scan_vedic_term_budget(reading_text) if strict_vedic else None
     audit = data.get("audit") or {}
     debug_info = data.get("debug_info") if isinstance(data.get("debug_info"), dict) else {}
     selected_model = (
@@ -268,6 +334,8 @@ def _run_single_true_path(candidate: dict[str, Any], timeout_seconds: int = 180)
         "reading_length": len(reading_text),
         "heading_count": reading_text.count("\n## ") + (1 if reading_text.startswith("## ") else 0),
         "forbidden_hits": len(scan_forbidden_patterns(reading_text)),
+        "vedic_scan": vedic_scan,
+        "vedic_violation": _strict_vedic_violations(vedic_scan) if strict_vedic else None,
         "error": data.get("error"),
         "analysis_mode_fallback": data.get("analysis_mode_fallback"),
         "run_dir": str(run_dir),
@@ -293,6 +361,7 @@ async def run_cheap_validation(
     skip_truepath_on_same_hash: bool,
     allow_api: bool,
     timeout_seconds: int,
+    strict_vedic: bool,
 ) -> int:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     candidates = _build_candidates()
@@ -301,7 +370,7 @@ async def run_cheap_validation(
 
     prompt, chapter_blocks = _build_prompt_for_candidate(candidate)
     static = _static_prompt_check(prompt)
-    dry = _dry_structure_check(chapter_blocks)
+    dry = _dry_structure_check(chapter_blocks, strict_vedic=strict_vedic)
     guard = _load_hash_guard()
     same_hash = static["prompt_hash"] == str(guard.get("prompt_hash", ""))
 
@@ -311,7 +380,11 @@ async def run_cheap_validation(
     elif not should_run_truepath:
         truepath = {"skipped": True, "reason": "prompt_hash_unchanged"}
     else:
-        truepath = _run_single_true_path(candidate, timeout_seconds=timeout_seconds)
+        truepath = _run_single_true_path(
+            candidate,
+            timeout_seconds=timeout_seconds,
+            strict_vedic=strict_vedic,
+        )
 
     summary = {
         "profile_name": profile_name,
@@ -324,6 +397,7 @@ async def run_cheap_validation(
             "should_run_truepath": should_run_truepath,
         },
         "truepath": truepath,
+        "strict_vedic": bool(strict_vedic),
     }
     _json_dump(OUT_DIR / "cheap_validation_summary.json", summary)
 
@@ -333,13 +407,17 @@ async def run_cheap_validation(
         f"same_hash={same_hash} "
         f"truepath={'run' if should_run_truepath else 'skip'} "
         f"dry_forbidden={dry['forbidden_hits']} "
-        f"dry_hard_style={len(dry['hard_style_errors'])}"
+        f"dry_hard_style={len(dry['hard_style_errors'])} "
+        f"strict_vedic={int(bool(strict_vedic))}"
     )
 
     # Persist prompt hash after successful static+dry pass (whether true-path ran or skipped).
     _save_hash_guard(profile_name, static["prompt_hash"])
 
     if dry["forbidden_hits"] > 0 or len(dry["hard_style_errors"]) > 0:
+        return 1
+    if strict_vedic and _strict_vedic_failed(dry.get("vedic_scan")):
+        _log_strict_vedic_fail("dry", dry.get("vedic_scan"))
         return 1
     if should_run_truepath:
         if not truepath.get("ok"):
@@ -348,6 +426,55 @@ async def run_cheap_validation(
             return 1
         if int(truepath.get("forbidden_hits", 0)) > 0:
             return 1
+        if strict_vedic and _strict_vedic_failed(truepath.get("vedic_scan")):
+            _log_strict_vedic_fail("truepath", truepath.get("vedic_scan"))
+            return 1
+    return 0
+
+
+def run_strict_vedic_scan(path: str, strict_vedic: bool) -> int:
+    input_path = Path(path)
+    if not input_path.exists() or not input_path.is_file():
+        logger.error("input file not found: %s", input_path)
+        return 1
+
+    raw_text = input_path.read_text(encoding="utf-8")
+    normalized = normalize_llm_layout_strict(raw_text)
+    remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
+    style_errors = _reading_style_error_codes(remediated)
+    forbidden_hits = scan_forbidden_patterns(remediated)
+    vedic_scan = scan_vedic_term_budget(remediated) if strict_vedic else None
+
+    warn_only = {"label_pattern_detected", "paragraph_too_long"}
+    hard_style_errors = [e for e in style_errors if e not in warn_only]
+    payload = {
+        "input_path": str(input_path),
+        "strict_vedic": bool(strict_vedic),
+        "text_length": len(remediated),
+        "hard_style_errors": hard_style_errors,
+        "warn_style_errors": [e for e in style_errors if e in warn_only],
+        "forbidden_hits": len(forbidden_hits),
+        "vedic_scan": vedic_scan,
+        "vedic_violation": _strict_vedic_violations(vedic_scan) if strict_vedic else None,
+    }
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+    _json_dump(OUT_DIR / f"strict_vedic_scan_{stamp}.json", payload)
+
+    print(
+        "STRICT_VEDIC_SCAN "
+        f"input={input_path} "
+        f"strict_vedic={int(bool(strict_vedic))} "
+        f"forbidden={len(forbidden_hits)} "
+        f"hard_style={len(hard_style_errors)}"
+    )
+
+    if len(forbidden_hits) > 0 or len(hard_style_errors) > 0:
+        return 1
+    if strict_vedic and _strict_vedic_failed(vedic_scan):
+        _log_strict_vedic_fail("input", vedic_scan)
+        return 1
     return 0
 
 
@@ -387,7 +514,20 @@ if __name__ == "__main__":
         default=max(default_timeout, 120),
         help="Per-command timeout seconds. Default from DEFAULT_COMMAND_TIMEOUT (min 120, recommended 180).",
     )
+    parser.add_argument(
+        "--strict-vedic",
+        type=int,
+        default=0,
+        help="Enable strict Vedic budget/stacking hard-fail checks (1=yes, 0=no).",
+    )
+    parser.add_argument(
+        "--input",
+        default="",
+        help="Direct markdown/text path for synchronous strict scan. Bypasses profile pipeline.",
+    )
     args = parser.parse_args()
+    if isinstance(args.input, str) and args.input.strip():
+        raise SystemExit(run_strict_vedic_scan(path=args.input.strip(), strict_vedic=bool(args.strict_vedic)))
     raise SystemExit(
         asyncio.run(
             run_cheap_validation(
@@ -396,6 +536,7 @@ if __name__ == "__main__":
                 skip_truepath_on_same_hash=bool(args.skip_truepath_on_same_hash),
                 allow_api=bool(args.allow_api),
                 timeout_seconds=int(args.timeout_seconds),
+                strict_vedic=bool(args.strict_vedic),
             )
         )
     )

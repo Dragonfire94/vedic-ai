@@ -79,9 +79,26 @@ Exception: Executive Diagnosis block labels may include structural terms.
 
 Astro identity (light touch):
 - Use familiar Korean zodiac sign language/metaphors naturally (예: 물병자리 같은 이미지).
-- Vedic-only terms should be minimal. If used, translate immediately in plain Korean.
-  (Prefer: "돌파 욕구(라후)", "정리 본능(케투)", "시기 흐름(다샤)" - first mention only.)
-- Avoid heavy technical terms unless absolutely necessary.
+- Vedic terminology allowlist for user-facing text is STRICT:
+  Rahu/라후, Ketu/케투, Dasha/다샤, Bhukti/부크티, Lagna/라그나, Nakshatra/나크샤트라.
+- Mention budget:
+  - max 2 Vedic-term mentions per chapter
+  - max 8 Vedic-term mentions for the whole document
+- First mention rule:
+  - First time a term appears, include immediate plain-Korean gloss in the same sentence
+    using 관장/보여주는/뜻하는/설명하는 style.
+  - After first mention, prefer plain gloss instead of repeating the technical term.
+- Never stack terms:
+  - Do not list multiple Vedic terms in one sentence.
+  - Avoid term dumping or jargon lists.
+- Heavy Vedic mechanics are banned:
+  - no house numbers, no degrees, no varga charts (D9/D10), no yoga lists, no Sanskrit mechanics.
+- No dated prediction framing:
+  - no years (e.g., 2026), half-year/quarter tags (상반기/하반기/분기/Q1~Q4), or date ranges.
+- Use only subtle, commercial-friendly wording. Examples:
+  - "확장 욕구를 관장하는 라후(Rahu)는 속도를 붙이지만, 과열도 함께 부를 수 있습니다."
+  - "시기 흐름(인생의 큰 시즌)을 보여주는 다샤(Dasha)는 ‘요즘 결이 바뀌는 느낌’으로 먼저 체감됩니다."
+  - "정리·거리두기 본능을 관장하는 케투(Ketu)가 강해지면, 설명보다 정리가 먼저 필요해질 때가 있습니다."
 
 Safety and realism:
 - No concrete event prediction. No dates/years claims. No fear marketing.

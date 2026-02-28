@@ -1,499 +1,426 @@
 # Vedic AI
 
-## Quick Start Stability Notes
+베딕 점성학(Vedic Astrology) 기반의 차트 해석 및 생시보정(BTR, Birth Time Rectification) 리포트를 생성하는 풀스택 프로젝트입니다.
 
-- `run_all.bat` now performs backend dependency preflight before launching services.
-- If dependencies are missing, it will run:
-  - `python -m pip install -r backend/requirements.txt`
-- If Google Maps API key is missing, frontend city search automatically falls back to OpenStreetMap (Nominatim).
+이 저장소는 다음 4가지를 하나로 묶습니다.
 
-Manual recovery commands:
+1. 출생 정보 기반 베딕 차트 계산 엔진
+2. 이벤트 기반 생시보정(BTR) 분석 엔진
+3. 구조화된 결정론 리포트 + LLM 문장 고도화 파이프라인
+4. Next.js 기반 사용자 입력/결과 확인 UI
 
-```bash
-python -m pip install -r backend/requirements.txt
-cd frontend && npm install
+---
+
+## 문서 목적
+
+이 README는 새로 프로젝트를 받는 개발자가 아래를 빠르게 이해하도록 작성되었습니다.
+
+1. 이 프로젝트가 무엇을 하는지
+2. 어디서 실행하고, 어디를 수정해야 하는지
+3. API/품질게이트/로그를 어떻게 보는지
+
+---
+
+## 1. 프로젝트 한눈에 보기
+
+### 핵심 문제
+
+정확한 출생 시간이 없거나 불명확한 사용자에게:
+
+1. 사건 이력(연애/이직/건강/이동 등)을 기반으로 생시 후보를 추정하고
+2. 추정된 구조 요약을 사람이 읽기 쉬운 상업형 리포트로 변환하며
+3. 필요 시 PDF 형태로 제공하는 것이 목표입니다.
+
+### 핵심 특성
+
+1. **결정론 + LLM 하이브리드**
+   - 먼저 규칙 기반으로 `chapter_blocks`를 결정론적으로 생성
+   - 이후 LLM은 새 해석을 만드는 것이 아니라 문장 품질을 다듬는 용도로 제한
+2. **Korean-first 출력**
+   - 기본 언어는 한국어(`ko`)
+3. **운영 안전장치**
+   - 캐시/금칙어 스캔/스타일 점검/품질 게이트
+4. **BTR 튜닝 분리**
+   - `tune_mode`는 환경변수 게이트로 강제 제어
+
+---
+
+## 2. 기술 스택
+
+### Backend
+
+1. Python 3.11 계열
+2. FastAPI + Uvicorn
+3. Swiss Ephemeris(`pyswisseph`) + Lahiri sidereal 모드 고정
+4. OpenAI API(비동기 클라이언트)
+5. ReportLab 기반 PDF 생성
+
+주요 의존성은 [requirements.txt](C:/dev/vedic-ai/backend/requirements.txt) 참고.
+
+### Frontend
+
+1. Next.js 14
+2. React 18 + TypeScript
+3. Tailwind CSS + Radix UI
+4. Zustand 상태관리
+5. Playwright E2E 테스트
+
+주요 의존성/스크립트는 [frontend/package.json](C:/dev/vedic-ai/frontend/package.json) 참고.
+
+---
+
+## 3. 아키텍처 개요
+
+```text
+[Next.js Frontend]
+  - 출생정보 입력
+  - BTR 질문/결과
+  - 차트/AI 리포트/PDF 요청
+        |
+        v
+[FastAPI Backend]
+  - /chart: 차트 계산
+  - /btr/*: 생시보정
+  - /ai_reading: 리포트 생성
+  - /pdf: PDF 변환
+        |
+        +--> [Swiss Ephemeris + Astro Engine]
+        +--> [BTR Engine]
+        +--> [Report Engine (deterministic chapter blocks)]
+        +--> [OpenAI (문장 고도화)]
+        +--> [ReportLab PDF]
 ```
 
-## BTR Engine Stabilization (Signal Normalization)
+---
 
-### `backend/config/event_signal_mapping.json`
-Maps frontend `event_type` values to internal engine profile keys.
+## 4. 주요 디렉터리
 
-```json
-{
-  "career_change": "career",
-  "relationship": "relationship",
-  "relocation": "relocation",
-  "health": "health",
-  "finance": "finance",
-  "other": "other"
-}
+```text
+vedic-ai/
+├─ backend/
+│  ├─ main.py                    # FastAPI 엔트리 + 핵심 API
+│  ├─ astro_engine.py            # 구조 요약 계산
+│  ├─ btr_engine.py              # 생시보정 엔진
+│  ├─ report_engine.py           # 결정론 블록 선택/프롬프트 계약
+│  ├─ llm_service.py             # LLM 호출/정규화/감사(audit)
+│  ├─ pdf_service.py             # PDF 생성
+│  ├─ report_templates_ko/*.json # 한국어 리포트 템플릿
+│  ├─ config/*.json              # BTR 규칙/매핑
+│  ├─ test_*.py                  # 백엔드 테스트(현재 50개)
+│  └─ server_runner.py           # 환경변수 기반 uvicorn 런처
+├─ frontend/
+│  ├─ app/page.tsx               # 초기 입력 화면
+│  ├─ app/btr/*                  # BTR 질문/결과 화면
+│  ├─ app/chart/*                # 차트/리포트 화면
+│  ├─ lib/api.ts                 # 백엔드 API 클라이언트
+│  └─ tests/e2e/*.spec.ts        # Playwright E2E
+├─ scripts/
+│  ├─ cheap_validation_gate.py   # 저비용 리포트 검증 게이트
+│  ├─ tmp_phase11_run7.py        # QA 샘플 실행 스크립트
+│  └─ check_no_mojibake.py       # 한글 깨짐(모지바케) 점검
+├─ logs/                         # QA/게이트 산출물
+└─ run_all.bat                   # 로컬 통합 실행 배치
 ```
 
-### `backend/config/event_signal_profile.json` schema
-Single source-of-truth for event signal weights.
+---
 
-- `houses: number[]`
-- `planets: string[]`
-- `dasha_lords: string[]`
-- `conflict_factors: string[]`
-- `base_weight: number`
+## 5. 빠른 시작
 
-### Confidence calibration (Phase 4)
-The engine now keeps a **raw confidence** value from scoring and applies a statistical post-processing layer to produce **calibrated confidence**.
+### 사전 요구사항
 
-- Raw confidence: direct result from event-matching score ratio logic
-- Calibrated confidence: raw confidence adjusted for distribution uncertainty
+1. Python 3.11+
+2. Node.js 18+
+3. npm
 
-Calibration features (computed from candidate score/probability distribution):
+### 가장 빠른 방법(Windows)
 
-- `gap`: top-1 vs top-2 score separation
-- `entropy`: `-誇 p_i log(p_i + 1e-9)` (higher means flatter, more uncertain)
-- `score_variance`: normalized to `[0, 1]`
-- `top_probability`: largest normalized candidate probability
-
-Statistical safety rules prevent overconfidence:
-
-- high entropy and small gap dampen confidence
-- low top probability caps confidence
-- only slight boost is allowed for very strong separation (`+0.05` max)
-- final confidence is always clamped to `[0.05, 0.95]`
-
-This helps avoid brittle, overconfident outputs when multiple time brackets are similarly plausible.
-
-### Calibration log output (`production_mode=True`)
-The engine emits structured JSON via logger `btr.calibration`:
-
-```json
-{
-  "timestamp_utc": "2026-01-01T00:00:00Z",
-  "input_events": [{"event_type": "career_change", "precision_level": "exact", "year": 2010}],
-  "normalized_scores": [{"raw_score": 9.2, "probability": 0.61}],
-  "raw_confidence": 0.88,
-  "calibrated_confidence": 0.83,
-  "entropy": 1.12,
-  "gap": 0.74,
-  "top_probability": 0.61,
-  "top_candidate_time_range": "00:00-03:00",
-  "separation_gap": 0.12,
-  "signal_strength_contributions": []
-}
+```powershell
+cd C:\dev\vedic-ai
+.\run_all.bat
 ```
 
-PII must not be logged.
+`run_all.bat`는 다음을 자동 수행합니다.
 
-### `tune_mode` usage and warning
-`analyze_birth_time(..., tune_mode=True)` appends records to `data/tuning_inputs.log`, but only when environment variable `BTR_ENABLE_TUNE_MODE=1` is set.
+1. `backend/main.py` 및 `frontend/package.json` 존재 확인
+2. 백엔드 필수 의존성 사전 점검(`fastapi`, `swisseph`, `timezonefinder`)
+3. 누락 시 `backend/requirements.txt` 자동 설치
+4. 백엔드/프론트를 각각 새 터미널 창에서 실행
 
-> Do not expose tune mode in production without authorization controls.
+### 수동 실행
 
-### Empirical tuning (Phase 5)
-Empirical tuning uses accumulated `data/tuning_inputs.log` (JSONL) to derive conservative base-weight multipliers per `event_type`.
+#### 1) Backend
 
-Flow (admin-triggered only):
-1. `analyze_tuning_data(...)` computes per-event statistics:
-   - `avg_gap` (mean top-1 vs top-2 probability separation)
-   - `avg_confidence` (mean calibrated confidence)
-   - `event_count`
-2. `compute_weight_adjustments(...)` generates multipliers:
-   - `+5%` when `avg_gap > 1.5` and `avg_confidence > 0.7`
-   - `-5%` when `avg_gap < 0.5`
-   - otherwise `1.0`
-3. `apply_weight_adjustments(...)` writes `backend/config/event_signal_profile_adjusted.json` without overwriting the original profile.
-
-To trigger recalculation:
-- Set `BTR_ENABLE_TUNE_MODE=1`
-- Call `POST /btr/admin/recalculate-weights`
-
-Safety constraints:
-- No automatic recalculation on normal runs (admin endpoint only)
-- Multipliers are capped to `짹10%` (`0.9` to `1.1`)
-- `base_weight` is never reduced below `0.1`
-
-> Warning: Empirical tuning requires sufficient sample size (>100 events recommended).
-
-## Deterministic Report Engine (Multi-Block)
-
-The report pipeline now supports deterministic **multi-block selection per chapter**.
-Selector behavior remains rule-based and does not add additional GPT calls.
-
-### Template schema
-All templates in `backend/report_templates/*.json` use:
-
-```json
-{
-  "id": "high_tension_axis_behavior",
-  "chapter": "Psychological Architecture",
-  "conditions": [
-    {"field": "psychological_tension_axis.score", "operator": ">=", "value": 70},
-    {"field": "behavioral_risk_profile.impulsivity_risk", "operator": ">=", "value": 60}
-  ],
-  "logic": "AND",
-  "priority": 95,
-  "content": {
-    "title": "High Tension with Impulsive Tendencies",
-    "summary": "...",
-    "analysis": "...",
-    "implication": "..."
-  }
-}
+```powershell
+cd C:\dev\vedic-ai
+python -m pip install -r backend\requirements.txt
+python -m backend.main
 ```
 
-Rules:
-- `conditions` is always a list.
-- `logic` supports `AND` / `OR` (defaults to `AND`).
-- `priority` is numeric (defaults to `0`) and used for sorting.
-- `content` is the only payload returned to GPT.
+기본 포트: `8000`
 
-### Operator support
+#### 2) Frontend
 
-| Operator | Meaning |
+```powershell
+cd C:\dev\vedic-ai\frontend
+npm install
+npm run dev
+```
+
+기본 포트: `3000`
+
+---
+
+## 6. 환경변수
+
+### Backend 핵심 변수
+
+`backend/.env.example`를 기준으로 환경파일을 구성하세요.
+
+| 변수 | 기본/예시 | 설명 |
+|---|---|---|
+| `OPENAI_API_KEY` | 없음 | LLM 사용 시 필수 |
+| `OPENAI_MODEL` | `gpt-5-mini` | `/ai_reading` 기본 모델 |
+| `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS 허용 도메인 |
+| `PDF_DISABLED` | `1` | `1`이면 `/pdf` 비활성(503) |
+| `BTR_ENABLE_TUNE_MODE` | `0` | `1`일 때만 `tune_mode` 실제 반영 |
+| `ADMIN_API_KEY` | `changeme` | `/btr/admin/recalculate-weights` 보호키 |
+| `CHART_MAX_CONCURRENCY` | CPU 기반 자동값 | 차트 계산 세마포어 |
+| `PRO_ANALYSIS_MAX_CONCURRENCY` | CPU 기반 자동값 | 고비용 분석 동시성 |
+| `PRO_ANALYSIS_TIMEOUT_SEC` | `12` | 고비용 분석 타임아웃 |
+| `CACHE_MAX_ITEMS` | `512` | 인메모리 캐시 최대 항목 |
+| `SWE_EPHE_PATH` | `/usr/share/libswe/ephe` | Swiss Ephemeris 데이터 경로 |
+| `SWE_REQUIRE_SWIEPH` | 환경에 따름 | production에서 swieph 강제 여부 |
+
+### Frontend 핵심 변수
+
+`frontend/.env.example` 참고.
+
+| 변수 | 설명 |
 |---|---|
-| `==` | equal |
-| `!=` | not equal |
-| `<` | less than |
-| `<=` | less than or equal |
-| `>` | greater than |
-| `>=` | greater than or equal |
+| `NEXT_PUBLIC_API_URL` | 브라우저에서 접근할 백엔드 URL |
+| `INTERNAL_API_URL` | SSR/서버사이드에서 접근할 내부 백엔드 URL |
+| `API_URL` | `INTERNAL_API_URL`의 레거시 별칭 |
+| `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` | 도시 검색 Google Maps 키(없으면 OSM fallback) |
+| `NEXT_PUBLIC_ALLOW_REMOTE_API` | 로컬 프론트에서 원격 API 강제 사용 허용 플래그 |
 
-### Nested field support
-`field` accepts dot-path lookup, e.g. `behavioral_risk_profile.impulsivity_risk`.
+---
 
-### Selection model
-1. Evaluate every block against structural summary conditions.
-2. Keep all passing blocks per chapter.
-3. Sort by `priority` descending.
-4. Cap to maximum `5` blocks per chapter.
-5. If no block matches, use JSON fallback blocks from `backend/report_templates/default_patterns.json`.
+## 7. API 요약
 
-### Payload shape
-`build_report_payload(...)` always returns all 15 chapters with list payloads:
+주요 라우트는 [main.py](C:/dev/vedic-ai/backend/main.py)에 정의되어 있습니다.
 
-```json
-{
-  "chapter_blocks": {
-    "Executive Summary": [
-      {
-        "title": "...",
-        "summary": "...",
-        "analysis": "...",
-        "implication": "..."
-      }
-    ]
-  }
-}
+### 진단/차트
+
+1. `GET /health`
+   - 서비스 상태, OpenAI 설정, 캐시, PDF/폰트, ephemeris 백엔드 상태 반환
+2. `GET /presets`
+   - 샘플 입력 프리셋 반환
+3. `GET /chart`
+   - 입력 시각/좌표 기반 차트 계산
+   - `include_structural_summary=1`로 구조 요약 포함 가능
+
+### 리포트
+
+1. `GET /ai_reading`
+   - 결정론 블록 생성 + LLM 문장 고도화
+   - 기본 언어 `ko`
+   - `detail_level`은 현재 `full`만 허용
+   - `use_cache`로 응답 캐시 사용 가능
+2. `GET /pdf`
+   - 차트 + 내러티브를 PDF로 생성
+   - `include_ai=1`이면 `/ai_reading` 결과를 포함
+   - 기본값에서 `PDF_DISABLED=1`이므로 운영 전 활성화 필요
+
+### BTR
+
+1. `GET /btr/questions`
+   - 나이대(`20s`, `30s_40s`, `50s_plus`)별 질문 제공
+2. `POST /btr/analyze`
+   - 사건 이력 기반 시간 후보 상위 3개 계산
+3. `POST /btr/refine`
+   - 선택한 시간 구간을 더 세밀하게 재분할
+4. `POST /btr/admin/recalculate-weights`
+   - 관리자용 경험적 가중치 재계산 엔드포인트
+
+---
+
+## 8. 리포트 생성 파이프라인
+
+`/ai_reading`은 아래 순서로 동작합니다.
+
+1. 입력 차트 계산
+2. `build_structural_summary(...)`로 구조 요약 생성
+3. `build_report_payload(...)`로 결정론 `chapter_blocks` 구성
+4. LLM이 블록을 읽어 가독성 개선 텍스트 생성
+5. 후처리(톤 정규화/레이아웃 정리/스타일 점검)
+6. 응답 캐시 저장
+
+중요한 설계 원칙:
+
+1. 템플릿 선택은 결정론(rule-based)
+2. LLM은 “새 점성 계산”이 아니라 “문장 고도화” 역할
+3. 감사용 해시(`chart_hash`, `chapter_blocks_hash`)를 응답에 포함
+
+---
+
+## 9. BTR 파이프라인
+
+1. 질문 수집: `/btr/questions`
+2. 사건 입력 검증: 이벤트 타입/시간 정합성 검사
+3. 후보 계산: `analyze_birth_time(...)`
+4. 신뢰도 산출: 점수 분포 기반 confidence 계산
+5. 필요 시 세부 정밀화: `/btr/refine`
+
+`tune_mode` 동작 규칙:
+
+1. 요청에서 `tune_mode=true`를 보내도
+2. 서버 `BTR_ENABLE_TUNE_MODE=1`이 아니면 실제 저장/튜닝은 비활성
+
+---
+
+## 10. 품질 게이트와 테스트
+
+품질 정책 문서: [QUALITY_GATES.md](C:/dev/vedic-ai/backend/QUALITY_GATES.md)
+
+### PR 게이트(필수)
+
+```powershell
+python -m backend.golden_sample_runner --mode structural
+python -m backend.fast_llm_gate --samples 2 --profile-mode extremes
 ```
 
-### Safety constraints
-- Deterministic selection only.
-- No additional GPT calls.
-- Maximum 5 blocks per chapter.
-- All 15 chapters always present.
-- No raw astrological values (e.g., longitude/aspects) in report payload.
+### Nightly/Release 게이트(필수)
 
-## Report Engine Depth Extension (Intensity, Chaining, Reinforcement)
-
-The deterministic report engine now adds narrative depth without changing core BTR mechanics and without additional GPT calls.
-
-### Extended template schema
-Template blocks can now include optional density/linking keys:
-
-```json
-{
-  "id": "high_tension_risk_aggro",
-  "chapter": "Psychological Architecture",
-  "conditions": [{"field": "psychological_tension_axis.score", "operator": ">=", "value": 70}],
-  "logic": "AND",
-  "priority": 95,
-  "intensity_tiers": [
-    {"threshold": 0.7, "modifier": "strong"},
-    {"threshold": 0.4, "modifier": "moderate"}
-  ],
-  "chain_followups": ["tension_stability_interaction"],
-  "content": {
-    "title": "...",
-    "summary": "...",
-    "analysis": "...",
-    "implication": "...",
-    "examples": "..."
-  }
-}
+```powershell
+python -m pytest backend\test_pdf_output_scanner.py -q
+python -m backend.golden_sample_runner --mode full
 ```
 
-### Intensity & depth definition
-`compute_block_intensity(...)` normalizes intensity into `[0.0, 1.0]` from structural summary only:
+### 기타 검증 스크립트
 
-- psychological tension signal
-- averaged behavioral risk profile signal
-- inverse stability index signal (`100 - stability_index`)
+1. 저비용 게이트: `scripts/cheap_validation_gate.py`
+2. 샘플 런: `scripts/tmp_phase11_run7.py`
+3. 한글 깨짐 점검: `scripts/check_no_mojibake.py`
 
-Intensity is used only to modulate narrative depth (field inclusion), not to expose raw engine signals.
+---
 
-### Cross-chapter reinforcement guide
-`REINFORCE_RULES` adds deterministic linking blocks when specific block combinations are selected.
+## 11. 로그와 산출물
 
-Current rules:
-- `high_tension_risk_aggro` + `high_stability_fall` ??add `tension_stability_interaction` to **Psychological Architecture**
-- `career_conflict_karma` + `career_purushartha` ??add `career_karma_pattern_reinforcement` to **Executive Summary**
+모든 QA 산출물은 `logs/` 아래에 저장됩니다.
 
-### Chain followup behavior
-After initial matching, each selected block can append same-chapter `chain_followups` by block id.
+예시:
 
-Safety:
-- duplicate IDs are ignored
-- cyclic references are prevented by seen-id tracking
-- chapter payload still caps at 5 blocks
+1. [qa_phase11_run7_20260222_005336](C:/dev/vedic-ai/logs/qa_phase11_run7_20260222_005336)
+   - `reading.md`: 최종 텍스트 리포트
+   - `ai_reading_response.json`: 모델/해시/구조요약/디버그 포함 원본 응답
+2. `logs/golden_samples_fast_gate/`
+   - fast gate 요약 지표
 
-### Priority + intensity sort order
-Selected blocks are sorted descending by:
+---
 
-| Order | Key |
-|---|---|
-| 1 | `priority` |
-| 2 | `_intensity` |
-| 3 | internal match order tie-break |
+## 12. 성능/운영 참고
 
-### Dynamic field rules
-Per selected block:
+### 서버 런타임 튜닝
 
-- intensity `> 0.8`: include `title`, `summary`, `analysis`, `implication`, `examples`
-- intensity `> 0.5`: include `title`, `summary`, `analysis`, `implication`
-- otherwise: include `title`, `summary`, `analysis`
+`backend/server_runner.py`는 아래 환경변수를 읽어 uvicorn을 실행합니다.
 
-This increases report density only where structural pressure is stronger.
+1. `WEB_CONCURRENCY`
+2. `UVICORN_LIMIT_CONCURRENCY`
+3. `UVICORN_BACKLOG`
+4. `UVICORN_TIMEOUT_KEEP_ALIVE`
+5. `UVICORN_LOG_LEVEL`
 
-### Example expanded output block JSON
-```json
-{
-  "title": "Tension?밪tability Interaction Pattern",
-  "summary": "Psychological pressure and stability dynamics interact in ways that amplify reactivity cycles.",
-  "analysis": "When internal friction rises while stability weakens, attention narrows and recovery latency increases.",
-  "implication": "Deliberate pacing and reset rituals become essential to protect judgment quality.",
-  "examples": "You may notice conflict spillover from one domain into unrelated decisions unless decompression boundaries are enforced."
-}
-```
+### 스테이징 부하테스트
 
-### Safety constraints
-- No additional GPT calls
-- No raw astrological positions in GPT payload
-- No direct numeric signal leakage to final prose
-- Deterministic selection/chaining only
-- Max blocks per chapter = 5
+문서: [LOAD_TESTING.md](C:/dev/vedic-ai/backend/LOAD_TESTING.md)
 
-## Insight Spike Generator (Phase 7)
+핵심 타깃:
 
-Phase 7 adds deterministic high-impact narrative spike fragments that are inserted at the top of a chapter when both condition matching and intensity thresholds are satisfied.
+1. `/chart` p95 < 500ms(권장)
+2. `/ai_reading`은 외부 LLM 지연을 반영해 별도 예산 관리
 
-### `insight_spike` schema
+### Docker
 
-Template blocks in `backend/report_templates/*.json` may include this optional object:
+파일: [Dockerfile](C:/dev/vedic-ai/backend/Dockerfile)
 
-```json
-"insight_spike": {
-  "text": "High-impact declarative sentence.",
-  "min_intensity": 0.8
-}
-```
+요점:
 
-Rules:
-- `text` is required and must be a string.
-- `min_intensity` is required and must be a float between `0.0` and `1.0`.
-- Spike text is injected only when the block matches and its computed intensity is `>= min_intensity`.
-- Blocks without `insight_spike` are processed normally (backward compatible).
+1. `pyswisseph` 빌드 도구 포함
+2. ephemeris 파일을 빌드 인자로 주입 가능(`SWE_EPHE_URL`)
+3. production 환경에서 ephemeris 검증 강제 가능
 
-### Injection behavior
+---
 
-Inside `build_report_payload(...)`:
-1. Selected blocks are evaluated for eligible spikes.
-2. Spike texts are de-duplicated while preserving order.
-3. Spikes are inserted first in chapter output as top-level fragments:
+## 13. 개발 시 자주 보는 파일
 
-```json
-{"spike_text": "..."}
-```
+### 리포트 품질 개선
 
-4. Normal content fragments are appended after spikes.
-5. The chapter cap remains deterministic and strict: maximum `5` total fragments (spikes + content).
+1. [report_engine.py](C:/dev/vedic-ai/backend/report_engine.py)
+2. [llm_service.py](C:/dev/vedic-ai/backend/llm_service.py)
+3. [llm_output_scanner.py](C:/dev/vedic-ai/backend/llm_output_scanner.py)
+4. [report_templates_ko/default_patterns.json](C:/dev/vedic-ai/backend/report_templates_ko/default_patterns.json)
 
-### Deterministic and safe by design
+### BTR 알고리즘 개선
 
-- No additional GPT calls.
-- No changes to BTR or structural engines.
-- No structural numeric data is exposed in the payload.
-- Chapter order and structure remain unchanged.
+1. [btr_engine.py](C:/dev/vedic-ai/backend/btr_engine.py)
+2. [config/event_signal_profile.json](C:/dev/vedic-ai/backend/config/event_signal_profile.json)
+3. [config/event_signal_mapping.json](C:/dev/vedic-ai/backend/config/event_signal_mapping.json)
 
-### Example block with spike
+### 프론트 플로우 개선
 
-```json
-{
-  "id": "identity_control_paradox",
-  "chapter": "Psychological Architecture",
-  "conditions": [
-    {"field": "psychological_tension_axis.score", "operator": ">=", "value": 75},
-    {"field": "stability_metrics.stability_index", "operator": "<=", "value": 50}
-  ],
-  "logic": "AND",
-  "priority": 90,
-  "insight_spike": {
-    "text": "Your inner drive to control outcomes paradoxically undermines your sense of agency.",
-    "min_intensity": 0.8
-  },
-  "content": {
-    "title": "Identity-Control Paradox",
-    "summary": "...",
-    "analysis": "...",
-    "implication": "..."
-  }
-}
-```
+1. [app/page.tsx](C:/dev/vedic-ai/frontend/app/page.tsx)
+2. [app/btr/questions/QuestionsClient.tsx](C:/dev/vedic-ai/frontend/app/btr/questions/QuestionsClient.tsx)
+3. [app/chart/ChartClient.tsx](C:/dev/vedic-ai/frontend/app/chart/ChartClient.tsx)
+4. [lib/api.ts](C:/dev/vedic-ai/frontend/lib/api.ts)
 
-## Adaptive Narrative Scaling (Phase 9)
+---
 
-Phase 9 adds deterministic narrative expansion based on block intensity without changing chapter/block selection, without modifying BTR, and without adding GPT calls.
+## 14. 문제 해결 체크리스트
 
-### Thresholds
-- **Moderate scaling** applies when `intensity >= 0.65`
-- **High scaling** applies when `intensity >= 0.85`
+### 1) `/ai_reading`이 fallback으로만 동작
 
-### Extension mechanics
-Templates can optionally define `scaling_variants` per block:
-- `analysis_extension`, `implication_extension`, `example_extension`
-- Extension text is appended to existing fragment fields (same selected block only)
-- No new blocks/fragments are created by scaling
+확인:
 
-### High-only narrative keys
-For `high` scaling only:
-- `micro_scenario` is added as a separate fragment key when provided
-- `long_term_projection` is added as a separate fragment key when provided
+1. `OPENAI_API_KEY` 설정 여부
+2. 네트워크/프록시 설정(`OPENAI_PROXY_URL`, `HTTPS_PROXY`)
+3. `/health`의 `openai_configured`
 
-These keys increase specificity while preserving deterministic structure.
+### 2) `/pdf`가 503
 
-### Deterministic guarantees
-- No extra GPT calls
-- No structural/raw signal values exposed
-- Existing selection and sorting behavior unchanged
-- Max `5` fragments per chapter remains enforced
-- Backward compatible for blocks that do not define `scaling_variants`
+확인:
 
-### Example template JSON
-```json
-{
-  "id": "high_pressure_identity_fragmentation",
-  "chapter": "Psychological Architecture",
-  "content": {
-    "title": "High-Pressure Identity Fragmentation",
-    "summary": "...",
-    "analysis": "...",
-    "implication": "...",
-    "examples": "..."
-  },
-  "scaling_variants": {
-    "moderate": {
-      "analysis_extension": "At moderate levels, this pattern surfaces primarily during periods of transition.",
-      "implication_extension": "Without conscious correction, the pattern stabilizes as a personality reflex.",
-      "example_extension": "Early signs often appear as repeated over-corrections after moments of uncertainty."
-    },
-    "high": {
-      "analysis_extension": "Under sustained pressure, this pattern accelerates, narrowing cognitive flexibility and amplifying emotional reactivity.",
-      "implication_extension": "Without rapid integration, relational trust and strategic clarity can degrade together.",
-      "example_extension": "A common manifestation is rapid action under stress followed by post-hoc inevitability framing.",
-      "micro_scenario": "A typical manifestation would involve making a rapid decision under stress, later rationalizing it as inevitability.",
-      "long_term_projection": "If uninterrupted over several cycles, this may lead to reputational or relational fatigue."
-    }
-  }
-}
-```
+1. `PDF_DISABLED`가 `1`인지
+2. 폰트 초기화 실패 여부(`/health`의 `pdf_feature_available`, `pdf_feature_error`)
 
-## Choice Fork Simulator (Phase 8)
+### 3) 프론트에서 API 연결 실패
 
-Phase 8 introduces deterministic **Choice Fork** fragments that simulate path branching at high structural pressure points.
+확인:
 
-### Deterministic injection
-Choice forks are injected via static `CHOICE_FORK_RULES` in `backend/report_engine.py`:
-- psychological tension threshold
-- impulsivity primary risk
-- low stability threshold
+1. 로컬 개발에서 `127.0.0.1:8000` 실행 여부
+2. `NEXT_PUBLIC_API_URL` / `INTERNAL_API_URL` 설정
+3. 백엔드 `ALLOWED_ORIGINS`에 프론트 주소 포함 여부
 
-No randomness is used, and no additional GPT calls are added.
+### 4) BTR 튜닝이 반영되지 않음
 
-### Intensity gate
-Choice forks are only visible when computed block intensity is **>= 0.75**.
-If intensity is below the threshold, the fork is not injected.
+확인:
 
-### Cap-safe replacement
-Chapter fragment cap remains **5**.
-If a chapter is full, an injected fork replaces the lowest-priority existing block so the fork survives overflow.
+1. 요청 `tune_mode=true`
+2. 서버 `BTR_ENABLE_TUNE_MODE=1`
+3. 관리자 엔드포인트 호출 시 `x-admin-key` 일치
 
-### Nested `choice_fork` JSON preservation
-Fork payloads remain structured and are not flattened into text:
+---
 
-```json
-{
-  "title": "Identity Pressure Fork",
-  "summary": "You are entering a structural decision threshold.",
-  "choice_fork": {
-    "path_a": {
-      "label": "Tighten Control",
-      "trajectory": "Immediate authority reinforcement, long-term tension accumulation.",
-      "emotional_cost": "Suppressed vulnerability converts into rigidity."
-    },
-    "path_b": {
-      "label": "Relinquish Control",
-      "trajectory": "Short-term instability, long-term coherence growth.",
-      "emotional_cost": "Temporary emotional exposure."
-    }
-  }
-}
-```
+## 15. 참고 문서
 
-### Chapter alignment
-Fork rules inject only into chapters present in `REPORT_CHAPTERS`:
-- `Psychological Architecture`
-- `Behavioral Risks`
-- `Stability Metrics`
+1. [Birth_Time_Rectification_Full_Spec.TXT](C:/dev/vedic-ai/Birth_Time_Rectification_Full_Spec.TXT)
+2. [backend/API.md](C:/dev/vedic-ai/backend/API.md)
+3. [backend/QUALITY_GATES.md](C:/dev/vedic-ai/backend/QUALITY_GATES.md)
+4. [backend/LOAD_TESTING.md](C:/dev/vedic-ai/backend/LOAD_TESTING.md)
 
-### Cost and compatibility
-- No GPT cost increase
-- Fully deterministic behavior
-- Backward-compatible payload contract (`{"chapter_blocks": ...}`)
+---
 
-## Predictive Scenario Compression (Phase 10)
+## 16. 현재 운영 메모
 
-Phase 10 adds deterministic scenario-compression blocks that are conditionally injected from `SCENARIO_COMPRESSION_RULES` in `backend/report_engine.py`.
+1. 리포트 품질 고도화 작업은 `backend/report_engine.py`, `backend/llm_service.py`, `backend/report_templates_ko/*.json` 중심으로 진행하는 것이 가장 효율적입니다.
+2. 생시보정(BTR)과 프론트 UI는 분리된 축이므로, 리포트 품질 개선 단계에서는 독립적으로 병행/후행 가능합니다.
 
-### Deterministic injection
-- Rules are static and deterministic.
-- No randomness is introduced.
-- No new GPT calls are added.
-
-### Probability threshold logic
-- Injection only runs when `probability_forecast` values satisfy each rule's numeric thresholds.
-- If `probability_forecast` is missing, no scenario-compression rules match.
-
-### Intensity gate
-- Injected blocks must pass computed intensity **>= 0.6**.
-- Low-intensity contexts skip scenario-compression blocks even when probability thresholds match.
-
-### Cap-safe replacement
-- Chapter payload cap remains **5** items.
-- If the destination chapter is full, the injected scenario-compression block replaces the lowest-priority block.
-
-### Nested `predictive_compression` JSON preservation
-- The `predictive_compression` field is preserved as nested JSON and is not string-flattened.
-
-### Cost and compatibility
-- No GPT cost increase.
-- Fully deterministic behavior.
-- Backward compatible with existing payload contract and chapters.
-
-## PDF Layout & Narrative Structure Engine
-
-The PDF presentation layer is now deterministic and config-driven for premium narrative report rendering.
-
-- Config-driven layout via `backend/pdf_layout_config.json`
-- Chapter-aware rendering using deterministic `chapter_blocks`
-- Insight Spike visual emphasis via dedicated semantic style
-- Choice Fork rendered as structured comparison tables
-- Predictive Compression rendered as structured forecast tables
-- Page-break enforcement for configured major chapters
-- Deterministic-only narrative rendering path (markdown fallback kept only for non-deterministic legacy content)

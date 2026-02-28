@@ -23,6 +23,7 @@ from backend.evidence_pipeline_v2 import (
     pre_sanitize_chapter_evidence_map,
     prepatch_chapter_evidence_map,
 )
+from backend.vedic_lexicon import enforce_subtle_vedic_lexicon
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
@@ -115,6 +116,24 @@ CHAPTER_EVIDENCE_RULES: dict[str, dict[str, int]] = {
     "Growth Acceleration": {"patterns": 2, "yogas": 0, "lagna_lord": 1},
     "Final Integration": {"reuse_top": 3},
 }
+_SUBTLE_VEDIC_PROMPT_RULES = """
+[SUBTLE VEDIC POLICY — 반드시 준수]
+- 최종 출력에서 허용되는 베딕 용어는 아래 6개뿐이다:
+  라후(Rahu), 케투(Ketu), 다샤(Dasha), 부크티(Bhukti), 라그나(Lagna), 나크샤트라(Nakshatra)
+- 챕터당 베딕 용어 mention 최대 2회, 문서 전체 최대 8회.
+- 각 용어의 첫 등장 문장은 반드시 즉시 쉬운 한국어 풀이를 같은 문장에 붙인다.
+  (관장하는/보여주는/뜻하는/설명하는 스타일)
+- 한 문장에 여러 베딕 용어를 나열하지 않는다. 용어 dump 금지.
+- 무거운 베딕 기법 용어 금지:
+  하우스 번호, 각도(°), varga(D9/D10), yoga 리스트, 산스크리트 메커닉 나열.
+- 날짜/연도/분기 예언 금지:
+  2026년, 상반기/하반기, 분기, Q1~Q4 같은 표현 금지.
+
+예시(참고):
+- "확장 욕구를 관장하는 라후(Rahu)는 속도를 붙이지만, 과열도 함께 부를 수 있습니다."
+- "시기 흐름(인생의 큰 시즌)을 보여주는 다샤(Dasha)는 ‘요즘 결이 바뀌는 느낌’으로 먼저 체감됩니다."
+- "정리·거리두기 본능을 관장하는 케투(Ketu)가 강해지면, 설명보다 정리가 먼저 필요해질 때가 있습니다."
+"""
 _ENGINE_YOGA_KEY_TO_INTERP: dict[str, str] = {
     "raja_yoga": "yoga:RajayogaGeneral",
     "dhana_yoga": "yoga:DhanaYogaGeneral",
@@ -2439,6 +2458,7 @@ Style:
 - Do not mention dates or prediction language.
 - Strengths/risks should be noun-phrase bullets with soft descriptive tone.
 - If narrative_risk_mode is "elevated", use clear diagnostic tone and avoid excessive softening phrases.
+{_SUBTLE_VEDIC_PROMPT_RULES}
 
 Context (read-only):
 {json.dumps(executive_context, ensure_ascii=False, indent=2)}
@@ -2483,6 +2503,7 @@ Rules:
 - Do not use prediction language or dates.
 - Avoid meta/report phrasing.
 - Limit advice to max 3 bullet points per chapter.
+{_SUBTLE_VEDIC_PROMPT_RULES}
 
 Context (read-only):
 {json.dumps(context, ensure_ascii=False, indent=2)}
@@ -3060,6 +3081,10 @@ async def refine_reading_with_llm(
                 model_used,
                 chapter_blocks_hash,
             )
+            final_text = enforce_subtle_vedic_lexicon(
+                final_text,
+                allow_zero_term_injection=True,
+            )
             return final_text
         except Exception as e:
             last_error = e
@@ -3387,6 +3412,7 @@ ANALYSIS RULES
 - 같은 조언형 종결(~도움됩니다/~유리합니다/~좋습니다) 반복을 피한다.
 - Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
 - 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
+{_SUBTLE_VEDIC_PROMPT_RULES}
 {jargon_transform_rules}
 {chapter_hook_hint_block}
 {anti_repeat_rules}
@@ -3403,7 +3429,7 @@ SAFETY RULES
   결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
 - 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
 - dasha_context에 없는 값은 만들지 않는다.
-- 연도 언급은 Future Timing에서만 허용한다.
+- 연도/반기/분기/Q1~Q4 표기 금지.
 - timing_axis.timing_windows가 없으면 시기 문장을 억지로 만들지 않는다.
 
 DASHA INTEGRITY
@@ -3467,7 +3493,7 @@ HARD BANS
   activation intensity, dominant axis, psychological tension axis,
   stability index, risk_factor, opportunity_factor, vector, modifier, amplification.
 - 수치/퍼센트/점수/지표 직접 노출 금지.
-- 연도 언급은 Future Timing window에서만 허용.
+- 연도/반기/분기/Q1~Q4 표기 금지.
 - 사건 확정 예언 금지:
   결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
 - 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
@@ -3483,7 +3509,6 @@ DASHA INTEGRITY
 - 제공된 신호에서 타이밍 강조가 반복되면 강한 신호로 간주한다.
 - Future Timing 섹션이 리포트 전체 분량을 지배하지 않게 유지한다.
 - Timing windows 우선순위: intensity(high>medium>low) -> domain(career>relationship>money>health>general) -> nearest start.
-- 연도 범위를 쓸 때 시작 연도는 current_year보다 작을 수 없다.
 - 이미 시작된 구간은 "현재 진행 중"으로, 이미 종료된 구간은 제외한다.
 
 CORE WRITING GUIDANCE
@@ -3502,6 +3527,7 @@ CORE WRITING GUIDANCE
 - HOT 섹션(Executive Diagnosis, Recurring Patterns, Love & Relationship Patterns, Mid-Term Direction)에서는 긴장이 자연스럽게 존재할 때만, 섹션당 sharp line을 최대 1회 허용한다.
 - Evidence에 없는 새로운 점성 요소/사실은 생성하지 않는다.
 - 근거가 부족하면 일반론을 최소화하고, 중립적/제한적 문장으로 처리한다.
+{_SUBTLE_VEDIC_PROMPT_RULES}
 {jargon_transform_rules}
 {chapter_hook_hint_block}
 {anti_repeat_rules}

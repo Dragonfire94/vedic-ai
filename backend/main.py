@@ -63,6 +63,7 @@ from backend.report_config import (
     _STYLE_HEADING_REWRITE_MAP,
     _STYLE_LINKER_PATTERNS,
 )
+from backend.vedic_lexicon import enforce_subtle_vedic_lexicon, scan_vedic_term_budget
 from backend.cache_manager import cache
 from backend.llm_client import build_openai_client
 from backend.swe_config import initialize_swe_context
@@ -167,6 +168,35 @@ def _emit_llm_audit_event(
     }
     llm_audit_logger.info(_canonical_json(event))
     return event
+
+
+def _write_vedic_budget_violation_log(
+    *,
+    text: str,
+    scan: dict[str, Any],
+    request_id: str,
+    chart_hash: str,
+    chapter_blocks_hash: str,
+) -> str | None:
+    try:
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        digest = hashlib.sha256((text or "").encode("utf-8", errors="ignore")).hexdigest()[:12]
+        out_dir = REPO_ROOT / "logs" / "vedic_budget_violations"
+        out_dir.mkdir(parents=True, exist_ok=True)
+        out_path = out_dir / f"{stamp}_{digest}.json"
+        payload = {
+            "request_id": request_id,
+            "chart_hash": chart_hash,
+            "chapter_blocks_hash": chapter_blocks_hash,
+            "timestamp_utc": _utc_iso_now(),
+            "violation": scan,
+            "text": text,
+        }
+        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+        return str(out_path)
+    except Exception as exc:
+        logger.warning("Failed to write Vedic budget violation log: %s", exc)
+        return None
 
 
 def _resolve_llm_max_tokens(raw_value: Any, default_value: int) -> int:
@@ -649,7 +679,7 @@ def _dedupe_fallback_lines_surface(text: str) -> str:
     return "\n".join(out)
 
 
-def _apply_style_remediation(text: str) -> str:
+def _apply_style_remediation(text: str, *, allow_zero_term_injection: bool = False) -> str:
     if not isinstance(text, str) or not text:
         return text
     # Phase 12-R3:
@@ -723,6 +753,10 @@ def _apply_style_remediation(text: str) -> str:
     remediated = remediated.replace("검토하세요", "다시 살펴봐도 좋습니다")
     remediated = remediated.replace("필수적입니다", "먼저 챙기면 좋습니다")
     remediated = _dedupe_fallback_lines_surface(remediated)
+    remediated = enforce_subtle_vedic_lexicon(
+        remediated,
+        allow_zero_term_injection=allow_zero_term_injection,
+    )
     return remediated
 
 
@@ -2163,7 +2197,34 @@ async def get_ai_reading(
             final_text = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else _render_chapter_blocks_deterministic(chapter_blocks, language=language)
             final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
             final_text = _apply_recommendation_tone_normalization(final_text, language)
+            final_text = enforce_subtle_vedic_lexicon(final_text, allow_zero_term_injection=False)
             final_polished = _apply_recommendation_tone_normalization(final_polished, language)
+            if isinstance(final_polished, str) and final_polished.strip():
+                final_polished = enforce_subtle_vedic_lexicon(final_polished, allow_zero_term_injection=False)
+
+            vedic_budget_scan = scan_vedic_term_budget(final_text)
+            chapter_budget_over = [
+                chapter
+                for chapter in vedic_budget_scan.get("chapters", [])
+                if bool(chapter.get("over"))
+            ]
+            chapter_stacking_over = [
+                chapter
+                for chapter in vedic_budget_scan.get("chapters", [])
+                if int(chapter.get("stacking_hits", 0)) > 0
+            ]
+            vedic_budget_violated = bool(vedic_budget_scan.get("doc_over")) or bool(chapter_budget_over) or bool(chapter_stacking_over)
+            production_error_codes: list[str] = []
+            vedic_budget_log_path: str | None = None
+            if vedic_budget_violated:
+                production_error_codes.append("vedic_term_overbudget")
+                vedic_budget_log_path = _write_vedic_budget_violation_log(
+                    text=final_text,
+                    scan=vedic_budget_scan,
+                    request_id=request_id_value,
+                    chart_hash=chart_hash,
+                    chapter_blocks_hash=chapter_blocks_hash,
+                )
 
             production_result = {
                 "report_text": final_text,
@@ -2178,6 +2239,10 @@ async def get_ai_reading(
                 "chapter_blocks_hash": chapter_blocks_hash,
                 "chapter_blocks": chapter_blocks,
             }
+            if production_error_codes:
+                production_result["debug_info"] = {"error_codes": production_error_codes}
+                if vedic_budget_log_path:
+                    production_result["debug_info"]["vedic_budget_violation_log"] = vedic_budget_log_path
             if include_audit_debug:
                 production_result["audit"] = {
                     "request_id": request_id_value,
@@ -2460,7 +2525,7 @@ def _resolve_pdf_narrative_content(ai_reading: Any, language: str) -> dict[str, 
         if not isinstance(source_text, str) or not source_text.strip():
             continue
         normalized = normalize_llm_layout_strict(source_text)
-        remediated = _apply_style_remediation(normalized)
+        remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
         errors = _reading_style_error_codes(remediated)
         if not errors:
             # Treat both polished/reading text sources as narrative-first source
