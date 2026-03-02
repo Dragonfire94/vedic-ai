@@ -498,7 +498,7 @@ async def run_fast_llm_gate(samples: int = 2, profile_mode: str = "extremes") ->
             remediated_text = _apply_style_remediation(normalized_text)
             style_errors = _reading_style_error_codes(remediated_text)
             # Treat readability-shaping items as WARN in fast gate to avoid false hard-fails.
-            warn_only_style_codes = {"label_pattern_detected", "paragraph_too_long"}
+            warn_only_style_codes = {"label_pattern_detected", "paragraph_too_long", "warn_paragraph_density_low"}
             hard_style_errors = [e for e in style_errors if e not in warn_only_style_codes]
             warn_style_errors = [e for e in style_errors if e in warn_only_style_codes]
             policy_diag = _style_policy_diagnostics(remediated_text)

@@ -87,7 +87,7 @@ class TestBTRStructuralIntegration(unittest.TestCase):
         }
         request = Request({"type": "http", "headers": []})
 
-        with patch("backend.main.BTR_ENGINE_AVAILABLE", True), patch(
+        with patch("backend.main.BTR_ENABLED", True), patch("backend.main.BTR_ENGINE_AVAILABLE", True), patch(
             "backend.main.analyze_birth_time", return_value=fake_candidates
         ) as analyze_mock, patch("backend.main.get_chart", return_value=fake_chart) as get_chart_mock, patch(
             "backend.main.build_structural_summary", return_value=fake_structural
@@ -144,7 +144,7 @@ class TestBTRStructuralIntegration(unittest.TestCase):
         comparable_1.pop("request_id", None)
         comparable_2.pop("request_id", None)
         self.assertEqual(comparable_1, comparable_2)
-        self.assertEqual(result_1["chapter_count"], 15)
+        self.assertEqual(result_1["chapter_count"], len(main._active_chapter_order_for_style()))
         self.assertIn("report_text", result_1)
         self.assertEqual(result_1["llm_input_source"], "report_engine.chapter_blocks")
 

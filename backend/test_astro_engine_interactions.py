@@ -135,8 +135,8 @@ class TestInteractionAmplifier(unittest.TestCase):
         }
         out_std = build_structural_summary(chart_data, analysis_mode="standard")
         out_pro = build_structural_summary(chart_data, analysis_mode="pro")
-        self.assertEqual(out_std["engine"]["analysis_mode"], "standard")
-        self.assertEqual(out_pro["engine"]["analysis_mode"], "pro")
+        self.assertEqual(out_std["engine"]["analysis_mode"], "full")
+        self.assertEqual(out_pro["engine"]["analysis_mode"], "full")
 
     def test_structural_summary_exposes_template_compat_aliases(self):
         chart_data = {

@@ -144,7 +144,7 @@ class TestReportEngine(unittest.TestCase):
         final_blocks = payload["chapter_blocks"]["Final Integration"]
         remedy_blocks = payload["chapter_blocks"]["Growth Acceleration"]
         self.assertTrue(any(b.get("title") == "Shadbala & Avastha Snapshot" for b in stability_blocks if isinstance(b, dict)))
-        self.assertTrue(any(b.get("title") == "Final Synthesis: Strength Axis" for b in final_blocks if isinstance(b, dict)))
+        self.assertTrue(any(b.get("title") == "최종 종합: 강약 축" for b in final_blocks if isinstance(b, dict)))
         self.assertTrue(any(b.get("title") == "Remedy Priority by Shadbala" for b in remedy_blocks if isinstance(b, dict)))
 
 

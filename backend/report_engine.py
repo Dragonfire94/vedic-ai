@@ -93,15 +93,17 @@ Astro identity (light touch):
   - Avoid term dumping or jargon lists.
 - Heavy Vedic mechanics are banned:
   - no house numbers, no degrees, no varga charts (D9/D10), no yoga lists, no Sanskrit mechanics.
-- No dated prediction framing:
-  - no years (e.g., 2026), half-year/quarter tags (상반기/하반기/분기/Q1~Q4), or date ranges.
+- No dated prediction framing by default:
+  - Outside `Mid-Term Direction` -> `### Timing Map`, do not use years (e.g., 2026) or quarter tags.
+  - In `### Timing Map` only, years/quarters are allowed with max 3 non-empty lines.
 - Use only subtle, commercial-friendly wording. Examples:
   - "확장 욕구를 관장하는 라후(Rahu)는 속도를 붙이지만, 과열도 함께 부를 수 있습니다."
   - "시기 흐름(인생의 큰 시즌)을 보여주는 다샤(Dasha)는 ‘요즘 결이 바뀌는 느낌’으로 먼저 체감됩니다."
   - "정리·거리두기 본능을 관장하는 케투(Ketu)가 강해지면, 설명보다 정리가 먼저 필요해질 때가 있습니다."
 
 Safety and realism:
-- No concrete event prediction. No dates/years claims. No fear marketing.
+- No concrete event prediction. No fear marketing.
+- Date/year tokens are allowed only in `Mid-Term Direction` -> `### Timing Map` (max 3 lines).
 - Keep claims grounded only in the provided blocks.
 - If evidence for a claim is weak, keep it brief and neutral rather than force intensity.
 
@@ -944,7 +946,7 @@ def _build_shadbala_insight_block(structural_summary: dict[str, Any], chapter: s
         analysis = f"상위 강도 축은 {top3_text}로 나타납니다." if top3_text else "상위 강도 축이 두드러지는 구간입니다."
         implication = "강한 축은 유지하고, 약한 축은 보완 순서를 앞에 둡니다."
     elif chapter == "Final Integration":
-        title = "Final Synthesis: Strength Axis"
+        title = "최종 종합: 강약 축"
         summary = "강도 축을 최종 요약합니다."
         analysis = f"전체 구조에서 가장 일관된 힘의 축은 {top3_text}입니다." if top3_text else "전체 구조에서 일관된 힘의 축이 확인됩니다."
         implication = "강한 축을 기준으로 균형을 재배치하는 접근이 유효합니다."

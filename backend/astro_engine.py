@@ -2337,16 +2337,15 @@ def _lagna_lord_placement_group(planets: dict[str, Any], lagna_lord: str) -> str
     return "succedent"
 
 
-def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "standard") -> dict[str, Any]:
+def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "full") -> dict[str, Any]:
     """Build the structural summary payload from chart data.
 
-    `analysis_mode` supports:
-    - `standard`: lightweight deterministic path for high-throughput API usage.
-    - `pro`: includes additional diagnostic payloads for advanced report depth.
+    `analysis_mode` is kept for backward compatibility and normalized to `full`.
     """
     planets = chart_data.get("planets", {})
     houses = chart_data.get("houses", {})
-    pro_mode = str(analysis_mode).strip().lower() == "pro"
+    _ = analysis_mode
+    pro_mode = True
 
     strength = calculate_planet_strength(planets, houses)
     dispositor = analyze_dispositor_chains(planets)
@@ -2395,6 +2394,9 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
         current_sub_dasha=current_sub_dasha,
         stability_index=stability_metrics.get("stability_index", 50),
     )
+    raw_timeline = chart_data.get("dasha_timeline")
+    if isinstance(raw_timeline, list):
+        dasha_summary["timeline"] = raw_timeline
     sub_dasha_bias = dasha_summary.get("sub_dasha_bias") if isinstance(dasha_summary, dict) else None
     maha_axis = dasha_summary.get("dominant_axis", "neutral") if isinstance(dasha_summary, dict) else "neutral"
     sub_axis = (
@@ -2532,7 +2534,7 @@ def build_structural_summary(chart_data: dict[str, Any], analysis_mode: str = "s
             if lagna_lord else None
         ),
         "engine": {
-            "analysis_mode": "pro" if pro_mode else "standard",
+            "analysis_mode": "full",
             "planet_strength": strength,
             "dispositor_analysis": dispositor,
             "yogas": yogas,

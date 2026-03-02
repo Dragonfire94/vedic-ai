@@ -5,6 +5,7 @@ import asyncio
 import hashlib
 import httpx
 import json
+import unicodedata
 from pathlib import Path
 from datetime import datetime
 from typing import Any, Optional
@@ -24,6 +25,22 @@ from backend.evidence_pipeline_v2 import (
     prepatch_chapter_evidence_map,
 )
 from backend.vedic_lexicon import enforce_subtle_vedic_lexicon
+from backend.output_surface_postprocess import (
+    postprocess_commercial_quality,
+    postprocess_reading_markdown_surface,
+    sanitize_commercial_surface_with_front_protection,
+)
+from backend.pre_llm_input_sanitizer import (
+    canonical_json_dumps,
+    render_chapter_blocks_pre_llm,
+    sanitize_chapter_blocks_for_llm,
+)
+from backend.commercial_surface_renderer import prepend_front_modules, render_commercial_front_modules
+from backend.commercial_signal_adapter import (
+    build_commercial_signal_card,
+    render_chapter_blocks_draft_md,
+    render_signal_card_ko_for_prompt,
+)
 
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
@@ -58,19 +75,47 @@ _PREMIUM_12_KEYS = [
     "Growth Acceleration",
     "Final Integration",
 ]
+_PRE_LLM_INPUT_MODES = {"both", "json_only", "draft_only"}
+_PRE_LLM_BANNED_TOKEN_RE = re.compile(
+    r"시데리얼|항성황도|라히리|아얀암샤|아얀암사|아야남사|"
+    r"\bsidereal\b|\blahiri\b|\bayanamsa\b|"
+    r"(?<![A-Za-z])shadbala(?![A-Za-z])|(?<![A-Za-z])avastha(?![A-Za-z])|Śadbala|Avasthā",
+    re.IGNORECASE,
+)
+_PRE_LLM_NOISE_RE = re.compile(r"<!--\s*chapter_key:|^#\s*\d+\.|해석 블록", re.MULTILINE)
+_PRE_LLM_SECTION_JSON = "### SANITIZED_CHAPTER_BLOCKS_JSON"
+_PRE_LLM_SECTION_DRAFT = "### SANITIZED_DRAFT_READING"
+_LAST_MILE_HEADING_REWRITES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"Shadbala\s*&\s*Avastha\s*Snapshot", re.IGNORECASE), "강약 스냅샷"),
+    (re.compile(r"Remedy\s*Priority\s*by\s*Shadbala", re.IGNORECASE), "보완 우선순위"),
+)
+_LAST_MILE_TERM_REWRITES: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"(?<![A-Za-z])shadbala(?![A-Za-z])", re.IGNORECASE), "강약 지표"),
+    (re.compile(r"(?<![A-Za-z])avastha(?![A-Za-z])", re.IGNORECASE), "상태 지표"),
+    (re.compile(r"Śadbala", re.IGNORECASE), "강약 지표"),
+    (re.compile(r"Avasthā", re.IGNORECASE), "상태 지표"),
+)
+_LAST_MILE_TERM_REMOVALS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"시데리얼", re.IGNORECASE),
+    re.compile(r"항성황도", re.IGNORECASE),
+    re.compile(r"라히리", re.IGNORECASE),
+    re.compile(r"아얀암샤|아얀암사|아야남사", re.IGNORECASE),
+    re.compile(r"\bsidereal\b", re.IGNORECASE),
+    re.compile(r"\blahiri\b", re.IGNORECASE),
+    re.compile(r"\bayanamsa\b", re.IGNORECASE),
+)
 
 _ACTIONABLE_CHAPTER_KEYS = {
+    "Current Phase",
     "Career & Money",
-    "Risk Management Points",
     "Love & Relationship Patterns",
     "Health & Energy Rhythm",
-    "Core Disposition",
     "Mid-Term Direction",
+    "Risk Management Points",
     "Growth Acceleration",
 }
 _BULLET_EXEMPT_CHAPTER_KEYS = {
     "Executive Diagnosis",
-    "Current Phase",
     "Final Integration",
 }
 _BULLET_LINE_RE = re.compile(r"^\s*(?:[-*]\s+|\d+[.)]\s+).+")
@@ -126,8 +171,9 @@ _SUBTLE_VEDIC_PROMPT_RULES = """
 - 한 문장에 여러 베딕 용어를 나열하지 않는다. 용어 dump 금지.
 - 무거운 베딕 기법 용어 금지:
   하우스 번호, 각도(°), varga(D9/D10), yoga 리스트, 산스크리트 메커닉 나열.
-- 날짜/연도/분기 예언 금지:
-  2026년, 상반기/하반기, 분기, Q1~Q4 같은 표현 금지.
+- 시간 표현 규칙:
+  기본 본문에서는 절대연도/분기(2026년, Q1, 상반기 등) 금지.
+  예외는 Mid-Term Direction의 `### Timing Map` 서브섹션 1곳뿐이며, 최대 3줄만 허용.
 
 예시(참고):
 - "확장 욕구를 관장하는 라후(Rahu)는 속도를 붙이지만, 과열도 함께 부를 수 있습니다."
@@ -1156,6 +1202,212 @@ def _select_chapter_blocks_source(chapter_blocks: dict[str, Any] | None) -> dict
     if isinstance(legacy, dict):
         return legacy
     return chapter_blocks
+
+
+def _is_truthy_env(value: str | None) -> bool:
+    token = str(value or "").strip().lower()
+    if token in {"", "0", "false", "off", "no", "n"}:
+        return False
+    return True
+
+
+def _resolve_pre_llm_input_mode() -> str:
+    mode = (os.getenv("PRE_LLM_INPUT_MODE", "both") or "").strip().lower()
+    if mode not in _PRE_LLM_INPUT_MODES:
+        return "both"
+    return mode
+
+
+def _resolve_pre_llm_failfast() -> bool:
+    explicit = os.getenv("PRE_LLM_FAILFAST")
+    if explicit is not None and str(explicit).strip() != "":
+        return _is_truthy_env(explicit)
+    if os.getenv("PYTEST_CURRENT_TEST"):
+        return True
+    runtime_env = (os.getenv("APP_ENV") or os.getenv("ENV") or "").strip().lower()
+    return runtime_env in {"test", "debug"}
+
+
+def _has_canonical_chapter_key(chapter_blocks: dict[str, Any]) -> bool:
+    if not isinstance(chapter_blocks, dict):
+        return False
+    return any(key in chapter_blocks for key in _PREMIUM_12_KEYS)
+
+
+def _build_pre_llm_section_block(*, section_heading: str, info: str, content: str) -> str:
+    return f"{section_heading}\n````{info}\n{content}\n````"
+
+
+def _normalize_prompt_text_artifacts(text: str) -> str:
+    out = text
+    out = re.sub(r"(?m)^(\s*[-*]\s*)[,/|:;]+\s*", r"\1", out)
+    out = re.sub(r"(?m)^\s*[,/|:;]+\s*$", "", out)
+    out = re.sub(r"(?m)\(\s*\)", "", out)
+    out = re.sub(r"(?m)\s+([,.;:])", r"\1", out)
+    out = re.sub(r"(?m)([,.;:])([^\s\n])", r"\1 \2", out)
+    out = re.sub(r"[ \t]{2,}", " ", out)
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip()
+
+
+def sanitize_prompt_text_last_mile(prompt: str) -> str:
+    if not isinstance(prompt, str):
+        return ""
+    if not prompt:
+        return ""
+
+    out = unicodedata.normalize("NFKC", prompt)
+    for pattern, replacement in _LAST_MILE_HEADING_REWRITES:
+        out = pattern.sub(replacement, out)
+    for pattern, replacement in _LAST_MILE_TERM_REWRITES:
+        out = pattern.sub(replacement, out)
+    for pattern in _LAST_MILE_TERM_REMOVALS:
+        out = pattern.sub("", out)
+    return _normalize_prompt_text_artifacts(out)
+
+
+def _assert_or_warn_whole_prompt_hygiene(*, prompt_text: str, failfast: bool, stage: str) -> None:
+    banned_matches = list(_PRE_LLM_BANNED_TOKEN_RE.finditer(prompt_text or ""))
+    if not banned_matches:
+        return
+    matched_tokens = sorted({m.group(0) for m in banned_matches if isinstance(m.group(0), str) and m.group(0)})
+    msg = f"pre_llm_prompt_hygiene_violation stage={stage} matched_tokens={matched_tokens}"
+    if failfast:
+        raise RuntimeError(msg)
+    logger.warning("%s", msg)
+
+
+def _assert_or_warn_pre_llm_hygiene(
+    *,
+    combined_text: str,
+    failfast: bool,
+    mode: str,
+    json_included: bool,
+    draft_included: bool,
+    sanitized_json: dict[str, Any],
+    raw_has_canonical_key: bool,
+) -> None:
+    errors: list[str] = []
+    if mode in {"both", "json_only"} and not json_included:
+        errors.append("missing_json_section_for_mode")
+    if mode in {"both", "draft_only"} and not draft_included:
+        errors.append("missing_draft_section_for_mode")
+    if raw_has_canonical_key and not any(key in sanitized_json for key in _PREMIUM_12_KEYS):
+        errors.append("sanitized_json_missing_canonical_keys")
+    if _PRE_LLM_BANNED_TOKEN_RE.search(combined_text or ""):
+        errors.append("banned_tokens_present")
+    if _PRE_LLM_NOISE_RE.search(combined_text or ""):
+        errors.append("structure_noise_present")
+
+    if not errors:
+        return
+    msg = f"pre_llm_input_hygiene_violation mode={mode} errors={errors}"
+    if failfast:
+        raise RuntimeError(msg)
+    logger.warning("%s", msg)
+
+
+def _compose_pre_llm_sections(
+    chapter_blocks: dict[str, Any],
+    *,
+    compact_mode: bool,
+    mode: str,
+    failfast: bool,
+) -> tuple[str, str, str, dict[str, Any]]:
+    raw_blocks = _select_chapter_blocks_source(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    sanitized_blocks = sanitize_chapter_blocks_for_llm(raw_blocks)
+    raw_has_canonical = _has_canonical_chapter_key(raw_blocks)
+
+    json_payload = sanitized_blocks
+    if compact_mode:
+        compact_candidate = _compact_chapter_blocks_for_prompt(sanitized_blocks)
+        if isinstance(compact_candidate, dict) and compact_candidate:
+            json_payload = compact_candidate
+        elif raw_has_canonical and not failfast:
+            logger.warning("pre_llm_compact_empty_fallback_to_full_sanitized mode=%s", mode)
+
+    draft_reading = render_chapter_blocks_pre_llm(sanitized_blocks)
+    json_pretty = json.dumps(json_payload, ensure_ascii=False, indent=2)
+    json_canonical = canonical_json_dumps(json_payload)
+    json_hash = hashlib.sha256(json_canonical.encode("utf-8")).hexdigest()
+
+    include_json = mode in {"both", "json_only"}
+    include_draft = mode in {"both", "draft_only"}
+
+    if include_json and not json_pretty.strip():
+        if failfast:
+            raise RuntimeError("pre_llm_json_section_empty")
+        include_json = False
+    if include_draft and not draft_reading.strip():
+        if failfast:
+            raise RuntimeError("pre_llm_draft_section_empty")
+        include_draft = False
+
+    if not include_json and not include_draft:
+        if failfast:
+            raise RuntimeError("pre_llm_all_sections_empty")
+        include_draft = True
+        draft_reading = render_chapter_blocks_pre_llm({chapter: [] for chapter in _PREMIUM_12_KEYS})
+        logger.warning("pre_llm_sections_empty_fallback_to_minimal_draft mode=%s", mode)
+
+    sections: list[str] = []
+    if include_json:
+        sections.append(
+            _build_pre_llm_section_block(
+                section_heading=_PRE_LLM_SECTION_JSON,
+                info="json",
+                content=json_pretty or "{}",
+            )
+        )
+    if include_draft:
+        sections.append(
+            _build_pre_llm_section_block(
+                section_heading=_PRE_LLM_SECTION_DRAFT,
+                info="md",
+                content=draft_reading,
+            )
+        )
+    section_text = "\n\n".join(sections).strip()
+
+    _assert_or_warn_pre_llm_hygiene(
+        combined_text=section_text,
+        failfast=failfast,
+        mode=mode,
+        json_included=include_json,
+        draft_included=include_draft,
+        sanitized_json=sanitized_blocks,
+        raw_has_canonical_key=raw_has_canonical,
+    )
+
+    meta = {
+        "mode": mode,
+        "failfast": failfast,
+        "json_included": include_json,
+        "draft_included": include_draft,
+        "json_chars": len(json_pretty),
+        "draft_chars": len(draft_reading),
+        "section_chars": len(section_text),
+        "raw_has_canonical_key": raw_has_canonical,
+        "json_payload_keys": sorted(list(json_payload.keys())) if isinstance(json_payload, dict) else [],
+        "json_payload_hash": json_hash,
+    }
+    legacy_json = json_pretty if include_json else "{}"
+    return section_text, legacy_json, draft_reading, meta
+
+
+def _write_llm_prompt_snapshot_if_enabled(prompt: str) -> None:
+    if not _is_truthy_env(os.getenv("LLM_WRITE_PROMPT_SNAPSHOT", "0")):
+        return
+    snapshot_path = (os.getenv("LLM_PROMPT_SNAPSHOT_PATH") or "logs/llm_prompt_pre_call.txt").strip()
+    if not snapshot_path:
+        return
+    try:
+        path = Path(snapshot_path)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(prompt, encoding="utf-8")
+    except Exception as exc:
+        logger.warning("llm_prompt_snapshot_write_failed path=%s error=%s", snapshot_path, exc)
 
 
 def _compact_chapter_blocks_for_prompt(
@@ -2324,6 +2576,12 @@ async def generate_life_timeline_chapter(
         semantic_signals=semantic_signals,
         dasha_context=dasha_context,
     )
+    prompt = sanitize_prompt_text_last_mile(prompt)
+    _assert_or_warn_whole_prompt_hygiene(
+        prompt_text=prompt,
+        failfast=_resolve_pre_llm_failfast(),
+        stage="timeline_regen",
+    )
     payload = build_payload_fn(
         model=selected_model,
         system_message="Follow the user prompt exactly.",
@@ -2481,8 +2739,10 @@ def build_single_chapter_prompt(
     compact_blocks = {}
     if isinstance(chapter_blocks, dict):
         selected = _select_chapter_blocks_source(chapter_blocks)
-        if isinstance(selected, dict) and chapter_key in selected:
-            compact_blocks = _compact_chapter_blocks_for_prompt({chapter_key: selected.get(chapter_key)})
+        if isinstance(selected, dict):
+            selected = sanitize_chapter_blocks_for_llm(selected)
+            if chapter_key in selected:
+                compact_blocks = _compact_chapter_blocks_for_prompt({chapter_key: selected.get(chapter_key)})
 
     context = {
         "chapter_key": chapter_key,
@@ -2490,19 +2750,29 @@ def build_single_chapter_prompt(
         "cross_dynamics": compact.get("cross_dynamics", []) if isinstance(compact, dict) else [],
         "chapter_blocks": compact_blocks,
     }
+    if chapter_key == "Mid-Term Direction":
+        timing_rule = (
+            "- For this chapter, add `### Timing Map` near the end.\n"
+            "- In `### Timing Map`, absolute year/quarter markers are allowed with max 3 non-empty lines.\n"
+            "- Outside `### Timing Map`, use relative period phrasing only."
+        )
+    else:
+        timing_rule = "- Use relative period phrasing only (no absolute year/quarter tokens)."
 
     return f"""
 Write ONLY the body content for the chapter "{chapter_key}" in Korean.
-Do NOT output any heading or labels.
+Do NOT output chapter heading (`## ...`).
+Subheadings inside the body are allowed only when explicitly required.
 
 Rules:
 - 2-4 paragraphs total.
 - Separate paragraphs with one blank line.
 - Keep paragraphs concise and readable.
 - Do not introduce new astrology claims or technical terms.
-- Do not use prediction language or dates.
+- Do not use concrete prediction language.
 - Avoid meta/report phrasing.
 - Limit advice to max 3 bullet points per chapter.
+{timing_rule}
 {_SUBTLE_VEDIC_PROMPT_RULES}
 
 Context (read-only):
@@ -2576,6 +2846,12 @@ async def generate_executive_chapter(
             semantic_signals=semantic_signals,
             dasha_context=dasha_context,
         )
+        prompt = sanitize_prompt_text_last_mile(prompt)
+        _assert_or_warn_whole_prompt_hygiene(
+            prompt_text=prompt,
+            failfast=_resolve_pre_llm_failfast(),
+            stage="executive_regen",
+        )
         payload = build_payload_fn(
             model=selected_model,
             system_message="Follow the user prompt exactly.",
@@ -2616,6 +2892,12 @@ async def generate_single_chapter(
         semantic_signals=semantic_signals,
         dasha_context=dasha_context,
         chapter_blocks=chapter_blocks,
+    )
+    prompt = sanitize_prompt_text_last_mile(prompt)
+    _assert_or_warn_whole_prompt_hygiene(
+        prompt_text=prompt,
+        failfast=_resolve_pre_llm_failfast(),
+        stage=f"chapter_regen:{chapter_key}",
     )
     payload = build_payload_fn(
         model=selected_model,
@@ -2733,7 +3015,7 @@ async def refine_reading_with_llm(
     # individual regen prompts should not re-inject it.
     global_evidence_injected_count = 0
     system_message = "Follow the user prompt exactly."
-    user_message = build_llm_structural_prompt(
+    raw_prompt_text = build_llm_structural_prompt(
         structural_payload,
         language=language,
         atomic_interpretations=atomic_interpretations,
@@ -2745,10 +3027,18 @@ async def refine_reading_with_llm(
         global_evidence_items=global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else None,
         global_evidence_injected_count=global_evidence_injected_count,
     )
+    final_prompt_text = sanitize_prompt_text_last_mile(raw_prompt_text)
+    prompt_hygiene_failfast = _resolve_pre_llm_failfast()
+    _assert_or_warn_whole_prompt_hygiene(
+        prompt_text=final_prompt_text,
+        failfast=prompt_hygiene_failfast,
+        stage="main_prompt",
+    )
+    _write_llm_prompt_snapshot_if_enabled(final_prompt_text)
     logger.info(
         "LLM prompt assembled request_id=%s prompt_char_length=%s context_mode=%s prompt_mode=%s",
         request_id,
-        len(user_message or ""),
+        len(final_prompt_text or ""),
         (os.getenv("LLM_CONTEXT_MODE", "relationship_compact") or "").strip().lower(),
         (os.getenv("PROMPT_MODE", "analyzer_first") or "").strip().lower(),
     )
@@ -2769,7 +3059,7 @@ async def refine_reading_with_llm(
         payload = build_payload_fn(
             model=candidate_model,
             system_message=system_message,
-            user_message=user_message,
+            user_message=final_prompt_text,
             max_completion_tokens=max_tokens,
         )
         try:
@@ -3085,6 +3375,23 @@ async def refine_reading_with_llm(
                 final_text,
                 allow_zero_term_injection=True,
             )
+            final_text = postprocess_reading_markdown_surface(final_text)
+            final_text = postprocess_commercial_quality(final_text)
+            front_context = build_relationship_signal_context(
+                structural_summary if isinstance(structural_summary, dict) else {},
+                semantic_signals if isinstance(semantic_signals, dict) else {},
+                dasha_context if isinstance(dasha_context, dict) else {},
+            )
+            _front_meta, front_card_ko = build_commercial_signal_card(
+                structural_summary=structural_summary if isinstance(structural_summary, dict) else {},
+                dasha_context=front_context if isinstance(front_context, dict) else {},
+                card_meta_as_of_utc=str((dasha_context if isinstance(dasha_context, dict) else {}).get("as_of_utc") or "").strip() or None,
+                payload_as_of_utc=str((structural_summary.get("meta", {}) if isinstance(structural_summary, dict) and isinstance(structural_summary.get("meta"), dict) else {}).get("as_of_utc") or "").strip() or None,
+                vedic_meta_as_of_utc=str((structural_summary.get("vedic_technical_data", {}) if isinstance(structural_summary, dict) and isinstance(structural_summary.get("vedic_technical_data"), dict) else {}).get("meta", {}).get("as_of_utc") if isinstance((structural_summary.get("vedic_technical_data", {}) if isinstance(structural_summary, dict) and isinstance(structural_summary.get("vedic_technical_data"), dict) else {}).get("meta"), dict) else "").strip() or None,
+            )
+            front_modules_md = render_commercial_front_modules(front_card_ko)
+            final_text = prepend_front_modules(final_text, front_modules_md)
+            final_text = sanitize_commercial_surface_with_front_protection(final_text)
             return final_text
         except Exception as e:
             last_error = e
@@ -3143,9 +3450,28 @@ def build_llm_structural_prompt(
         dasha_context=timing,
     )
     compact_context_json = json.dumps(compact_context, indent=2, ensure_ascii=False)
-    chapter_blocks_included = (context_mode in {"legacy", "hybrid_compact"}) and not evidence_only
     compact_mode = os.getenv("LLM_GATE_COMPACT", "0").strip() == "1"
     source_blocks = _select_chapter_blocks_source(chapter_blocks if isinstance(chapter_blocks, dict) else {})
+    pre_llm_mode = _resolve_pre_llm_input_mode()
+    pre_llm_failfast = _resolve_pre_llm_failfast()
+    pre_llm_sections, blocks_json, draft_reading_pre_llm, pre_llm_meta = _compose_pre_llm_sections(
+        source_blocks,
+        compact_mode=compact_mode,
+        mode=pre_llm_mode,
+        failfast=pre_llm_failfast,
+    )
+    card_meta, card_ko = build_commercial_signal_card(
+        structural_summary=source,
+        dasha_context=compact_context if isinstance(compact_context, dict) else timing,
+        card_meta_as_of_utc=str(timing.get("as_of_utc") or "").strip() or None,
+        payload_as_of_utc=str((source.get("meta", {}) if isinstance(source.get("meta"), dict) else {}).get("as_of_utc") or "").strip() or None,
+        vedic_meta_as_of_utc=str((source.get("vedic_technical_data", {}) if isinstance(source.get("vedic_technical_data"), dict) else {}).get("meta", {}).get("as_of_utc") if isinstance((source.get("vedic_technical_data", {}) if isinstance(source.get("vedic_technical_data"), dict) else {}).get("meta"), dict) else "").strip() or None,
+    )
+    commercial_signal_card_text = render_signal_card_ko_for_prompt(card_ko)
+    commercial_chapter_draft_text = render_chapter_blocks_draft_md(draft_reading_pre_llm)
+    if not commercial_chapter_draft_text:
+        commercial_chapter_draft_text = "(콘텐츠 초안 없음)"
+    legacy_blocks_section = "(serialized content mode; raw JSON blocks omitted)"
     active_chapters = _active_report_chapters()
     evidence_global_chars_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_MAX", "1500"))
     evidence_global_chars_hard_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_HARD_MAX", "2500"))
@@ -3187,15 +3513,7 @@ def build_llm_structural_prompt(
                     chapter_evidence_lines.append(f"- ({it.get('id','')}) {it.get('text','')}")
             chapter_evidence_lines.append("")
     chapter_evidence_text = "\n".join(chapter_evidence_lines).strip()
-    if chapter_blocks_included:
-        if compact_mode:
-            compact_blocks = _compact_chapter_blocks_for_prompt(source_blocks)
-            blocks_json = json.dumps(compact_blocks, indent=2, ensure_ascii=False) if compact_blocks else "{}"
-        else:
-            blocks_json = json.dumps(source_blocks, indent=2, ensure_ascii=False) if source_blocks else "{}"
-    else:
-        blocks_json = "{}"
-    context_blocks_chars = len(blocks_json) if chapter_blocks_included else 0
+    context_blocks_chars = int(pre_llm_meta.get("section_chars", len(pre_llm_sections)))
     chapter_key_lines = "\n".join(f"- {key}" for key in active_chapters)
     intensity_dist: dict[str, int] = {}
     for item in compact_context.get("cross_dynamics", []) if isinstance(compact_context, dict) else []:
@@ -3211,12 +3529,16 @@ def build_llm_structural_prompt(
     timing_windows_count = len(timing_windows) if isinstance(timing_windows, list) else 0
     effective_global_injected = int(global_evidence_injected_count or (1 if (evidence_mode == "on" and global_evidence_text) else 0))
     logger.info(
-        "LLM prompt context mode=%s prompt_mode=%s evidence_mode=%s priority=%s blocks_injected=%s context_blocks_chars=%s relationship_signal_context_length=%s cross_dynamics_count=%s cross_dynamics_intensity=%s timing_windows_count=%s global_evidence_injected_count=%s",
+        "LLM prompt context mode=%s prompt_mode=%s evidence_mode=%s priority=%s pre_llm_mode=%s failfast=%s json_included=%s draft_included=%s pre_llm_json_hash=%s context_blocks_chars=%s relationship_signal_context_length=%s cross_dynamics_count=%s cross_dynamics_intensity=%s timing_windows_count=%s global_evidence_injected_count=%s",
         context_mode,
         prompt_mode,
         evidence_mode,
         evidence_priority,
-        chapter_blocks_included,
+        pre_llm_mode,
+        pre_llm_failfast,
+        pre_llm_meta.get("json_included"),
+        pre_llm_meta.get("draft_included"),
+        pre_llm_meta.get("json_payload_hash"),
         context_blocks_chars,
         len(compact_context_json),
         len(compact_context.get("cross_dynamics", [])) if isinstance(compact_context, dict) else 0,
@@ -3322,6 +3644,23 @@ STYLE OVERRIDE (run151158_like)
 - "~할 수 있다", "~가능성이 있다", "~경향이 있다" 종결을 연속 2회 이상 쓰지 않는다.
 - Bullets 3개가 모두 명령형으로 끝나는 구조 금지. 최소 1개는 질문형 또는 관찰형.
 """
+    actionable_keys_csv = ", ".join(
+        [
+            "Current Phase",
+            "Career & Money",
+            "Love & Relationship Patterns",
+            "Health & Energy Rhythm",
+            "Mid-Term Direction",
+            "Risk Management Points",
+            "Growth Acceleration",
+        ]
+    )
+    action_steps_repeat_nudge = f"""
+[Action Steps + Repeat Rules]
+- For the following chapters, end with a short section titled `### Action Steps` with 2-3 bullet points using `- `:
+  {actionable_keys_csv}
+- Do not repeat the same paragraph across chapters. If a base trait is already stated, add a new angle or implication instead of restating it.
+"""
     explanation_mode_ban = """
 [설명 모드 금지 — 반드시 준수]
 - Evidence 내용을 다시 정의하거나 이론 설명하지 않는다.
@@ -3379,6 +3718,12 @@ HYBRID RENDER OUTPUT CONTRACT
         actionable_bullet_line = "- Actionable 챕터는 HYBRID RENDER OUTPUT CONTRACT의 3개 불릿 규칙을 따른다."
         bullet_exempt_line = "- Bullet-exempt 챕터는 HYBRID RENDER OUTPUT CONTRACT의 불릿 금지 규칙을 따른다."
 
+    pre_llm_sections_block = pre_llm_sections if pre_llm_sections else "- (none)"
+    if pre_llm_meta.get("draft_included") and draft_reading_pre_llm.strip():
+        draft_reading_block = "See `### SANITIZED_DRAFT_READING` section."
+    else:
+        draft_reading_block = "(omitted by PRE_LLM_INPUT_MODE)"
+
     if prompt_mode == "analyzer_first":
         return f"""
 ROLE
@@ -3416,6 +3761,7 @@ ANALYSIS RULES
 {jargon_transform_rules}
 {chapter_hook_hint_block}
 {anti_repeat_rules}
+{action_steps_repeat_nudge}
 {explanation_mode_ban}
 {bullet_compaction_rules}
 
@@ -3429,7 +3775,8 @@ SAFETY RULES
   결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
 - 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
 - dasha_context에 없는 값은 만들지 않는다.
-- 연도/반기/분기/Q1~Q4 표기 금지.
+- 절대연도/반기/분기/Q1~Q4 표기는 원칙적으로 금지.
+  단, Mid-Term Direction 내부 `### Timing Map`에서만 최대 3줄 허용.
 - timing_axis.timing_windows가 없으면 시기 문장을 억지로 만들지 않는다.
 
 DASHA INTEGRITY
@@ -3461,8 +3808,20 @@ Relationship Compact Context (JSON):
 Core Chart Identity (internal cue only):
 {asc_text} / {sun_text} / {moon_text}
 
+Draft Narrative Blocks (Sanitized):
+{draft_reading_block}
+
+SANITIZED INPUT BLOCKS:
+{pre_llm_sections_block}
+
+Commercial Signal Card (KO, prompt-serialized):
+{commercial_signal_card_text if commercial_signal_card_text else "- (none)"}
+
+Chapter Draft (KO, prompt-serialized):
+{commercial_chapter_draft_text}
+
 Chapter Blocks (JSON):
-{blocks_json if chapter_blocks_included else "{}"}
+{legacy_blocks_section}
 """
 
     return f"""
@@ -3493,7 +3852,8 @@ HARD BANS
   activation intensity, dominant axis, psychological tension axis,
   stability index, risk_factor, opportunity_factor, vector, modifier, amplification.
 - 수치/퍼센트/점수/지표 직접 노출 금지.
-- 연도/반기/분기/Q1~Q4 표기 금지.
+- 절대연도/반기/분기/Q1~Q4 표기는 원칙적으로 금지.
+  단, Mid-Term Direction 내부 `### Timing Map`에서만 최대 3줄 허용.
 - 사건 확정 예언 금지:
   결혼, 이직, 합격, 당첨, 임신, 수술, 이혼, 파산, 대박, 확정 수익 등 결과 확정형 사건 단정 금지.
 - 단정 강화 표현 금지: 반드시, 무조건, 확정, 틀림없이.
@@ -3531,6 +3891,7 @@ CORE WRITING GUIDANCE
 {jargon_transform_rules}
 {chapter_hook_hint_block}
 {anti_repeat_rules}
+{action_steps_repeat_nudge}
 {explanation_mode_ban}
 {bullet_compaction_rules}
 
@@ -3577,6 +3938,18 @@ Relationship Compact Context (JSON):
 [CHAPTER SPECIFIC EVIDENCE]
 {chapter_evidence_text if chapter_evidence_text else "(none)"}
 
+Draft Narrative Blocks (Sanitized):
+{draft_reading_block}
+
+SANITIZED INPUT BLOCKS:
+{pre_llm_sections_block}
+
+Commercial Signal Card (KO, prompt-serialized):
+{commercial_signal_card_text if commercial_signal_card_text else "- (none)"}
+
+Chapter Draft (KO, prompt-serialized):
+{commercial_chapter_draft_text}
+
 Chapter Blocks (JSON):
-{blocks_json if chapter_blocks_included else "{}"}
+{legacy_blocks_section}
 """

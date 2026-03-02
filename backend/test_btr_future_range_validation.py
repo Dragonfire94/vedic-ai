@@ -70,7 +70,13 @@ def _base_request(event: BTREvent) -> BTRAnalyzeRequest:
 
 
 def test_range_fully_future_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(main, "BTR_ENABLED", True)
     monkeypatch.setattr(main, "BTR_ENGINE_AVAILABLE", True)
+    monkeypatch.setattr(
+        main,
+        "convert_age_range_to_year_range",
+        lambda birth_year, age_range: (birth_year + age_range[0], birth_year + age_range[1]),
+    )
 
     current_year = datetime.utcnow().year
     current_age = current_year - 2000
@@ -86,7 +92,13 @@ def test_range_fully_future_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_range_overlapping_current_year_allowed(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(main, "BTR_ENABLED", True)
     monkeypatch.setattr(main, "BTR_ENGINE_AVAILABLE", True)
+    monkeypatch.setattr(
+        main,
+        "convert_age_range_to_year_range",
+        lambda birth_year, age_range: (birth_year + age_range[0], birth_year + age_range[1]),
+    )
     monkeypatch.setattr(main, "resolve_timezone_offset", lambda *args, **kwargs: 0.0)
     monkeypatch.setattr(main, "analyze_birth_time", lambda **kwargs: [{"score": 1.0}])
 
@@ -103,6 +115,7 @@ def test_range_overlapping_current_year_allowed(monkeypatch: pytest.MonkeyPatch)
 
 
 def test_exact_future_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(main, "BTR_ENABLED", True)
     monkeypatch.setattr(main, "BTR_ENGINE_AVAILABLE", True)
 
     future_year = datetime.utcnow().year + 1
@@ -112,5 +125,5 @@ def test_exact_future_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
         main.analyze_btr(req)
 
     assert exc.value.status_code == 400
-    assert f"미래 이벤트는 사용할 수 없습니다: {future_year}" == exc.value.detail
+    assert f"Future events are not allowed: {future_year}" == exc.value.detail
 

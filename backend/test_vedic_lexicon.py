@@ -6,6 +6,7 @@ from backend.vedic_lexicon import (
     ZERO_TERM_SENTENCE,
     enforce_subtle_vedic_lexicon,
     is_already_gloss_wrapped,
+    scan_timing_map_contract,
     scan_vedic_term_budget,
 )
 
@@ -81,3 +82,47 @@ def test_wrapped_detection_requires_first_mention_style_phrase() -> None:
     assert match_wrapped is not None
     assert is_already_gloss_wrapped(wrapped, match_wrapped.start(), match_wrapped.end(), "rahu") is True
 
+
+def test_body_2026_halfyear_rewrites_to_relative_calendar_sense() -> None:
+    text = "## [Current Phase] 현재 흐름\n\n2026년 상반기에 변곡점이 옵니다."
+    out = enforce_subtle_vedic_lexicon(text)
+    assert "2026년" not in out
+    assert "상반기" not in out
+    assert "향후 12개월 흐름 구간" in out
+
+
+def test_body_2027_q1_rewrites_to_relative_calendar_sense() -> None:
+    text = "## [Current Phase] 현재 흐름\n\n2027 Q1에 중요한 전환이 있습니다."
+    out = enforce_subtle_vedic_lexicon(text)
+    assert "2027" not in out
+    assert "Q1" not in out
+    assert "향후 12~24개월 흐름 구간" in out
+
+
+def test_body_other_year_rewrites_to_mid_long_term_bucket() -> None:
+    text = "## [Current Phase] 현재 흐름\n\n2029년에는 기반 재정비가 필요합니다."
+    out = enforce_subtle_vedic_lexicon(text)
+    assert "2029" not in out
+    assert "중장기 구간" in out
+
+
+def test_timing_map_keeps_first_three_calendar_lines_and_rewrites_after() -> None:
+    text = """## [Mid-Term Direction] 중기 흐름
+
+### Timing Map
+- 2026년 상반기: 첫 구간
+- 2027 Q1: 둘째 구간
+- 2028년 2분기: 셋째 구간
+- 2029년 하반기: 넷째 구간
+- 2030년 Q4: 다섯째 구간
+"""
+    out = enforce_subtle_vedic_lexicon(text)
+    assert "2026년 상반기" in out
+    assert "2027 Q1" in out
+    assert "2028년 2분기" in out
+    assert "2029년 하반기" not in out
+    assert "2030년 Q4" not in out
+    contract = scan_timing_map_contract(out)
+    assert contract["timing_map_present"] is True
+    assert contract["calendar_lines"] == 3
+    assert contract["over"] is False

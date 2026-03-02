@@ -24,7 +24,7 @@ import subprocess
 import sys
 from pathlib import Path
 from enum import Enum
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone as dt_timezone
 from functools import lru_cache
 from uuid import uuid4
 from typing import Optional, Any, Literal, Tuple, Dict, List
@@ -36,10 +36,17 @@ if __package__ is None or __package__ == "":
 
 # Structural engine import via the backend package to keep resolution stable
 # when running `uvicorn backend.main:app` from any working directory.
-from backend.astro_engine import build_structural_summary
+from backend.astro_engine import build_structural_summary, build_three_month_structural_outlook
+from backend.dasha_core import (
+    calculate_vimshottari_dasha as calculate_vimshottari_dasha_core,
+    get_dasha_at_jd as get_dasha_at_jd_core,
+    jd_to_iso_utc as dasha_jd_to_iso_utc,
+)
 from backend.report_engine import (
     build_report_payload,
     build_gpt_user_content,
+    build_dasha_narrative_context,
+    build_semantic_signals,
     SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
     _get_atomic_chart_interpretations,
 )
@@ -64,6 +71,28 @@ from backend.report_config import (
     _STYLE_LINKER_PATTERNS,
 )
 from backend.vedic_lexicon import enforce_subtle_vedic_lexicon, scan_vedic_term_budget
+from backend.output_surface_postprocess import (
+    commercial_dejargonize,
+    postprocess_commercial_quality,
+    postprocess_reading_markdown_surface,
+    sanitize_commercial_surface_with_front_protection,
+    strip_internal_artifacts,
+)
+from backend.commercial_signal_adapter import build_commercial_signal_card
+from backend.commercial_surface_renderer import (
+    has_front_modules,
+    prepend_front_modules,
+    render_commercial_front_modules,
+    render_commercial_markdown_from_chapter_blocks,
+)
+from backend.vedic_technical_appendix import (
+    VEDIC_TECH_APPENDIX_VERSION,
+    build_vedic_technical_artifacts,
+    build_vedic_technical_data,
+    make_chart_context_min,
+    normalize_vedic_tech_redact_flag,
+    render_vedic_technical_markdown,
+)
 from backend.cache_manager import cache
 from backend.llm_client import build_openai_client
 from backend.swe_config import initialize_swe_context
@@ -118,16 +147,31 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 READING_PIPELINE_VERSION = "chapter_blocks_v2"
 AI_PROMPT_VERSION = "ko_only_v2"
+APPENDIX_CACHE_SCHEMA_VERSION = "v3"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
 AI_MAX_TOKENS_AI_READING = 18000
 AI_MAX_TOKENS_PDF = 8000
 AI_MAX_TOKENS_HARD_LIMIT = 22000
 PDF_DISABLED = str(os.getenv("PDF_DISABLED", "1")).strip().lower() in {"1", "true", "yes", "on"}
+BTR_ENABLED = str(os.getenv("BTR_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}
+
+# BTR/tuning callables are initialized defensively and conditionally imported
+# later when BTR_ENABLED is true.
+BTR_ENGINE_AVAILABLE = False
+analyze_birth_time = None
+refine_time_bracket = None
+generate_time_brackets = None
+calculate_vimshottari_dasha = None
+get_dasha_at_date = None
+convert_age_range_to_year_range = None
+analyze_tuning_data = None
+compute_weight_adjustments = None
+apply_weight_adjustments = None
 
 
 def _utc_iso_now() -> str:
-    return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(dt_timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def _canonical_json(value: Any) -> str:
@@ -148,6 +192,61 @@ def _resolve_request_id(request: Optional[Request], explicit_request_id: Optiona
             if value:
                 return value
     return str(uuid4())
+
+
+def parse_as_of_utc(as_of_raw: Optional[str]) -> tuple[datetime, bool]:
+    """Parse optional as_of string into UTC datetime.
+
+    Returns (as_of_utc, explicit_flag). When omitted, current UTC is used.
+    """
+    token_source: Any = as_of_raw
+    if not isinstance(token_source, (str, type(None))):
+        token_source = getattr(token_source, "default", None)
+    token = str(token_source or "").strip()
+    if not token:
+        now_utc = datetime.now(dt_timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        return now_utc, False
+
+    normalized = token
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid as_of format; expected ISO-8601",
+        ) from exc
+
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=dt_timezone.utc)
+    else:
+        parsed = parsed.astimezone(dt_timezone.utc)
+    return parsed, True
+
+
+def _datetime_to_jd_utc(dt_utc: datetime) -> float:
+    dt = dt_utc.astimezone(dt_timezone.utc)
+    hour_decimal = dt.hour + (dt.minute / 60.0) + (dt.second / 3600.0) + (dt.microsecond / 3600000000.0)
+    return float(swe.julday(dt.year, dt.month, dt.day, hour_decimal))
+
+
+def _as_of_bucket(*, as_of_utc: datetime) -> str:
+    # Cache freshness is normalized to month granularity for stable keys and
+    # deterministic replay across explicit and implicit as_of requests.
+    return f"m_{as_of_utc.strftime('%Y-%m')}"
+
+
+def _normalize_as_of_bucket_month(bucket: str | None) -> str | None:
+    if not isinstance(bucket, str):
+        return None
+    token = bucket.strip()
+    if re.fullmatch(r"m_\d{4}-\d{2}", token):
+        return token
+    match = re.fullmatch(r"d_(\d{4}-\d{2})-\d{2}", token)
+    if match:
+        return f"m_{match.group(1)}"
+    return None
 
 
 def _emit_llm_audit_event(
@@ -179,7 +278,7 @@ def _write_vedic_budget_violation_log(
     chapter_blocks_hash: str,
 ) -> str | None:
     try:
-        stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        stamp = datetime.now(dt_timezone.utc).strftime("%Y%m%d_%H%M%S")
         digest = hashlib.sha256((text or "").encode("utf-8", errors="ignore")).hexdigest()[:12]
         out_dir = REPO_ROOT / "logs" / "vedic_budget_violations"
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -303,13 +402,11 @@ def _candidate_openai_models(primary_model: str) -> list[str]:
 
 
 def _normalize_analysis_mode(raw_mode: str) -> str:
-    """Normalize analysis_mode and accept common typo aliases."""
+    """Normalize analysis_mode to the single internal execution mode."""
     mode = str(raw_mode or "").strip().lower()
-    if mode in {"standard", "standarad"}:
-        return "standard"
-    if mode == "pro":
-        return "pro"
-    raise HTTPException(status_code=400, detail="analysis_mode must be 'standard' or 'pro'")
+    if mode in {"standard", "standarad", "pro", "full"}:
+        return "full"
+    raise HTTPException(status_code=400, detail="analysis_mode must be 'standard', 'pro', or 'full'")
 
 
 def _score_band_100(value: Any) -> str:
@@ -757,7 +854,115 @@ def _apply_style_remediation(text: str, *, allow_zero_term_injection: bool = Fal
         remediated,
         allow_zero_term_injection=allow_zero_term_injection,
     )
+    remediated = postprocess_reading_markdown_surface(remediated)
     return remediated
+
+
+_STYLE_DENSITY_CHAPTER_SPLIT_RE = re.compile(r"(?=^##\s)", re.MULTILINE)
+_STYLE_DENSITY_HEADING_LINE_RE = re.compile(r"^\s*#{2,3}\s+")
+_STYLE_DENSITY_LIST_LINE_RE = re.compile(r"^\s*(?:[-•*]|\d+[.)])\s+")
+_STYLE_DENSITY_CONTINUATION_RE = re.compile(r"^\s{2,}\S")
+_STYLE_DENSITY_SHORT_NORMALIZE_RE = re.compile(r"[\s\W_]+", flags=re.UNICODE)
+
+
+def _normalize_style_text_newlines(text: str) -> str:
+    return (text or "").replace("\r\n", "\n").replace("\r", "\n")
+
+
+def _split_chapters_for_density(text: str) -> list[tuple[str, str]]:
+    normalized = _normalize_style_text_newlines(text).strip()
+    if not normalized:
+        return []
+    chunks = [chunk for chunk in _STYLE_DENSITY_CHAPTER_SPLIT_RE.split(normalized) if chunk and chunk.strip()]
+    chapters: list[tuple[str, str]] = []
+    for chunk in chunks:
+        lines = chunk.splitlines()
+        if not lines:
+            continue
+        first = lines[0].strip()
+        heading_match = re.match(r"^##\s+(.+?)\s*$", first)
+        if heading_match:
+            heading_raw = heading_match.group(1).strip()
+            key_match = re.match(r"^\[\s*([^\]]+)\s*\]\s*(.*)$", heading_raw)
+            if key_match:
+                heading = key_match.group(1).strip() or "Untitled"
+            else:
+                heading = heading_raw or "Untitled"
+            body = "\n".join(lines[1:]).strip()
+            chapters.append((heading, body))
+    if chapters:
+        return chapters
+    return [("Document", normalized)]
+
+
+def _split_paragraph_blocks_for_density(text: str) -> list[str]:
+    normalized = _normalize_style_text_newlines(text)
+    return [block.strip() for block in re.split(r"\n\n+", normalized) if block and block.strip()]
+
+
+def _is_heading_only_block(lines: list[str]) -> bool:
+    return bool(lines) and all(_STYLE_DENSITY_HEADING_LINE_RE.match(line) for line in lines)
+
+
+def _is_list_only_block(lines: list[str]) -> bool:
+    if not lines:
+        return False
+    saw_list_line = False
+    for line in lines:
+        if _STYLE_DENSITY_LIST_LINE_RE.match(line):
+            saw_list_line = True
+            continue
+        # Minimal continuation support for wrapped list text.
+        if saw_list_line and _STYLE_DENSITY_CONTINUATION_RE.match(line):
+            continue
+        return False
+    return saw_list_line
+
+
+def _is_short_caption_block(block: str, threshold: int = 40) -> bool:
+    normalized = _STYLE_DENSITY_SHORT_NORMALIZE_RE.sub("", block or "")
+    return len(normalized) < threshold
+
+
+def _compute_body_paragraph_density_metrics(text: str) -> dict[str, Any]:
+    chapters = _split_chapters_for_density(text)
+    chapter_body_counts: dict[str, int] = {}
+    excluded_heading_only = 0
+    excluded_list_only = 0
+    excluded_short = 0
+
+    for heading, chapter_body in chapters:
+        body_count = 0
+        for block in _split_paragraph_blocks_for_density(chapter_body):
+            lines = [line for line in block.splitlines() if line.strip()]
+            if _is_heading_only_block(lines):
+                excluded_heading_only += 1
+                continue
+            if _is_list_only_block(lines):
+                excluded_list_only += 1
+                continue
+            if _is_short_caption_block(block, threshold=40):
+                excluded_short += 1
+                continue
+            body_count += 1
+        chapter_body_counts[heading] = body_count
+
+    chapter_count = len(chapter_body_counts)
+    body_counts = list(chapter_body_counts.values())
+    avg_body = (sum(body_counts) / chapter_count) if chapter_count else 0.0
+    return {
+        "chapter_count": chapter_count,
+        "chapter_body_paragraph_count": chapter_body_counts,
+        "avg_body_paragraphs_per_chapter": avg_body,
+        "min_body_paragraphs_per_chapter": min(body_counts) if body_counts else 0,
+        "max_body_paragraphs_per_chapter": max(body_counts) if body_counts else 0,
+        "zero_body_chapter_count": sum(1 for count in body_counts if count == 0),
+        "excluded_blocks": {
+            "heading": excluded_heading_only,
+            "list": excluded_list_only,
+            "short": excluded_short,
+        },
+    }
 
 
 def _extract_paragraphs_for_style(text: str) -> list[str]:
@@ -813,7 +1018,7 @@ def _chapter_order_matches_from_meta(text: str) -> bool:
 
 
 def _reading_style_error_codes(text: str) -> list[str]:
-    normalized = (text or "").strip()
+    normalized = _normalize_style_text_newlines(text).strip()
     if not normalized:
         return ["empty_text"]
 
@@ -849,13 +1054,34 @@ def _reading_style_error_codes(text: str) -> list[str]:
             errors.append("headline_length_outlier")
 
     paragraphs = _extract_paragraphs_for_style(normalized)
-    if headings:
-        avg_paragraphs = len(paragraphs) / max(1, len(headings))
-        if avg_paragraphs < 3.0:
-            errors.append("paragraph_density_low")
-    else:
-        if len(paragraphs) < 6:
-            errors.append("paragraph_density_low")
+    density_metrics = _compute_body_paragraph_density_metrics(normalized)
+    avg_body = float(density_metrics.get("avg_body_paragraphs_per_chapter", 0.0))
+    zero_body_chapters = int(density_metrics.get("zero_body_chapter_count", 0))
+
+    density_hard = zero_body_chapters >= 2 or avg_body < 1.8
+    density_warn = (not density_hard) and (1.8 <= avg_body < 2.0)
+
+    if density_hard:
+        errors.append("paragraph_density_low")
+    elif density_warn:
+        errors.append("warn_paragraph_density_low")
+
+    if density_hard or density_warn:
+        excluded = density_metrics.get("excluded_blocks", {}) if isinstance(density_metrics.get("excluded_blocks"), dict) else {}
+        chapter_counts = density_metrics.get("chapter_body_paragraph_count", {}) if isinstance(density_metrics.get("chapter_body_paragraph_count"), dict) else {}
+        logger.warning(
+            "[STYLE DENSITY] hard=%s warn=%s avg_body_paragraphs_per_chapter=%.2f zero_body_chapter_count=%s min=%s max=%s excluded={heading:%s,list:%s,short:%s} chapter_counts=%s",
+            density_hard,
+            density_warn,
+            avg_body,
+            zero_body_chapters,
+            density_metrics.get("min_body_paragraphs_per_chapter", 0),
+            density_metrics.get("max_body_paragraphs_per_chapter", 0),
+            excluded.get("heading", 0),
+            excluded.get("list", 0),
+            excluded.get("short", 0),
+            chapter_counts,
+        )
 
     sentence_end = re.compile(r"[.!?\u3002\uff1f\uff01]+")
     for p in paragraphs:
@@ -1169,6 +1395,131 @@ def parse_include_vargas(include_vargas: str, include_d9: int) -> list[str]:
     return [key for key in VARGA_OUTPUT_ORDER if key in requested]
 
 
+def resolve_effective_include_options(
+    include_nodes: int,
+    include_d9: int,
+    include_vargas: str,
+    *,
+    default_include_vargas: str = "",
+) -> dict[str, Any]:
+    nodes_eff = 1 if int(include_nodes) else 0
+    d9_eff = 1 if int(include_d9) else 0
+    raw_vargas = str(include_vargas or "").strip()
+    if not raw_vargas and isinstance(default_include_vargas, str):
+        raw_vargas = default_include_vargas.strip()
+    requested_vargas = parse_include_vargas(raw_vargas, d9_eff)
+    return {
+        "include_nodes_eff": nodes_eff,
+        "include_d9_eff": d9_eff,
+        "include_vargas_list_eff": requested_vargas,
+        "include_vargas_eff": ",".join(requested_vargas),
+    }
+
+
+def _month_anchor_utc(year: int, month: int, offset: int) -> datetime:
+    month_index = (int(month) - 1) + int(offset)
+    target_year = int(year) + (month_index // 12)
+    target_month = (month_index % 12) + 1
+    return datetime(target_year, target_month, 15, 12, 0, 0, tzinfo=pytz.UTC)
+
+
+def _month_anchor_from_base_utc(base_anchor: datetime, offset: int) -> datetime:
+    base = base_anchor.astimezone(dt_timezone.utc)
+    month_index = (int(base.month) - 1) + int(offset)
+    target_year = int(base.year) + (month_index // 12)
+    target_month = (month_index % 12) + 1
+    return datetime(target_year, target_month, 15, 12, 0, 0, tzinfo=dt_timezone.utc)
+
+
+def _build_transit_planets_for_anchor(target_anchor: datetime, asc_rasi_idx: int, include_nodes: int) -> dict[str, Any]:
+    jd = swe.julday(target_anchor.year, target_anchor.month, target_anchor.day, 12.0)
+    out: dict[str, Any] = {}
+    for name, pid in PLANET_IDS.items():
+        res, _ = calc_ut_sidereal_strict(jd, pid)
+        lon = normalize_360(res[0])
+        rel_house = ((get_rasi_index(lon) - asc_rasi_idx) % 12) + 1
+        out[name] = {
+            "longitude": round(lon, 6),
+            "relative_house": int(rel_house),
+        }
+    if int(include_nodes):
+        rahu_res, _ = calc_ut_sidereal_strict(jd, swe.MEAN_NODE)
+        rahu_lon = normalize_360(rahu_res[0])
+        ketu_lon = normalize_360(rahu_lon + 180.0)
+        rahu_house = ((get_rasi_index(rahu_lon) - asc_rasi_idx) % 12) + 1
+        ketu_house = ((get_rasi_index(ketu_lon) - asc_rasi_idx) % 12) + 1
+        out["Rahu"] = {"longitude": round(rahu_lon, 6), "relative_house": int(rahu_house)}
+        out["Ketu"] = {"longitude": round(ketu_lon, 6), "relative_house": int(ketu_house)}
+    return out
+
+
+def _build_dasha_timeline_rows(
+    *,
+    mahadashas: list[dict[str, Any]],
+    target_jd: float,
+    past_limit: int = 2,
+    future_limit: int = 6,
+    max_rows: int = 9,
+) -> list[dict[str, Any]]:
+    timeline: list[dict[str, Any]] = []
+    for md in mahadashas:
+        if not isinstance(md, dict):
+            continue
+        md_lord = md.get("lord") if isinstance(md.get("lord"), str) else None
+        for ad in md.get("antardashas", []):
+            if not isinstance(ad, dict):
+                continue
+            start_jd = ad.get("start_jd")
+            end_jd = ad.get("end_jd")
+            if not isinstance(start_jd, (int, float)) or not isinstance(end_jd, (int, float)):
+                continue
+            timeline.append(
+                {
+                    "mahadasha": md_lord,
+                    "bhukti": ad.get("lord") if isinstance(ad.get("lord"), str) else None,
+                    "start_jd": float(start_jd),
+                    "end_jd": float(end_jd),
+                    "start_utc": dasha_jd_to_iso_utc(float(start_jd)),
+                    "end_utc": dasha_jd_to_iso_utc(float(end_jd)),
+                }
+            )
+    if not timeline:
+        return []
+
+    timeline.sort(key=lambda row: float(row.get("start_jd", 0.0)))
+    target = float(target_jd)
+
+    current_idx = None
+    for idx, row in enumerate(timeline):
+        start_jd = float(row.get("start_jd", 0.0))
+        end_jd = float(row.get("end_jd", 0.0))
+        if start_jd <= target <= end_jd:
+            current_idx = idx
+            break
+    if current_idx is None:
+        for idx, row in enumerate(timeline):
+            if float(row.get("end_jd", 0.0)) >= target:
+                current_idx = idx
+                break
+    if current_idx is None:
+        current_idx = len(timeline) - 1
+
+    start_idx = max(0, int(current_idx) - int(past_limit))
+    end_idx = min(len(timeline), int(current_idx) + int(future_limit) + 1)
+    window = timeline[start_idx:end_idx][: max(1, int(max_rows))]
+    rows: list[dict[str, Any]] = []
+    for row in window:
+        rows.append(
+            {
+                "mahadasha": row.get("mahadasha"),
+                "bhukti": row.get("bhukti"),
+                "start_utc": row.get("start_utc"),
+                "end_utc": row.get("end_utc"),
+            }
+        )
+    return rows
+
+
 def build_divisional_chart(planets: dict[str, Any], division: int) -> dict[str, Any]:
     d_planets: dict[str, Any] = {}
     for name, data in planets.items():
@@ -1250,7 +1601,30 @@ def _timezone_utc_offset_hours(tz_name: str, year: int, month: int, day: int) ->
     return float(tz.utcoffset(sample_dt).total_seconds() / 3600.0)
 
 
-def resolve_timezone_offset(
+TZ_OFFSET_MIN_HOURS = -12.0
+TZ_OFFSET_MAX_HOURS = 14.0
+
+
+def _validate_timezone_offset_hours(raw_value: Any) -> float:
+    try:
+        offset = float(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "timezone must be UTC offset hours (float), e.g. 9, 9.0, -5. "
+                "IANA timezone names are not supported."
+            ),
+        ) from exc
+    if offset < TZ_OFFSET_MIN_HOURS or offset > TZ_OFFSET_MAX_HOURS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"timezone must be between {TZ_OFFSET_MIN_HOURS} and {TZ_OFFSET_MAX_HOURS} hours.",
+        )
+    return float(offset)
+
+
+def resolve_validated_timezone_offset(
     year: int,
     month: int,
     day: int,
@@ -1258,9 +1632,9 @@ def resolve_timezone_offset(
     lon: float,
     timezone: Optional[float] = None,
 ) -> float:
-    """Resolve UTC offset from coordinates or explicit timezone input."""
+    """Resolve validated UTC offset (hours) for birth local time conversion."""
     if timezone is not None:
-        return float(timezone)
+        return _validate_timezone_offset_hours(timezone)
 
     if TimezoneFinder is None:
         raise HTTPException(
@@ -1292,8 +1666,28 @@ def resolve_timezone_offset(
             ),
         ) from exc
 
-    logger.debug(f"Timezone: {tz_name}, tz_offset={tz_offset}")
-    return tz_offset
+    tz_offset_valid = _validate_timezone_offset_hours(tz_offset)
+    logger.debug(f"Timezone: {tz_name}, tz_offset={tz_offset_valid}")
+    return tz_offset_valid
+
+
+def resolve_timezone_offset(
+    year: int,
+    month: int,
+    day: int,
+    lat: float,
+    lon: float,
+    timezone: Optional[float] = None,
+) -> float:
+    """Backward-compatible alias for validated timezone resolution."""
+    return resolve_validated_timezone_offset(
+        year=year,
+        month=month,
+        day=day,
+        lat=lat,
+        lon=lon,
+        timezone=timezone,
+    )
 
 
 def compute_julian_day(
@@ -1322,7 +1716,7 @@ def compute_julian_day_legacy(
     timezone: Optional[float] = None,
 ) -> float:
     """Backward-compatible wrapper that resolves timezone automatically."""
-    tz_offset = resolve_timezone_offset(year, month, day, lat, lon, timezone=timezone)
+    tz_offset = resolve_validated_timezone_offset(year, month, day, lat, lon, timezone=timezone)
     return compute_julian_day(year, month, day, hour_frac, lat, lon, tz_offset)
 
 def extract_atomic_interpretation_text(entry: Any) -> str | None:
@@ -1457,6 +1851,9 @@ def health():
         "ephemeris_backend": SWE_CONTEXT_STATUS.get("ephemeris_backend"),
         "ephemeris_verified": SWE_CONTEXT_STATUS.get("ephemeris_verified", False),
         "sidereal_mode": SWE_CONTEXT_STATUS.get("sidereal_mode"),
+        "btr_enabled": BTR_ENABLED,
+        "btr_engine_available": BTR_ENGINE_AVAILABLE,
+        "btr_mode": "enabled" if BTR_ENABLED else "disabled",
     }
 
 # ------------------------------------------------------------------------------
@@ -1496,6 +1893,7 @@ def get_chart(
     include_interpretation: int = Query(0),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
+    as_of: Optional[str] = None,
 ):
     """Compute Vedic chart payload."""
     logger.debug("Received parameters:")
@@ -1503,8 +1901,35 @@ def get_chart(
     logger.debug(f"lat={lat}, lon={lon}")
     logger.debug(f"house_system={house_system}, gender={gender}")
     try:
-        requested_vargas = parse_include_vargas(include_vargas, include_d9)
-        jd = compute_julian_day_legacy(year, month, day, hour, lat, lon, timezone=timezone)
+        timezone_offset_hours = resolve_validated_timezone_offset(
+            year=year,
+            month=month,
+            day=day,
+            lat=lat,
+            lon=lon,
+            timezone=timezone,
+        )
+        include_opts = resolve_effective_include_options(
+            include_nodes=include_nodes,
+            include_d9=include_d9,
+            include_vargas=include_vargas,
+        )
+        include_nodes_eff = int(include_opts["include_nodes_eff"])
+        include_d9_eff = int(include_opts["include_d9_eff"])
+        requested_vargas = list(include_opts["include_vargas_list_eff"])
+        jd = compute_julian_day(
+            year=year,
+            month=month,
+            day=day,
+            hour_frac=hour,
+            lat=lat,
+            lon=lon,
+            tz_offset=timezone_offset_hours,
+        )
+        as_of_utc, _ = parse_as_of_utc(as_of)
+        as_of_utc_iso = as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        as_of_jd = _datetime_to_jd_utc(as_of_utc)
+        as_of_bucket = _as_of_bucket(as_of_utc=as_of_utc)
         
         # Build per-planet sidereal data.
         planets = {}
@@ -1545,7 +1970,7 @@ def get_chart(
                     )
         
         # Rahu/Ketu
-        if include_nodes:
+        if include_nodes_eff:
             rahu_res, _ = calc_ut_sidereal_strict(jd, swe.MEAN_NODE)
             rahu_lon = normalize_360(rahu_res[0])
             ketu_lon = normalize_360(rahu_lon + 180)
@@ -1642,7 +2067,78 @@ def get_chart(
                 data["house"] = ((p_rasi - asc_rasi_idx) % 12) + 1
         
         vargas_data = build_requested_vargas(planets, requested_vargas)
-        
+
+        current_dasha = None
+        current_sub_dasha = None
+        current_dasha_start_utc = None
+        current_dasha_end_utc = None
+        dasha_timeline: list[dict[str, Any]] = []
+        dasha_compute_failed = False
+        try:
+            moon_row = planets.get("Moon", {}) if isinstance(planets.get("Moon"), dict) else {}
+            moon_lon = float(moon_row.get("longitude")) if isinstance(moon_row.get("longitude"), (int, float)) else None
+            if moon_lon is not None:
+                dasha_state = get_dasha_at_jd_core(jd, moon_lon, as_of_jd)
+                maha = dasha_state.get("mahadasha", {}) if isinstance(dasha_state.get("mahadasha"), dict) else {}
+                antar = dasha_state.get("antardasha", {}) if isinstance(dasha_state.get("antardasha"), dict) else {}
+                current_dasha = maha.get("lord") if isinstance(maha.get("lord"), str) else None
+                current_sub_dasha = antar.get("lord") if isinstance(antar.get("lord"), str) else None
+                current_dasha_start_utc = dasha_jd_to_iso_utc(antar.get("start_jd")) or dasha_jd_to_iso_utc(maha.get("start_jd"))
+                current_dasha_end_utc = dasha_jd_to_iso_utc(antar.get("end_jd")) or dasha_jd_to_iso_utc(maha.get("end_jd"))
+                mahadashas = calculate_vimshottari_dasha_core(jd, moon_lon)
+                dasha_timeline = _build_dasha_timeline_rows(
+                    mahadashas=mahadashas,
+                    target_jd=as_of_jd,
+                    past_limit=2,
+                    future_limit=6,
+                    max_rows=9,
+                )
+        except Exception as exc:
+            dasha_compute_failed = True
+            logger.warning("Dasha computation failed in get_chart: %s", exc)
+
+        transit_outlook: dict[str, Any] = {}
+        transit_compute_failed = False
+        transit_reference_utc = None
+        try:
+            base_anchor = as_of_utc.astimezone(dt_timezone.utc).replace(hour=12, minute=0, second=0, microsecond=0)
+            transit_reference_utc = base_anchor.isoformat().replace("+00:00", "Z")
+
+            def _transit_provider(anchor_dt: datetime) -> dict[str, Any]:
+                return _build_transit_planets_for_anchor(
+                    target_anchor=anchor_dt,
+                    asc_rasi_idx=asc_rasi_idx,
+                    include_nodes=include_nodes_eff,
+                )
+
+            transit_outlook = build_three_month_structural_outlook(
+                natal_data={"natal_planets": planets},
+                start_date=base_anchor,
+                transit_provider=_transit_provider,
+            )
+            if isinstance(transit_outlook, dict):
+                # anchor(1..4):
+                # - anchor(1) => month_1.start
+                # - anchor(2) => month_2.start
+                # - anchor(3) => month_3.start
+                # - anchor(4) => month_3.end calculation only (no output row)
+                for idx in range(1, 4):
+                    key = f"month_{idx}"
+                    row = transit_outlook.get(key, {})
+                    if not isinstance(row, dict):
+                        continue
+                    start_anchor = _month_anchor_from_base_utc(base_anchor, idx - 1)
+                    next_anchor = _month_anchor_from_base_utc(base_anchor, idx)
+                    start_iso = start_anchor.isoformat().replace("+00:00", "Z")
+                    end_iso = (next_anchor - timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+                    row["start_utc"] = start_iso
+                    row["end_utc"] = end_iso
+                    transit_outlook[key] = row
+        except Exception as exc:
+            transit_compute_failed = True
+            transit_outlook = {}
+            logger.warning("Transit outlook computation failed in get_chart (as_of=%s): %s", as_of_utc_iso, exc)
+
         # Return calculated chart structure
         yogas = []
         # Budha-Aditya Yoga
@@ -1661,21 +2157,40 @@ def get_chart(
                 "year": year, "month": month, "day": day, "hour": hour,
                 "lat": lat, "lon": lon,
                 "house_system": house_system,
-                "include_nodes": bool(include_nodes),
-                "include_d9": bool(include_d9),
+                "include_nodes": bool(include_nodes_eff),
+                "include_d9": bool(include_d9_eff),
                 "include_vargas": requested_vargas,
-                "gender": gender
+                "gender": gender,
+                "timezone_offset_hours": timezone_offset_hours,
             },
             "julian_day": jd,
             "planets": planets,
             "houses": houses,
+            "current_dasha": current_dasha,
+            "current_sub_dasha": current_sub_dasha,
+            "current_dasha_start_utc": current_dasha_start_utc,
+            "current_dasha_end_utc": current_dasha_end_utc,
+            "dasha_timeline": dasha_timeline,
+            "transit_outlook": transit_outlook,
+            "meta": {
+                "as_of_utc": as_of_utc_iso,
+                "as_of_bucket": as_of_bucket,
+                "birth_jd": jd,
+                "dasha_reference_jd": as_of_jd,
+                "transit_reference_utc": transit_reference_utc or as_of_utc_iso,
+                "dasha_engine_profile": "vimshottari_target_jd_v1",
+                "ayanamsa_profile": "lahiri_swe_sidereal",
+                "yoga_rule_profile": "engine_deterministic_v1",
+            },
             "features": {
                 "yogas": yogas
             },
             "debug": {
                 "ayanamsa": round(ayanamsa, 4),
                 "asc_tropical": round(asc_tropical, 4),
-                "asc_sidereal": round(asc_lon, 4)
+                "asc_sidereal": round(asc_lon, 4),
+                "dasha_compute_failed": dasha_compute_failed,
+                "transit_compute_failed": transit_compute_failed,
             }
         }
         
@@ -1707,10 +2222,27 @@ async def get_chart_endpoint(
     include_interpretation: int = Query(0),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
+    as_of: Optional[str] = Query(None),
     analysis_mode: str = Query("standard"),
     include_structural_summary: int = Query(0),
 ):
     del include_interpretation
+    timezone_offset_resolved = resolve_validated_timezone_offset(
+        year=year,
+        month=month,
+        day=day,
+        lat=lat,
+        lon=lon,
+        timezone=timezone,
+    )
+    include_opts = resolve_effective_include_options(
+        include_nodes=include_nodes,
+        include_d9=include_d9,
+        include_vargas=include_vargas,
+    )
+    include_nodes_eff = int(include_opts["include_nodes_eff"])
+    include_d9_eff = int(include_opts["include_d9_eff"])
+    include_vargas_eff = str(include_opts["include_vargas_eff"])
     analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
 
     # Bound heavy Swiss Ephemeris work under explicit concurrency control.
@@ -1724,11 +2256,12 @@ async def get_chart_endpoint(
             lat=lat,
             lon=lon,
             house_system=house_system,
-            include_nodes=include_nodes,
-            include_d9=include_d9,
-            include_vargas=include_vargas,
+            include_nodes=include_nodes_eff,
+            include_d9=include_d9_eff,
+            include_vargas=include_vargas_eff,
             gender=gender,
-            timezone=timezone,
+            timezone=timezone_offset_resolved,
+            as_of=as_of,
         )
 
     if include_structural_summary:
@@ -1797,7 +2330,26 @@ def build_rectified_structural_summary(
         timezone=timezone,
         include_vargas=include_vargas,
     )
+    input_payload = chart_data.get("input", {}) if isinstance(chart_data.get("input"), dict) else {}
+    timezone_offset_hours = input_payload.get("timezone_offset_hours")
+    if not isinstance(timezone_offset_hours, (int, float)):
+        timezone_offset_hours = resolve_validated_timezone_offset(
+            year=int(birth_date["year"]),
+            month=int(birth_date["month"]),
+            day=int(birth_date["day"]),
+            lat=float(latitude),
+            lon=float(longitude),
+            timezone=timezone,
+        )
     structural_summary = build_structural_summary(chart_data, analysis_mode=analysis_mode)
+    chart_context_min = make_chart_context_min(
+        raw_chart_data=chart_data,
+        structured_summary=structural_summary,
+        settings={
+            "timezone_offset_hours": float(timezone_offset_hours),
+            "location_name": None,
+        },
+    )
 
     return {
         "rectified_time_range": top_candidate.get("time_range", ""),
@@ -1805,32 +2357,26 @@ def build_rectified_structural_summary(
         "rectified_confidence": float(top_candidate.get("confidence", 0.0)),
         "analysis_mode": analysis_mode,
         "structural_summary": structural_summary,
+        "chart_context_min": chart_context_min,
     }
 
 
 async def _build_structural_summary_with_mode(chart: dict, analysis_mode: str) -> tuple[dict, str, bool]:
-    mode = str(analysis_mode or "standard").strip().lower()
-    if mode not in {"standard", "pro"}:
-        mode = "standard"
-
-    if mode != "pro":
-        summary = await asyncio.to_thread(build_structural_summary, chart, mode)
-        return summary, mode, False
-
+    del analysis_mode
     try:
         async with PRO_ANALYSIS_SEMAPHORE:
             summary = await asyncio.wait_for(
-                asyncio.to_thread(build_structural_summary, chart, "pro"),
+                asyncio.to_thread(build_structural_summary, chart, "full"),
                 timeout=PRO_ANALYSIS_TIMEOUT_SEC,
             )
-            return summary, "pro", False
+            return summary, "full", False
     except asyncio.TimeoutError:
         logger.warning(
-            "Pro analysis timed out after %.1fs; falling back to standard mode.",
+            "Full analysis timed out after %.1fs; retrying once without timeout.",
             PRO_ANALYSIS_TIMEOUT_SEC,
         )
-        summary = await asyncio.to_thread(build_structural_summary, chart, "standard")
-        return summary, "standard", True
+        summary = await asyncio.to_thread(build_structural_summary, chart, "full")
+        return summary, "full", True
 
 
 def build_ai_psychological_input(
@@ -2009,7 +2555,11 @@ def _normalize_json_for_cache(raw_json: str) -> str:
         return raw
 
 
-from backend.llm_service import normalize_llm_layout_strict, refine_reading_with_llm
+from backend.llm_service import (
+    build_relationship_signal_context,
+    normalize_llm_layout_strict,
+    refine_reading_with_llm,
+)
 
 
 # ------------------------------------------------------------------------------
@@ -2040,6 +2590,285 @@ def _apply_ai_reading_debug_payload_policy(payload: dict[str, Any], debug_payloa
     return out
 
 
+def _extract_structured_summary_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return {}
+    structured = payload.get("structured_summary")
+    if isinstance(structured, dict):
+        return structured
+    summary = payload.get("summary")
+    if isinstance(summary, dict):
+        nested = summary.get("structured_summary")
+        if isinstance(nested, dict):
+            return nested
+    return {}
+
+
+def _minimize_chart_context_for_appendix(chart_context_min: dict[str, Any] | None) -> dict[str, Any]:
+    ctx = chart_context_min if isinstance(chart_context_min, dict) else {}
+    settings = ctx.get("settings", {}) if isinstance(ctx.get("settings"), dict) else {}
+    d1 = ctx.get("d1", {}) if isinstance(ctx.get("d1"), dict) else {}
+    varga = ctx.get("varga", {}) if isinstance(ctx.get("varga"), dict) else {}
+    dasha = ctx.get("dasha", {}) if isinstance(ctx.get("dasha"), dict) else {}
+    transits = ctx.get("transits", {}) if isinstance(ctx.get("transits"), dict) else {}
+    yogas = ctx.get("yogas", []) if isinstance(ctx.get("yogas"), list) else []
+    shadbala = ctx.get("shadbala", {}) if isinstance(ctx.get("shadbala"), dict) else {}
+    meta = ctx.get("meta", {}) if isinstance(ctx.get("meta"), dict) else {}
+
+    return {
+        "settings": {
+            "ayanamsa": settings.get("ayanamsa"),
+            "house_system": settings.get("house_system"),
+            "timezone_offset_hours": settings.get("timezone_offset_hours"),
+            "location": settings.get("location", {"lat": None, "lon": None, "name": None}),
+            "birth_datetime_local": settings.get("birth_datetime_local"),
+            "birth_datetime_utc": settings.get("birth_datetime_utc"),
+        },
+        "d1": {
+            "lagna": d1.get("lagna", {"sign": None, "deg": None, "nakshatra": None, "pada": None}),
+            "planets": d1.get("planets", []),
+        },
+        "varga": {
+            "D9_navamsa": (varga.get("D9_navamsa") if isinstance(varga.get("D9_navamsa"), dict) else {"planets": []}),
+            "D10_dashamsa": (varga.get("D10_dashamsa") if isinstance(varga.get("D10_dashamsa"), dict) else {"planets": []}),
+        },
+        "dasha": {
+            "system": dasha.get("system", "Vimshottari"),
+            "current": (
+                dasha.get("current")
+                if isinstance(dasha.get("current"), dict)
+                else {"mahadasha": None, "bhukti": None, "start_utc": None, "end_utc": None}
+            ),
+            "timeline": dasha.get("timeline", []) if isinstance(dasha.get("timeline"), list) else [],
+        },
+        "transits": {
+            "timing_map": transits.get("timing_map", []) if isinstance(transits.get("timing_map"), list) else [],
+        },
+        "yogas": yogas,
+        "shadbala": {
+            "summary": shadbala.get("summary"),
+            "details": shadbala.get("details", {}) if isinstance(shadbala.get("details"), dict) else {},
+        },
+        "meta": {
+            "generated_utc": meta.get("generated_utc"),
+            "pipeline_version": meta.get("pipeline_version"),
+            "as_of_utc": meta.get("as_of_utc"),
+            "as_of_bucket": meta.get("as_of_bucket"),
+            "birth_jd": meta.get("birth_jd"),
+            "dasha_reference_jd": meta.get("dasha_reference_jd"),
+            "transit_reference_utc": meta.get("transit_reference_utc"),
+            "dasha_engine_profile": meta.get("dasha_engine_profile"),
+            "ayanamsa_profile": meta.get("ayanamsa_profile"),
+            "yoga_rule_profile": meta.get("yoga_rule_profile"),
+        },
+    }
+
+
+def _extract_cached_appendix_context(payload: dict[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    cached_ctx = payload.get("chart_context_min_for_appendix")
+    return cached_ctx if isinstance(cached_ctx, dict) else None
+
+
+def _attach_appendix_context_for_cache(payload: dict[str, Any], chart_context_min: dict[str, Any] | None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    out["chart_context_min_for_appendix"] = _minimize_chart_context_for_appendix(chart_context_min)
+    return out
+
+
+def _mark_appendix_rehydrate_status(payload: dict[str, Any], *, incomplete: bool, error: str | None = None) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        return payload
+    out = dict(payload)
+    debug_info = out.get("debug_info")
+    debug_out: dict[str, Any] = dict(debug_info) if isinstance(debug_info, dict) else {}
+    quality = debug_out.get("appendix_data_quality")
+    quality_out: dict[str, Any] = dict(quality) if isinstance(quality, dict) else {}
+    quality_out["cache_rehydrate_incomplete"] = bool(incomplete)
+    if isinstance(error, str) and error.strip():
+        quality_out["cache_rehydrate_error"] = error
+    debug_out["appendix_data_quality"] = quality_out
+    out["debug_info"] = debug_out
+    return out
+
+
+def _attach_vedic_technical_appendix(
+    result: dict[str, Any],
+    *,
+    chart_context_min: dict[str, Any] | None,
+    pipeline_version: str,
+) -> dict[str, Any]:
+    out = dict(result)
+    data, md = build_vedic_technical_artifacts(
+        chart_context_min if isinstance(chart_context_min, dict) else {},
+        pipeline_version=pipeline_version,
+    )
+    out["vedic_technical_data"] = data
+    out["vedic_technical_reading"] = md.replace("\r\n", "\n").replace("\r", "\n")
+    debug_info = out.get("debug_info")
+    debug_out: dict[str, Any] = dict(debug_info) if isinstance(debug_info, dict) else {}
+    debug_out["vedic_technical_enabled"] = True
+    debug_out["vedic_technical_source"] = "deterministic_from_chart_context"
+    out["debug_info"] = debug_out
+    out["_finalized"] = True
+    return out
+
+
+def _build_unknown_appendix_fallback(*, pipeline_version: str) -> tuple[dict[str, Any], str]:
+    data = build_vedic_technical_data({}, pipeline_version=pipeline_version)
+    availability = data.get("availability")
+    if isinstance(availability, dict):
+        availability["ok"] = False
+        availability["reason"] = "unknown"
+    else:
+        data["availability"] = {"ok": False, "reason": "unknown"}
+    md = render_vedic_technical_markdown(data).replace("\r\n", "\n").replace("\r", "\n")
+    return data, md
+
+
+def _build_polished_reading_surface(result: dict[str, Any]) -> str:
+    if not isinstance(result, dict):
+        return ""
+
+    structured_summary = _extract_structured_summary_payload(result)
+    front_modules_md = ""
+    if isinstance(structured_summary, dict) and structured_summary:
+        summary_meta = result.get("summary", {}) if isinstance(result.get("summary"), dict) else {}
+        summary_meta_payload = summary_meta.get("meta", {}) if isinstance(summary_meta.get("meta"), dict) else {}
+        vedic_meta_payload = (
+            result.get("vedic_technical_data", {}).get("meta", {})
+            if isinstance(result.get("vedic_technical_data"), dict)
+            and isinstance(result.get("vedic_technical_data", {}).get("meta"), dict)
+            else {}
+        )
+        semantic_signals = build_semantic_signals(structured_summary)
+        dasha_context = build_dasha_narrative_context(structured_summary)
+        compact_context = build_relationship_signal_context(structured_summary, semantic_signals, dasha_context)
+        _front_meta, front_card_ko = build_commercial_signal_card(
+            structural_summary=structured_summary,
+            dasha_context=compact_context if isinstance(compact_context, dict) else {},
+            card_meta_as_of_utc=str((dasha_context if isinstance(dasha_context, dict) else {}).get("as_of_utc") or "").strip() or None,
+            payload_as_of_utc=str(summary_meta_payload.get("as_of_utc") or "").strip() or None,
+            vedic_meta_as_of_utc=str(vedic_meta_payload.get("as_of_utc") or "").strip() or None,
+        )
+        front_modules_md = render_commercial_front_modules(front_card_ko)
+
+    polished_existing = result.get("polished_reading")
+    polished_base = str(polished_existing).strip() if isinstance(polished_existing, str) else ""
+
+    chapter_blocks = result.get("chapter_blocks")
+    if not polished_base and isinstance(chapter_blocks, dict):
+        polished_base = render_commercial_markdown_from_chapter_blocks(chapter_blocks)
+
+    if not isinstance(polished_base, str) or not polished_base.strip():
+        reading = result.get("reading")
+        polished_base = str(reading).strip() if isinstance(reading, str) else ""
+
+    if not polished_base:
+        return ""
+
+    # If polished_base already includes front modules, strip them and re-attach a
+    # fresh deterministic front after chapter-only postprocess. This prevents
+    # front layout collapse caused by chapter-focused normalizers.
+    if isinstance(polished_base, str) and has_front_modules(polished_base):
+        chapter_segment = ""
+        seg_match = re.search(
+            r"<!--\s*CHAPTERS_START\s*-->\s*(?P<body>.*?)\s*<!--\s*CHAPTERS_END\s*-->",
+            polished_base,
+            flags=re.IGNORECASE | re.DOTALL,
+        )
+        if seg_match is not None:
+            chapter_segment = str(seg_match.group("body") or "").strip()
+        else:
+            h2_match = re.search(r"(?m)^\s*##\s*\[", polished_base)
+            if h2_match is not None:
+                chapter_segment = polished_base[h2_match.start():].strip()
+        if chapter_segment:
+            polished_base = chapter_segment
+
+    polished = enforce_subtle_vedic_lexicon(
+        polished_base,
+        allow_zero_term_injection=False,
+    )
+    polished = postprocess_reading_markdown_surface(polished)
+    polished = postprocess_commercial_quality(polished)
+    polished = commercial_dejargonize(polished)
+    polished = strip_internal_artifacts(polished)
+    polished = prepend_front_modules(polished, front_modules_md)
+    polished = sanitize_commercial_surface_with_front_protection(polished)
+    return polished.strip()
+
+
+def _finalize_ai_reading_result(
+    result: dict[str, Any],
+    *,
+    chart_context_min: dict[str, Any] | None,
+    include_debug_payload: bool,
+    pipeline_version: str,
+    production_mode: bool,
+) -> dict[str, Any]:
+    if not isinstance(result, dict):
+        return result
+
+    base = dict(result)
+    finalized: dict[str, Any] | None = None
+    used_minimal_appendix_fallback = False
+    try:
+        finalized = _attach_vedic_technical_appendix(
+            base,
+            chart_context_min=chart_context_min,
+            pipeline_version=pipeline_version,
+        )
+    except Exception as e:
+        logger.exception("appendix_attach_failed first_pass error_type=%s", type(e).__name__)
+
+    if not (isinstance(finalized, dict) and finalized.get("_finalized")):
+        if not production_mode:
+            raise RuntimeError("result_not_finalized")
+        retry_base = dict(base)
+        retry_base["_finalize_retry"] = True
+        if not base.get("_finalize_retry"):
+            try:
+                finalized = _attach_vedic_technical_appendix(
+                    retry_base,
+                    chart_context_min=chart_context_min,
+                    pipeline_version=pipeline_version,
+                )
+            except Exception as e:
+                logger.exception("appendix_attach_failed retry_pass error_type=%s", type(e).__name__)
+
+    if not (isinstance(finalized, dict) and finalized.get("_finalized")):
+        logger.warning("appendix_attach_failed using_minimal_fallback")
+        used_minimal_appendix_fallback = True
+        finalized = dict(base)
+        data, md = _build_unknown_appendix_fallback(pipeline_version=pipeline_version)
+        finalized["vedic_technical_data"] = data
+        finalized["vedic_technical_reading"] = md
+        debug_info = finalized.get("debug_info")
+        debug_out: dict[str, Any] = dict(debug_info) if isinstance(debug_info, dict) else {}
+        debug_out["vedic_technical_enabled"] = True
+        debug_out["vedic_technical_source"] = "deterministic_from_chart_context"
+        finalized["debug_info"] = debug_out
+        finalized["_finalized"] = True
+
+    if isinstance(finalized, dict):
+        if used_minimal_appendix_fallback and isinstance(base.get("polished_reading"), str):
+            finalized["polished_reading"] = base.get("polished_reading")
+        else:
+            polished = _build_polished_reading_surface(finalized)
+            finalized["polished_reading"] = polished
+
+    out = _apply_ai_reading_debug_payload_policy(finalized, include_debug_payload)
+    if isinstance(out, dict):
+        out.pop("_finalized", None)
+        out.pop("_finalize_retry", None)
+        out.pop("chart_context_min_for_appendix", None)
+    return out
+
+
 @app.get("/ai_reading")
 async def get_ai_reading(
     request: Request,
@@ -2052,13 +2881,14 @@ async def get_ai_reading(
     house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
-    include_vargas: str = Query(""),
+    include_vargas: str = Query("d10"),
     language: str = Query("ko"),
     gender: str = Query("male"),
     use_cache: int = Query(1),
     production_mode: int = Query(0),
     events_json: str = Query("[]"),
     timezone: Optional[float] = Query(None),
+    as_of: Optional[str] = Query(None),
     analysis_mode: str = Query("standard"),
     detail_level: str = Query("full"),
     llm_max_tokens: int = Query(AI_MAX_TOKENS_AI_READING, include_in_schema=False),
@@ -2068,13 +2898,45 @@ async def get_ai_reading(
     audit_endpoint: str = Query("/ai_reading", include_in_schema=False),
 ):
     """Generate AI reading."""
+    if production_mode:
+        if not BTR_ENABLED:
+            raise HTTPException(
+                status_code=503,
+                detail="production_mode=1 is unavailable because BTR is disabled",
+            )
+        if not BTR_ENGINE_AVAILABLE:
+            raise HTTPException(
+                status_code=500,
+                detail="production_mode=1 is unavailable because BTR engine is unavailable",
+            )
+
     analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
+    include_opts = resolve_effective_include_options(
+        include_nodes=include_nodes,
+        include_d9=include_d9,
+        include_vargas=include_vargas,
+        default_include_vargas="d10",
+    )
+    include_nodes_eff = int(include_opts["include_nodes_eff"])
+    include_d9_eff = int(include_opts["include_d9_eff"])
+    include_vargas_eff = str(include_opts["include_vargas_eff"])
     detail_level_norm = str(detail_level or "full").strip().lower()
     if detail_level_norm != "full":
         raise HTTPException(status_code=400, detail="detail_level must be 'full'")
     llm_max_tokens_resolved = _resolve_llm_max_tokens(llm_max_tokens, AI_MAX_TOKENS_AI_READING)
     endpoint_name = audit_endpoint.strip() if isinstance(audit_endpoint, str) and audit_endpoint.strip() else "/ai_reading"
     request_id_value = _resolve_request_id(request, request_id)
+    as_of_utc, _ = parse_as_of_utc(as_of)
+    as_of_utc_iso = as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    as_of_bucket = _as_of_bucket(as_of_utc=as_of_utc)
+    timezone_offset_resolved = resolve_validated_timezone_offset(
+        year=year,
+        month=month,
+        day=day,
+        lat=lat,
+        lon=lon,
+        timezone=timezone,
+    )
     if isinstance(audit_debug, bool):
         include_audit_debug = audit_debug
     elif isinstance(audit_debug, (int, float)):
@@ -2083,23 +2945,90 @@ async def get_ai_reading(
         include_audit_debug = False
     include_debug_payload = bool(debug_payload)
     events_json_norm = _normalize_json_for_cache(events_json)
+    redact_cache_flag = normalize_vedic_tech_redact_flag()
 
     cache_key = (
         f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_"
-        f"{language}_{gender}_{production_mode}_{events_json_norm}_{timezone}_{analysis_mode_norm}_{detail_level_norm}_{llm_max_tokens_resolved}_"
-        f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}"
+        f"{language}_{gender}_{production_mode}_{events_json_norm}_{timezone_offset_resolved}_{analysis_mode_norm}_{detail_level_norm}_{llm_max_tokens_resolved}_"
+        f"nodes{include_nodes_eff}_d9{include_d9_eff}_vargas{include_vargas_eff}_"
+        f"asof{as_of_bucket}_"
+        f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}_{VEDIC_TECH_APPENDIX_VERSION}_{APPENDIX_CACHE_SCHEMA_VERSION}_redact{redact_cache_flag}"
     )
+    request_settings = {
+        "year": year,
+        "month": month,
+        "day": day,
+        "hour": hour,
+        "lat": lat,
+        "lon": lon,
+        "house_system": house_system,
+        "include_nodes": include_nodes_eff,
+        "include_d9": include_d9_eff,
+        "include_vargas": include_vargas_eff,
+        "timezone_offset_hours": timezone_offset_resolved,
+        "location_name": None,
+        "as_of_utc": as_of_utc_iso,
+        "as_of_bucket": as_of_bucket,
+    }
+
+    async def _resolve_cached_appendix_context(cached_payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+        cached_ctx = _extract_cached_appendix_context(cached_payload)
+        if isinstance(cached_ctx, dict):
+            cached_meta = cached_ctx.get("meta", {}) if isinstance(cached_ctx.get("meta"), dict) else {}
+            cached_bucket = _normalize_as_of_bucket_month(cached_meta.get("as_of_bucket"))
+            if cached_bucket == as_of_bucket:
+                return cached_ctx, None
+        try:
+            rehydrated_chart = await asyncio.to_thread(
+                get_chart,
+                year=year,
+                month=month,
+                day=day,
+                hour=hour,
+                lat=lat,
+                lon=lon,
+                house_system=house_system,
+                include_nodes=include_nodes_eff,
+                include_d9=include_d9_eff,
+                include_vargas=include_vargas_eff,
+                gender=gender,
+                timezone=timezone_offset_resolved,
+                as_of=as_of_utc_iso,
+            )
+            rehydrated_ctx = make_chart_context_min(
+                raw_chart_data=rehydrated_chart,
+                structured_summary=_extract_structured_summary_payload(cached_payload),
+                settings=request_settings,
+            )
+            return rehydrated_ctx, None
+        except Exception as exc:
+            logger.warning("cache appendix rehydrate failed: %s", exc)
+            return None, f"{type(exc).__name__}: {exc}"
 
     if use_cache:
         cached = cache.get(cache_key)
         if cached:
             logger.info(f"Cache hit: {cache_key}")
+            cached_payload = dict(cached) if isinstance(cached, dict) else {}
+            cache_context_min, cache_rehydrate_error = await _resolve_cached_appendix_context(cached_payload)
             if production_mode:
-                return cached
+                if cache_rehydrate_error:
+                    cached_payload = _mark_appendix_rehydrate_status(
+                        cached_payload,
+                        incomplete=True,
+                        error=cache_rehydrate_error,
+                    )
+                return _finalize_ai_reading_result(
+                    cached_payload,
+                    chart_context_min=cache_context_min if isinstance(cache_context_min, dict) else {},
+                    include_debug_payload=include_debug_payload,
+                    pipeline_version=READING_PIPELINE_VERSION,
+                    production_mode=True,
+                )
             cached_response = {
+                **cached_payload,
                 "cached": True,
                 "ai_cache_key": cache_key,
-                **cached,
             }
             if include_audit_debug and isinstance(cached, dict):
                 audit_payload = {
@@ -2109,12 +3038,21 @@ async def get_ai_reading(
                     "endpoint": endpoint_name,
                 }
                 cached_response["audit"] = audit_payload
-            return _apply_ai_reading_debug_payload_policy(cached_response, include_debug_payload)
+            if cache_rehydrate_error:
+                cached_response = _mark_appendix_rehydrate_status(
+                    cached_response,
+                    incomplete=True,
+                    error=cache_rehydrate_error,
+                )
+            return _finalize_ai_reading_result(
+                cached_response,
+                chart_context_min=cache_context_min if isinstance(cache_context_min, dict) else {},
+                include_debug_payload=include_debug_payload,
+                pipeline_version=READING_PIPELINE_VERSION,
+                production_mode=False,
+            )
 
     if production_mode:
-        if not BTR_ENGINE_AVAILABLE:
-            raise HTTPException(status_code=500, detail="BTR engine is not available.")
-
         try:
             events = json.loads(events_json_norm) if events_json_norm else []
             if not isinstance(events, list) or not events:
@@ -2126,19 +3064,20 @@ async def get_ai_reading(
                     "day": day,
                     "lat": lat,
                     "lon": lon,
-                    "timezone": timezone,
+                    "timezone": timezone_offset_resolved,
                     "house_system": house_system,
-                    "include_nodes": include_nodes,
-                    "include_d9": include_d9,
-                    "include_vargas": include_vargas,
+                    "include_nodes": include_nodes_eff,
+                    "include_d9": include_d9_eff,
+                    "include_vargas": include_vargas_eff,
                     "analysis_mode": analysis_mode_norm,
                     "detail_level": detail_level_norm,
                     "events": events,
+                    "as_of_bucket": as_of_bucket,
                 }
             )
 
             birth_date = {"year": year, "month": month, "day": day}
-            tz_offset = resolve_timezone_offset(year, month, day, lat, lon, timezone=timezone)
+            tz_offset = timezone_offset_resolved
             btr_candidates = await asyncio.to_thread(
                 analyze_birth_time,
                 birth_date=birth_date,
@@ -2157,9 +3096,18 @@ async def get_ai_reading(
                 birth_date=birth_date,
                 latitude=lat,
                 longitude=lon,
-                timezone=timezone,
-                include_vargas=include_vargas,
+                timezone=timezone_offset_resolved,
+                include_vargas=include_vargas_eff,
                 analysis_mode=analysis_mode_norm,
+            )
+            production_chart_context_min = (
+                rectified_summary.get("chart_context_min")
+                if isinstance(rectified_summary.get("chart_context_min"), dict)
+                else make_chart_context_min(
+                    raw_chart_data=None,
+                    structured_summary=rectified_summary.get("structural_summary", {}),
+                    settings=request_settings,
+                )
             )
             report_payload = build_report_payload({**rectified_summary, "language": language})
             chapter_blocks = report_payload.get("chapter_blocks", {})
@@ -2198,9 +3146,13 @@ async def get_ai_reading(
             final_polished = polished_reading if isinstance(polished_reading, str) and polished_reading.strip() else None
             final_text = _apply_recommendation_tone_normalization(final_text, language)
             final_text = enforce_subtle_vedic_lexicon(final_text, allow_zero_term_injection=False)
+            final_text = postprocess_reading_markdown_surface(final_text)
+            final_text = sanitize_commercial_surface_with_front_protection(final_text)
             final_polished = _apply_recommendation_tone_normalization(final_polished, language)
             if isinstance(final_polished, str) and final_polished.strip():
                 final_polished = enforce_subtle_vedic_lexicon(final_polished, allow_zero_term_injection=False)
+                final_polished = postprocess_reading_markdown_surface(final_polished)
+                final_polished = sanitize_commercial_surface_with_front_protection(final_polished)
 
             vedic_budget_scan = scan_vedic_term_budget(final_text)
             chapter_budget_over = [
@@ -2251,8 +3203,18 @@ async def get_ai_reading(
                     "endpoint": endpoint_name,
                 }
             if use_cache:
-                cache.set(cache_key, production_result, ttl=AI_CACHE_TTL)
-            return _apply_ai_reading_debug_payload_policy(production_result, include_debug_payload)
+                cache_payload = _attach_appendix_context_for_cache(
+                    production_result,
+                    production_chart_context_min,
+                )
+                cache.set(cache_key, cache_payload, ttl=AI_CACHE_TTL)
+            return _finalize_ai_reading_result(
+                production_result,
+                chart_context_min=production_chart_context_min,
+                include_debug_payload=include_debug_payload,
+                pipeline_version=READING_PIPELINE_VERSION,
+                production_mode=True,
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except HTTPException:
@@ -2269,11 +3231,12 @@ async def get_ai_reading(
         lat=lat,
         lon=lon,
         house_system=house_system,
-        include_nodes=include_nodes,
-        include_d9=include_d9,
-        include_vargas=include_vargas,
+        include_nodes=include_nodes_eff,
+        include_d9=include_d9_eff,
+        include_vargas=include_vargas_eff,
         gender=gender,
-        timezone=timezone,
+        timezone=timezone_offset_resolved,
+        as_of=as_of_utc_iso,
     )
     structured_summary, resolved_analysis_mode, analysis_fallback = await _build_structural_summary_with_mode(
         chart,
@@ -2290,14 +3253,15 @@ async def get_ai_reading(
             "hour": hour,
             "lat": lat,
             "lon": lon,
-            "timezone": timezone,
+            "timezone": timezone_offset_resolved,
             "house_system": house_system,
-            "include_nodes": include_nodes,
-            "include_d9": include_d9,
-            "include_vargas": include_vargas,
+            "include_nodes": include_nodes_eff,
+            "include_d9": include_d9_eff,
+            "include_vargas": include_vargas_eff,
             "analysis_mode": analysis_mode_norm,
             "detail_level": detail_level_norm,
             "gender": gender,
+            "as_of_bucket": as_of_bucket,
         }
     )
 
@@ -2308,6 +3272,11 @@ async def get_ai_reading(
         "readability_snapshot": _build_readability_snapshot(structured_summary),
         "structured_summary": structured_summary,
     }
+    chart_context_min = make_chart_context_min(
+        raw_chart_data=chart,
+        structured_summary=structured_summary,
+        settings=request_settings,
+    )
 
     if not async_client:
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
@@ -2348,8 +3317,15 @@ async def get_ai_reading(
                 "endpoint": endpoint_name,
             }
         if use_cache:
-            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
-        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
+            cache_payload = _attach_appendix_context_for_cache(result, chart_context_min)
+            cache.set(cache_key, cache_payload, ttl=AI_CACHE_TTL)
+        return _finalize_ai_reading_result(
+            result,
+            chart_context_min=chart_context_min,
+            include_debug_payload=include_debug_payload,
+            pipeline_version=READING_PIPELINE_VERSION,
+            production_mode=False,
+        )
 
     try:
         polished_reading = load_polished_reading_from_cache(
@@ -2435,9 +3411,16 @@ async def get_ai_reading(
             }
 
         if use_cache:
-            cache.set(cache_key, result, ttl=AI_CACHE_TTL)
+            cache_payload = _attach_appendix_context_for_cache(result, chart_context_min)
+            cache.set(cache_key, cache_payload, ttl=AI_CACHE_TTL)
 
-        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
+        return _finalize_ai_reading_result(
+            result,
+            chart_context_min=chart_context_min,
+            include_debug_payload=include_debug_payload,
+            pipeline_version=READING_PIPELINE_VERSION,
+            production_mode=False,
+        )
 
     except HTTPException:
         raise
@@ -2482,7 +3465,13 @@ async def get_ai_reading(
                 "chapter_blocks_hash": chapter_blocks_hash,
                 "endpoint": endpoint_name,
             }
-        return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
+        return _finalize_ai_reading_result(
+            result,
+            chart_context_min=chart_context_min,
+            include_debug_payload=include_debug_payload,
+            pipeline_version=READING_PIPELINE_VERSION,
+            production_mode=False,
+        )
 
 def _extract_chapter_blocks_from_ai_reading(ai_reading: Any) -> dict[str, Any]:
     if not isinstance(ai_reading, dict):
@@ -2576,11 +3565,12 @@ async def generate_pdf(
     house_system: str = Query("W"),  # Vedic uses Whole Sign by default
     include_nodes: int = Query(1),
     include_d9: int = Query(1),
-    include_vargas: str = Query(""),
+    include_vargas: str = Query("d10"),
     include_ai: int = Query(1),
     language: str = Query("ko"),
     gender: str = Query("male"),
     timezone: Optional[float] = Query(None),
+    as_of: Optional[str] = Query(None),
     analysis_mode: str = Query("standard"),
     detail_level: str = Query("full"),
     audit_debug: int = Query(0),
@@ -2595,6 +3585,15 @@ async def generate_pdf(
         )
 
     analysis_mode_norm = _normalize_analysis_mode(analysis_mode)
+    include_opts = resolve_effective_include_options(
+        include_nodes=include_nodes,
+        include_d9=include_d9,
+        include_vargas=include_vargas,
+        default_include_vargas="d10",
+    )
+    include_nodes_eff = int(include_opts["include_nodes_eff"])
+    include_d9_eff = int(include_opts["include_d9_eff"])
+    include_vargas_eff = str(include_opts["include_vargas_eff"])
     detail_level_norm = str(detail_level or "full").strip().lower()
     if detail_level_norm != "full":
         raise HTTPException(status_code=400, detail="detail_level must be 'full'")
@@ -2607,6 +3606,14 @@ async def generate_pdf(
                 f"error={pdf_service.PDF_FEATURE_ERROR}"
             ),
         )
+    timezone_offset_resolved = resolve_validated_timezone_offset(
+        year=year,
+        month=month,
+        day=day,
+        lat=lat,
+        lon=lon,
+        timezone=timezone,
+    )
 
     # Build deterministic chart payload first.
     chart = await asyncio.to_thread(
@@ -2618,11 +3625,12 @@ async def generate_pdf(
         lat=lat,
         lon=lon,
         house_system=house_system,
-        include_nodes=include_nodes,
-        include_d9=include_d9,
-        include_vargas=include_vargas,
+        include_nodes=include_nodes_eff,
+        include_d9=include_d9_eff,
+        include_vargas=include_vargas_eff,
         gender=gender,
-        timezone=timezone,
+        timezone=timezone_offset_resolved,
+        as_of=as_of,
     )
     
     # Fetch or generate AI narrative used in the PDF.
@@ -2642,15 +3650,16 @@ async def generate_pdf(
                 lat=lat,
                 lon=lon,
                 house_system=house_system,
-                include_nodes=include_nodes,
-                include_d9=include_d9,
-                include_vargas=include_vargas,
+                include_nodes=include_nodes_eff,
+                include_d9=include_d9_eff,
+                include_vargas=include_vargas_eff,
                 language=language,
                 gender=gender,
                 use_cache=1,
                 production_mode=0,
                 events_json="[]",
-                timezone=timezone,
+                timezone=timezone_offset_resolved,
+                as_of=as_of,
                 analysis_mode=analysis_mode_norm,
                 detail_level=detail_level_norm,
                 llm_max_tokens=AI_MAX_TOKENS_PDF,
@@ -2668,7 +3677,7 @@ async def generate_pdf(
         lat=lat,
         lon=lon,
         house_system=house_system,
-        include_d9=include_d9,
+        include_d9=include_d9_eff,
         language=language,
         resolve_pdf_narrative_content_fn=_resolve_pdf_narrative_content,
         build_report_payload_fn=build_report_payload,
@@ -2700,27 +3709,45 @@ except Exception as e:
     logger.warning(f"BTR questions load failed: {e}")
 
 # BTR engine imports
-try:
-    # Import BTR engine functions from the backend package so module resolution
-    # remains consistent regardless of the current working directory.
-    from backend.btr_engine import (
-        analyze_birth_time,
-        refine_time_bracket,
-        generate_time_brackets,
-        calculate_vimshottari_dasha,
-        get_dasha_at_date,
-        convert_age_range_to_year_range,
-    )
-    from backend.tuning_analyzer import (
-        analyze_tuning_data,
-        compute_weight_adjustments,
-        apply_weight_adjustments,
-    )
-    BTR_ENGINE_AVAILABLE = True
-    logger.info("BTR engine loaded successfully")
-except ImportError as e:
-    BTR_ENGINE_AVAILABLE = False
-    logger.warning(f"BTR engine not available: {e}")
+if BTR_ENABLED:
+    try:
+        # Import BTR engine functions from the backend package so module resolution
+        # remains consistent regardless of the current working directory.
+        from backend.btr_engine import (
+            analyze_birth_time,
+            refine_time_bracket,
+            generate_time_brackets,
+            calculate_vimshottari_dasha,
+            get_dasha_at_date,
+            convert_age_range_to_year_range,
+        )
+        from backend.tuning_analyzer import (
+            analyze_tuning_data,
+            compute_weight_adjustments,
+            apply_weight_adjustments,
+        )
+        BTR_ENGINE_AVAILABLE = True
+        logger.info("BTR engine loaded successfully")
+    except Exception as e:
+        BTR_ENGINE_AVAILABLE = False
+        logger.warning(
+            "BTR engine import failed: modules=backend.btr_engine,backend.tuning_analyzer "
+            "error_type=%s error=%s",
+            type(e).__name__,
+            str(e),
+        )
+else:
+    logger.info("BTR is disabled (BTR_ENABLED=0); skipping BTR engine imports.")
+
+
+def _ensure_btr_enabled() -> None:
+    if not BTR_ENABLED:
+        raise HTTPException(status_code=503, detail="BTR is disabled")
+
+
+def _ensure_btr_engine_available() -> None:
+    if not BTR_ENGINE_AVAILABLE:
+        raise HTTPException(status_code=500, detail="BTR engine is unavailable")
 
 
 def _get_age_group(age: int) -> str:
@@ -2739,6 +3766,8 @@ def get_btr_questions(
     language: str = Query("ko", description="Language (ko/en)")
 ):
     """Return age-grouped BTR questions."""
+    _ensure_btr_enabled()
+
     if not BTR_QUESTIONS:
         raise HTTPException(status_code=500, detail="BTR questions data is not loaded.")
 
@@ -2806,8 +3835,8 @@ def analyze_btr(request: BTRAnalyzeRequest):
     Returns:
         Top 3 time candidates with confidence.
     """
-    if not BTR_ENGINE_AVAILABLE:
-        raise HTTPException(status_code=500, detail="BTR engine is not available.")
+    _ensure_btr_enabled()
+    _ensure_btr_engine_available()
 
     validate_btr_events(request.events)
     validate_btr_event_temporal_consistency(request.events, request.year)
@@ -2866,8 +3895,8 @@ def analyze_btr(request: BTRAnalyzeRequest):
 @app.post("/btr/refine")
 def refine_btr(request: BTRRefineRequest):
     """Refine a selected bracket into smaller candidate intervals."""
-    if not BTR_ENGINE_AVAILABLE:
-        raise HTTPException(status_code=500, detail="BTR engine is not available.")
+    _ensure_btr_enabled()
+    _ensure_btr_engine_available()
 
     validate_btr_events(request.events)
     validate_btr_event_temporal_consistency(request.events, request.year)
@@ -2906,6 +3935,9 @@ def recalculate_btr_weights(
     x_admin_key: str = Header(default="")
 ):
     """Admin endpoint for empirical weight adjustment recalculation."""
+    _ensure_btr_enabled()
+    _ensure_btr_engine_available()
+
     expected = os.getenv("ADMIN_API_KEY", "")
     if not expected or x_admin_key != expected:
         raise HTTPException(status_code=403, detail="Forbidden")

@@ -1,0 +1,35 @@
+{
+  "verdict": {
+    "technical_ok": true,
+    "commercial_consistent_with_technical": true,
+    "confidence": 0.58,
+    "blocking_issues_count": 0
+  },
+  "availability": {
+    "ok": false,
+    "reason": "partial_data",
+    "missing_fields": [
+      "dashas.timeline"
+    ],
+    "audit_limitations": [
+      "Dasha timeline is unavailable in this payload."
+    ]
+  },
+  "technical_findings": {
+    "critical": [],
+    "minor": [
+      {
+        "issue": "Dasha timeline missing",
+        "evidence_paths": [
+          "vedic_technical_data.dashas.timeline"
+        ],
+        "note": "Chronological transition audit is not verifiable without timeline rows."
+      }
+    ]
+  },
+  "commercial_contradictions": [],
+  "commercial_minimal_edits": [],
+  "notes_for_engineers": [
+    "Populate dashas.timeline for stronger transition-level audit coverage."
+  ]
+}

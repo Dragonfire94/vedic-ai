@@ -1,25 +1,26 @@
 # Vedic AI
 
-베딕 점성학(Vedic Astrology) 기반의 차트 해석 및 생시보정(BTR, Birth Time Rectification) 리포트를 생성하는 풀스택 프로젝트입니다.
+베딕 점성학(Vedic Astrology) 기반의 **상업용 리포트(Commercial Report)** 를 안정적으로 생성하기 위한 풀스택 프로젝트입니다.
 
-이 저장소는 다음 4가지를 하나로 묶습니다.
+이 저장소의 “최종 목표”는 단순한 데모가 아니라, **유료로 반복 제공 가능한 수준의 완성도**(형식 계약, 재현성, 품질 게이트, 운영 안전장치)를 갖춘 베딕 리포트 엔진입니다.
 
-1. 출생 정보 기반 베딕 차트 계산 엔진
-2. 이벤트 기반 생시보정(BTR) 분석 엔진
-3. 구조화된 결정론 리포트 + LLM 문장 고도화 파이프라인
+이 프로젝트는 크게 4개의 축으로 구성됩니다.
+
+1. 출생 정보 기반 베딕 차트 계산 엔진(결정론)
+2. 이벤트 기반 생시보정(BTR, Birth Time Rectification) 분석 엔진(옵션)
+3. 구조화된 결정론 리포트 + LLM 문장 고도화 파이프라인(LLM은 계산이 아닌 문장 품질 목적)
 4. Next.js 기반 사용자 입력/결과 확인 UI
 
 ---
 
 ## 문서 목적
 
-이 README는 새로 프로젝트를 받는 개발자가 아래를 빠르게 이해하도록 작성되었습니다.
+이 README는 “상업용 리포트”를 목표로 하는 개발자가 아래를 빠르게 이해하도록 작성되었습니다.
 
-1. 이 프로젝트가 무엇을 하는지
-2. 어디서 실행하고, 어디를 수정해야 하는지
-3. API/품질게이트/로그를 어떻게 보는지
+1. 무엇이 ‘정답(Goal)’이며 무엇이 ‘금지(Non-goal)’인지  
+2. 어디서 실행하고, 무엇을 수정하면 상업 품질이 좋아지는지  
+3. API/품질 게이트/로그를 통해 어떤 지표를 확인해야 하는지  
 
----
 
 ## 1. 프로젝트 한눈에 보기
 
@@ -42,6 +43,48 @@
    - 캐시/금칙어 스캔/스타일 점검/품질 게이트
 4. **BTR 튜닝 분리**
    - `tune_mode`는 환경변수 게이트로 강제 제어
+
+---
+
+---
+
+## 상업용 리포트 목표와 품질 계약
+
+이 프로젝트는 “상업 리포트”를 목표로 하므로, 다음 계약을 **깨지지 않게** 유지하는 것이 최우선입니다.
+
+### 1) 결정론 데이터와 재현성
+
+- **차트/구조 요약/Technical Appendix는 결정론적**이어야 합니다.
+- 시간 의존 결과는 `as_of`(기본: 서버 UTC now) 기준으로 계산되며, 메타데이터로 기준을 노출합니다.
+- 캐시는 시간 의존성을 고려해 버킷(`as_of_bucket`)을 사용합니다.
+  - **정책: `m_YYYY-MM` 월 버킷만 신규 생성/저장/응답에 사용**
+  - 구버전 `d_YYYY-MM-DD`는 payload/meta “읽기” 정규화만 허용(캐시 hit 호환을 목표로 하지 않음)
+
+### 2) Technical Appendix (검증/감사 가능)
+
+- `vedic_technical_data.availability.ok == true`와 `missing_fields == []`를 정상 입력군에서 유지합니다.
+- `meta`에는 최소 아래 필드를 포함하여 검증 혼선을 줄입니다.
+  - `as_of_utc`, `as_of_bucket`
+  - `birth_jd`, `dasha_reference_jd`, `transit_reference_utc`
+  - `dasha_engine_profile`, `ayanamsa_profile`, `yoga_rule_profile`
+
+### 3) 상업 본문(Commercial Surface) 형식 계약
+
+상업 리포트는 “읽기 경험”이 핵심이므로, 본문은 아래 형식 계약을 만족해야 합니다(결정론적 후처리로 보정).
+
+- **FRONT 보호**: 3개월 플레이북(FRONT)은 계약을 유지하며, CHAPTERS 후처리가 FRONT를 오염시키면 안 됩니다.
+- **CHAPTERS 계약**
+  - `## 챕터` → 본문 → `### Action Steps(옵션)` 구조만 허용
+  - `### Action Steps`는 챕터당 최대 1개, 항목은 최대 3개, 한 줄 1항목
+  - 용어 정의(예: Dasha)는 문서 전체에서 1회만 유지(중복은 span-safe 제거/축약)
+
+### 4) Transit 구간 표현(가독성 강화)
+
+- `transits.timing_map`은 앵커 1점(start==end) 표현이 아니라 **구간형(start < end)** 으로 제공합니다.
+- month_1..3 종료 규칙:
+  - `month_1.end = anchor(2) - 1s`
+  - `month_2.end = anchor(3) - 1s`
+  - `month_3.end = anchor(4) - 1s` (anchor(4)=base+3개월, 종료 계산 전용)
 
 ---
 
@@ -182,6 +225,7 @@ npm run dev
 | `OPENAI_MODEL` | `gpt-5-mini` | `/ai_reading` 기본 모델 |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | CORS 허용 도메인 |
 | `PDF_DISABLED` | `1` | `1`이면 `/pdf` 비활성(503) |
+| `BTR_ENABLED` | `0` | `0`이면 `/btr/*` 및 `/ai_reading?production_mode=1` 비활성(503) |
 | `BTR_ENABLE_TUNE_MODE` | `0` | `1`일 때만 `tune_mode` 실제 반영 |
 | `ADMIN_API_KEY` | `changeme` | `/btr/admin/recalculate-weights` 보호키 |
 | `CHART_MAX_CONCURRENCY` | CPU 기반 자동값 | 차트 계산 세마포어 |
@@ -206,6 +250,13 @@ npm run dev
 ---
 
 ## 7. API 요약
+
+### 시간 기준(as_of)
+
+- `/ai_reading`, `/pdf`, `/chart`는 `as_of`(optional) 파라미터를 받습니다.
+- `as_of` 미지정 시 서버 UTC 현재 시각을 사용합니다.
+- 응답 메타(`vedic_technical_data.meta`)에 `as_of_utc`, `as_of_bucket`을 포함하여 재현성을 확보합니다.
+- `as_of_bucket` 정책은 **월 버킷 `m_YYYY-MM` 단일**입니다.
 
 주요 라우트는 [main.py](C:/dev/vedic-ai/backend/main.py)에 정의되어 있습니다.
 
@@ -232,6 +283,8 @@ npm run dev
    - 기본값에서 `PDF_DISABLED=1`이므로 운영 전 활성화 필요
 
 ### BTR
+
+> MVP 기본값(`BTR_ENABLED=0`)에서는 아래 BTR 엔드포인트가 비활성화됩니다.
 
 1. `GET /btr/questions`
    - 나이대(`20s`, `30s_40s`, `50s_plus`)별 질문 제공
@@ -274,7 +327,8 @@ npm run dev
 `tune_mode` 동작 규칙:
 
 1. 요청에서 `tune_mode=true`를 보내도
-2. 서버 `BTR_ENABLE_TUNE_MODE=1`이 아니면 실제 저장/튜닝은 비활성
+2. 서버 `BTR_ENABLED=1`이 아니면 BTR API 자체가 비활성(503)
+3. 서버 `BTR_ENABLE_TUNE_MODE=1`이 아니면 실제 저장/튜닝은 비활성
 
 ---
 
@@ -302,6 +356,18 @@ python -m backend.golden_sample_runner --mode full
 2. 샘플 런: `scripts/tmp_phase11_run7.py`
 3. 한글 깨짐 점검: `scripts/check_no_mojibake.py`
 
+### 상업 본문 품질 게이트(저비용)
+
+`scripts/cheap_validation_gate.py`는 상업 리포트 품질 계약의 관측 지표를 출력합니다(하드 실패 승격 없이 추적).
+
+예: Action Steps/헤더/정의 중복/FRONT 계약
+- `action_steps_contract_ok`
+- `header_structure_violations`
+- `definition_dedup_removed_count`, `definition_dedup_shrink_count`
+- `front_contract_ok`
+- `core_action_chapter_match_miss_count`
+
+
 ---
 
 ## 11. 로그와 산출물
@@ -315,6 +381,73 @@ python -m backend.golden_sample_runner --mode full
    - `ai_reading_response.json`: 모델/해시/구조요약/디버그 포함 원본 응답
 2. `logs/golden_samples_fast_gate/`
    - fast gate 요약 지표
+
+Technical appendix 메타 해석 규칙:
+
+1. `vedic_technical_data.meta.generated_utc`는 **appendix 생성 시각**입니다.
+   - cache hit/backfill 시점에 따라 값이 달라질 수 있으며, 리포트 내용 결정론성과는 분리된 메타 정보입니다.
+2. `vedic_technical_data.availability.missing_fields`는 **키 존재 여부가 아닌 검증 가능한 값 부재(null/empty)** 기준입니다.
+   - 예: `dashas.current` 키가 있어도 `mahadasha/bhukti`가 비어 있으면 missing으로 기록됩니다.
+
+### 검증 AI 템플릿 사용
+
+베딕 전문 감사(technical audit)는 아래 순서로 실행합니다.
+
+1. 감사 패키지 생성:
+
+```powershell
+python scripts/build_vedic_audit_package.py `
+  --input logs/qa_phase11_run7_20260222_005336/ai_reading_sample_with_technical_appendix_v14.json `
+  --outdir logs/qa_phase11_run7_20260222_005336/audit_package_v1
+```
+
+2. 생성된 `audit_prompt_filled.md`를 감사용 LLM UI에 붙여넣고, 결과를 timestamp 파일명으로 저장
+
+```powershell
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$result = "logs/qa_phase11_run7_20260222_005336/audit_package_v1/audit_result_$ts.json"
+```
+
+3. 결과 스키마/규칙 검증:
+
+```powershell
+python scripts/validate_vedic_audit_result.py `
+  --result $result `
+  --schema backend/audit_templates/vedic_technical_audit_output_schema_v1.json
+```
+
+입력 우선순위:
+
+1. A: `vedic_technical_data` (권위 데이터)
+2. B: `vedic_technical_reading` (보조 미러)
+3. C: `polished_reading` 또는 `reading` (모순 체크 대상)
+
+추적 필드:
+
+1. `audit_input_payload.json`과 `audit_manifest.json`에 `commercial_source` 기록
+   - `polished_reading` 또는 `reading`
+2. `audit_manifest.json`에 해시 분리 기록
+   - `commercial_sha256`, `technical_data_sha256`, `technical_md_sha256`, `payload_sha256`
+3. 해시 계산 규칙
+   - 텍스트 해시(`commercial_sha256`, `technical_md_sha256`)는 `CRLF -> LF` 정규화 후 계산
+   - trailing whitespace는 제거하지 않음
+   - JSON 해시(`technical_data_sha256`)는 canonical JSON(`sort_keys=True`, `separators=(",", ":")`, `ensure_ascii=False`)으로 계산
+
+옵션:
+
+1. `--truncate-technical-md N`: 기술 부록 텍스트를 N자까지 제한
+2. `--prefer-data-only`: B(technical reading) 제외하고 A 중심으로 감사 입력 생성
+   - 이 옵션이 켜지면 프롬프트 B 섹션(`VEDIC_TECHNICAL_READING_MD`)은 빈 문자열로 채워집니다.
+
+검증 실패 메시지 예시:
+
+1. `$.technical_findings.critical[3].evidence_paths: must not be empty`
+2. `$.technical_findings.minor[0].evidence_paths: at least one path must start with 'vedic_technical_data.'`
+
+샘플 감사 결과:
+
+1. [audit_result_sample_pass.json](C:/dev/vedic-ai/backend/audit_templates/examples/audit_result_sample_pass.json)
+   - validator 통과 기준(JSON schema + 수동 규칙)을 확인할 수 있는 pass 샘플입니다.
 
 ---
 
@@ -405,8 +538,9 @@ python -m backend.golden_sample_runner --mode full
 확인:
 
 1. 요청 `tune_mode=true`
-2. 서버 `BTR_ENABLE_TUNE_MODE=1`
-3. 관리자 엔드포인트 호출 시 `x-admin-key` 일치
+2. 서버 `BTR_ENABLED=1` (기본값 `0`이면 BTR API 503)
+3. 서버 `BTR_ENABLE_TUNE_MODE=1`
+4. 관리자 엔드포인트 호출 시 `x-admin-key` 일치
 
 ---
 
@@ -423,4 +557,28 @@ python -m backend.golden_sample_runner --mode full
 
 1. 리포트 품질 고도화 작업은 `backend/report_engine.py`, `backend/llm_service.py`, `backend/report_templates_ko/*.json` 중심으로 진행하는 것이 가장 효율적입니다.
 2. 생시보정(BTR)과 프론트 UI는 분리된 축이므로, 리포트 품질 개선 단계에서는 독립적으로 병행/후행 가능합니다.
+---
+
+## 릴리즈 체크리스트 (상업용)
+
+상업 리포트를 배포하기 전에 최소 아래를 확인합니다.
+
+1. **Technical Appendix**
+   - `availability.ok == true` (정상 입력군)
+   - `missing_fields == []`
+   - `meta` 필수 필드 존재(`as_of_utc`, `as_of_bucket`, `birth_jd`, `dasha_reference_jd`, `transit_reference_utc`, `dasha_engine_profile`, `ayanamsa_profile`)
+2. **시간/캐시 정합**
+   - `as_of_bucket`은 항상 `m_YYYY-MM`
+   - cache key / request_settings / response meta 버킷이 일치
+3. **Transit 구간형**
+   - `timing_map` month_1..3 모두 `start_utc < end_utc`
+   - month_3 종료가 anchor(4)-1초 규칙을 만족
+4. **상업 본문 계약**
+   - FRONT 오염 0 (분리 성공 시 front byte 동일, 분리 실패 시 B pass skip)
+   - CHAPTERS 구조 단일화(합성 헤더 0, 챕터 외 Action Steps 0)
+   - Action Steps 계약(챕터당 1블록, 최대 3항목, 한 줄 1항목)
+   - 정의 중복 최소화(과삭제 0)
+5. **회귀/게이트**
+   - `pytest` 통과
+   - `cheap_validation_gate truepath(draft_only)` 1회 통과
 

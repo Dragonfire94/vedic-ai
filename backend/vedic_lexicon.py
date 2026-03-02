@@ -54,6 +54,32 @@ AXIS_FIRST_FORM = "라후-케투 축(확장 vs 정리)"
 AXIS_REPLACEMENT = "확장-정리 축"
 ZERO_TERM_SENTENCE = "베딕에서는 이런 흐름을 시기 흐름(다샤)로 부르기도 해요."
 
+# Year/quarter patterns are exported for scanner reuse.
+YEAR_2026_PATTERN = re.compile(r"(?<!\d)2026(?:\s*년)?(?!\d)")
+YEAR_2027_PATTERN = re.compile(r"(?<!\d)2027(?:\s*년)?(?!\d)")
+YEAR_OTHER_PATTERN = re.compile(r"(?<!\d)20(?!26|27)\d{2}(?:\s*년)?(?!\d)")
+QUARTER_HALF_PATTERN = re.compile(r"(?:[1-4]\s*분기|(?<![A-Za-z0-9])[Qq][1-4](?!\d)|상반기|하반기|분기)")
+YEAR_QUARTER_PATTERNS = (
+    YEAR_2026_PATTERN,
+    YEAR_2027_PATTERN,
+    YEAR_OTHER_PATTERN,
+    QUARTER_HALF_PATTERN,
+)
+
+_TEMPORAL_NORMALIZE_REPLACEMENTS = (
+    ("향후 12개월 다음 흐름 구간", "향후 12개월 흐름 구간"),
+    ("향후 12~24개월 다음 흐름 구간", "향후 12~24개월 흐름 구간"),
+    ("중장기 구간 다음 흐름 구간", "중장기 흐름 구간"),
+)
+
+_MID_TERM_CHAPTER_PATTERN = re.compile(
+    r"(?ms)^(##\s*(?:\[\s*Mid-Term Direction\s*\]|Mid-Term Direction)[^\n]*\n)(.*?)(?=^##\s+|\Z)",
+    re.IGNORECASE,
+)
+_TIMING_MAP_HEADING_PATTERN = re.compile(r"(?m)^###\s*Timing Map\s*$", re.IGNORECASE)
+_NEXT_SUBHEADING_PATTERN = re.compile(r"(?m)^###\s+")
+_SENTENCE_BLOCK_PATTERN = re.compile(r".+?(?:[.!?…](?:\s+|$)|\n{2,}|$)", re.S)
+
 _TERM_PATTERNS = {
     key: re.compile(rf"({re.escape(spec['korean'])}|{re.escape(spec['roman'])})", re.IGNORECASE)
     for key, spec in TERM_SPECS.items()
@@ -65,7 +91,6 @@ _BUNDLE_PATTERNS = {
     )
     for key, spec in TERM_SPECS.items()
 }
-_SENTENCE_SPLIT_PATTERN = re.compile(r"(?<=[.!?…])\s+|\n{2,}")
 _WRAP_VERB_RE = r"(관장하는|보여주는|뜻하는|설명하는)"
 
 
@@ -90,6 +115,23 @@ def _replace_spans(text: str, replacements: list[tuple[int, int, str]]) -> str:
     out = text
     for start, end, value in sorted(replacements, key=lambda item: item[0], reverse=True):
         out = f"{out[:start]}{value}{out[end:]}"
+    return out
+
+
+def _contains_calendar_token(text: str) -> bool:
+    return any(pattern.search(text or "") for pattern in YEAR_QUARTER_PATTERNS)
+
+
+def _replace_temporal_tokens(text: str) -> str:
+    if not isinstance(text, str) or not text:
+        return text or ""
+    out = YEAR_2026_PATTERN.sub("향후 12개월", text)
+    out = YEAR_2027_PATTERN.sub("향후 12~24개월", out)
+    out = YEAR_OTHER_PATTERN.sub("중장기 구간", out)
+    out = QUARTER_HALF_PATTERN.sub("다음 흐름 구간", out)
+    for src, dst in _TEMPORAL_NORMALIZE_REPLACEMENTS:
+        out = out.replace(src, dst)
+    out = re.sub(r"[ \t]{2,}", " ", out)
     return out
 
 
@@ -167,6 +209,62 @@ def _join_chapters(chapters: list[dict[str, str]]) -> str:
     return "".join(chunk.get("text", "") for chunk in chapters)
 
 
+def extract_timing_map_span(text: str) -> tuple[int, int] | None:
+    if not isinstance(text, str) or not text:
+        return None
+    chapter_match = _MID_TERM_CHAPTER_PATTERN.search(text)
+    if chapter_match is None:
+        return None
+
+    chapter_body_start = chapter_match.start(2)
+    chapter_body_end = chapter_match.end(2)
+    chapter_body = text[chapter_body_start:chapter_body_end]
+    timing_match = _TIMING_MAP_HEADING_PATTERN.search(chapter_body)
+    if timing_match is None:
+        return None
+
+    timing_start = chapter_body_start + timing_match.start()
+    tail = chapter_body[timing_match.end() :]
+    next_subheading = _NEXT_SUBHEADING_PATTERN.search(tail)
+    if next_subheading is None:
+        timing_end = chapter_body_end
+    else:
+        timing_end = chapter_body_start + timing_match.end() + next_subheading.start()
+    return (timing_start, timing_end)
+
+
+def scan_timing_map_contract(text: str, max_calendar_lines: int = 3) -> dict[str, Any]:
+    span = extract_timing_map_span(text)
+    if span is None:
+        return {
+            "timing_map_present": False,
+            "calendar_lines": 0,
+            "max_calendar_lines": max_calendar_lines,
+            "over": False,
+            "line_samples": [],
+        }
+
+    timing_text = text[span[0] : span[1]]
+    calendar_lines = 0
+    samples: list[str] = []
+    for raw_line in timing_text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        if _contains_calendar_token(line):
+            calendar_lines += 1
+            if len(samples) < 5:
+                samples.append(line)
+
+    return {
+        "timing_map_present": True,
+        "calendar_lines": calendar_lines,
+        "max_calendar_lines": max_calendar_lines,
+        "over": calendar_lines > max_calendar_lines,
+        "line_samples": samples,
+    }
+
+
 def _replace_overbudget_mention(text: str, mention: Mention) -> tuple[int, int, str]:
     if mention.kind == "axis":
         return (mention.start, mention.end, AXIS_REPLACEMENT)
@@ -203,7 +301,6 @@ def _normalize_axis_tokens(
     if not axis_matches:
         return text
 
-    # Keep only one expressive axis form unless that alone breaks budget.
     first_pass: list[tuple[int, int, str]] = []
     for idx, match in enumerate(axis_matches):
         start, end = match.span()
@@ -275,7 +372,6 @@ def _enforce_doc_budget(text: str, max_terms_total: int) -> str:
         reverse_mentions = list(reversed(mentions))
         picked_indexes: set[int] = set()
 
-        # Pass 1: consume exact/smaller weights first to avoid over-trimming.
         for idx, mention in enumerate(reverse_mentions):
             if excess <= 0:
                 break
@@ -284,7 +380,6 @@ def _enforce_doc_budget(text: str, max_terms_total: int) -> str:
                 picked_indexes.add(idx)
                 excess -= weight
 
-        # Pass 2: if still over, trim any remaining tokens.
         if excess > 0:
             for idx, mention in enumerate(reverse_mentions):
                 if excess <= 0:
@@ -301,6 +396,92 @@ def _enforce_doc_budget(text: str, max_terms_total: int) -> str:
         chapters[chapter_index]["text"] = _replace_spans(chapters[chapter_index]["text"], replacements)
 
     return _join_chapters(chapters)
+
+
+def _de_temporalize_outside_timing_map(text: str) -> str:
+    span = extract_timing_map_span(text)
+    if span is None:
+        return _replace_temporal_tokens(text)
+    start, end = span
+    before = _replace_temporal_tokens(text[:start])
+    timing_map = text[start:end]
+    after = _replace_temporal_tokens(text[end:])
+    return f"{before}{timing_map}{after}"
+
+
+def _cap_timing_map_calendar_lines(text: str, max_calendar_lines: int = 3) -> str:
+    span = extract_timing_map_span(text)
+    if span is None:
+        return text
+    start, end = span
+    timing_map = text[start:end]
+    lines = timing_map.splitlines(keepends=True)
+    seen = 0
+    out_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            out_lines.append(line)
+            continue
+        if _contains_calendar_token(stripped):
+            seen += 1
+            if seen > max_calendar_lines:
+                out_lines.append(_replace_temporal_tokens(line))
+                continue
+        out_lines.append(line)
+    return f"{text[:start]}{''.join(out_lines)}{text[end:]}"
+
+
+def _rewrite_sentence_for_stacking(sentence: str) -> str:
+    mentions = _collect_mentions(sentence)
+    if not mentions:
+        return sentence
+
+    axis_present = any(mention.kind == "axis" for mention in mentions)
+    explicit_keys = {mention.keys[0] for mention in mentions if mention.kind != "axis"}
+    stacking = (axis_present and bool(explicit_keys)) or len(explicit_keys) >= 2
+    if not stacking:
+        return sentence
+
+    working = sentence
+    if axis_present and explicit_keys:
+        axis_replacements = [
+            (mention.start, mention.end, AXIS_REPLACEMENT)
+            for mention in mentions
+            if mention.kind == "axis"
+        ]
+        working = _replace_spans(working, axis_replacements)
+
+    mentions = _collect_mentions(working)
+    explicit_mentions = [mention for mention in mentions if mention.kind != "axis"]
+    explicit_keys = {mention.keys[0] for mention in explicit_mentions}
+    if len(explicit_keys) < 2:
+        return working
+
+    primary_key = explicit_mentions[0].keys[0]
+    replacements = [
+        (mention.start, mention.end, TERM_SPECS[mention.keys[0]]["short_gloss"])
+        for mention in explicit_mentions
+        if mention.keys[0] != primary_key
+    ]
+    return _replace_spans(working, replacements)
+
+
+def _reduce_stacking_mentions(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text or ""
+    out_parts: list[str] = []
+    cursor = 0
+    for match in _SENTENCE_BLOCK_PATTERN.finditer(text):
+        start, end = match.span()
+        if start > cursor:
+            out_parts.append(text[cursor:start])
+        sentence = text[start:end]
+        out_parts.append(_rewrite_sentence_for_stacking(sentence))
+        cursor = end
+    if cursor < len(text):
+        out_parts.append(text[cursor:])
+    return "".join(out_parts) if out_parts else text
 
 
 def _inject_zero_term_identity(text: str) -> str:
@@ -328,12 +509,11 @@ def _inject_zero_term_identity(text: str) -> str:
 def _count_stacking_hits(text: str) -> int:
     if not isinstance(text, str) or not text.strip():
         return 0
-    sentences = [chunk.strip() for chunk in _SENTENCE_SPLIT_PATTERN.split(text) if chunk and chunk.strip()]
-    if not sentences:
-        sentences = [text.strip()]
-
     stacking_hits = 0
-    for sentence in sentences:
+    for match in _SENTENCE_BLOCK_PATTERN.finditer(text):
+        sentence = match.group(0).strip()
+        if not sentence:
+            continue
         mentions = _collect_mentions(sentence)
         if not mentions:
             continue
@@ -343,12 +523,9 @@ def _count_stacking_hits(text: str) -> int:
             if mention.kind == "axis":
                 continue
             explicit_keys.update(mention.keys)
-
-        # Axis alone is allowed; axis + any other term is stacking.
         if axis_present and explicit_keys:
             stacking_hits += 1
             continue
-        # Stack only when 2+ distinct canonical keys appear (bundle romanization is same key).
         if len(explicit_keys) >= 2:
             stacking_hits += 1
     return stacking_hits
@@ -411,6 +588,9 @@ def enforce_subtle_vedic_lexicon(
     out = _rewrite_first_mentions(out)
     out = _enforce_chapter_budget(out, max_terms_per_chapter=max_terms_per_chapter)
     out = _enforce_doc_budget(out, max_terms_total=max_terms_total)
+    out = _reduce_stacking_mentions(out)
+    out = _de_temporalize_outside_timing_map(out)
+    out = _cap_timing_map_calendar_lines(out, max_calendar_lines=3)
     if allow_zero_term_injection:
         out = _inject_zero_term_identity(out)
     return out
