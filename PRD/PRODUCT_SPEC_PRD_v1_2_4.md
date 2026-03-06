@@ -1,8 +1,8 @@
-# PRODUCT_SPEC_PRD v1.1.9 — 상업용 베딕 리포트 엔진 (Contract-Complete)
+# PRODUCT_SPEC_PRD v1.2.4 — 상업용 베딕 리포트 엔진 (Contract-Complete)
 
-- **Status:** LOCKED (계약 변경 시 반드시 버전업 필요)
-- **Last updated (Asia/Seoul):** 2026-03-02
-- **Scope focus:** "그럴듯한 품질의 리포트를 안정적으로 출력" + 개인화 분기 / 12슬롯 / HF 게이트 완전 잠금 / 인생 주기 리포트(Life Cycle Map)
+- **Status:** LOCKED (상세 계약 보존 + v1.2.4 실행 범위 분리)
+- **Last updated (Asia/Seoul):** 2026-03-06
+- **Scope focus:** "그럴듯한 품질의 리포트를 안정적으로 출력" + 개인화 분기 / 12슬롯 / HF 게이트 완전 잠금 / 인생 주기 리포트(Life Cycle Map) / balanced token budget / micro fixture 검증 / `life_cycle-lite` P0
 - **Explicitly out of scope:**
   - Frontend/UI (Next.js / 결제 / 로그인 / 대시보드 / 다운로드 UX 등)
   - **BTR 생시보정:** 출시 후 개발 예정 — 현재 기능 **OFF**
@@ -13,7 +13,29 @@
 
 ## 변경 로그
 
-### v1.1.9 *(현재)*
+### v1.2.4 *(현재)*
+- 섹션 10.2 `fallback_applied` 오염 정리 지시를 원문 지정 방식으로 고정
+- `life_cycle-full` 착수 트리거의 "연속" 단위를 `연속 2릴리즈`로 고정
+
+### v1.2.3
+- 3.1 메타 필드의 개행/CR/제어문자 오염 제거
+- 3.4 제품 목록에 `life_cycle-lite` P0 / P1 범위 구분을 직접 병기
+- 7.1 blockquote 뒤 빈 줄 추가, 10.2 QA 근거 명시, 14.5-a P1 착수 트리거 추가
+
+### v1.2.2
+- `life_cycle` P0를 `life_cycle-lite`로 축소
+- P0 수용 기준을 "읽히는 구조 + fallback 안전성 + HF 통과" 중심으로 단순화
+- 전환 강도/반복 패턴/다음 3년 구체화는 P1로 이동
+
+### v1.2.1
+- `life_cycle` 수용 기준이 닫히기 전까지 `yearly_forecast` / `compatibility`는 bugfix-only
+- balanced token budget 도입: 기본 `llm_max_tokens=6000`, 권장 범위 `5000–7000`, 예외 상한 `8000`
+
+### v1.2.0
+- golden fixture 중심 검증 제거
+- 전체 snapshot 대신 micro fixture + 계약 테스트 + 제한된 수동 QA로 전환
+- 현재 프로젝트 기준 구현 가능 범위 재정의
+### v1.1.9
 
 #### [수정] 마크다운 코드블록 중첩 포맷 수정
 - `~~~markdown` 블록 안에 ` ```python ` 을 넣는 중첩 구조를 `~~~~` 펜스 또는
@@ -104,7 +126,7 @@
 - 11. 보안/개인정보/윤리
 - 12. 로드맵
 - 13. 변경 관리
-- 14. v1.1.9 실행 우선순위
+- 14. v1.2.4 실행 우선순위 및 남은 리스크
 
 ---
 
@@ -115,7 +137,7 @@
 이 문서는 "사람들이 돈을 내고 살 만한 상업용 베딕 리포트"를 만들기 위한
 **제품 설계서 + 출고 기준(게이트) 계약서**입니다.
 
-- **LOCK 항목**은 v1.1.9 내에서 변경 금지입니다 (필요 시 v1.2.0으로 버전업).
+- **LOCK 항목**은 v1.2.2 내에서 변경 금지입니다 (필요 시 v1.2.3으로 버전업).
 
 ### 0.5 상업용 베딕 리포트 설계 철학 (LOCK)
 
@@ -160,6 +182,13 @@
 - "점수가 낮으니 조심하세요" 식의 부정 결론 단독 제시 금지 → 반드시 대안 행동 병기
 - 1개 섹션 내 200자 이상의 순수 설명 단독 노출 금지
 
+### 0.6 v1.2.x 실행 제약 (LOCK)
+
+- v1.2.2의 유일한 P0 productization 대상은 `life_cycle-lite`입니다.
+- `yearly_forecast`, `compatibility`는 스펙 유지 대상이지만 v1.2.2 출고 블로커는 아닙니다.
+- 비용 절감은 "최소 토큰"이 아니라 **적정 토큰 예산**을 목표로 합니다.
+- 전체 문서 golden snapshot은 운영하지 않고, micro fixture + 계약 테스트 + 수동 QA로 검증합니다.
+- `life_cycle` full 기능(전환 강도/반복 패턴/다음 3년 구체화)은 P1로 분리합니다.
 ---
 
 ## 1. LOCK 항목 요약
@@ -184,6 +213,10 @@
 16. **인생 주기 리포트 렌더 알고리즘** (섹션 7.1.3–7.1.6): 행성 라벨 테이블, 단계 그룹핑, 고점저점, 반복 패턴
 17. **전환 강도 분위수 판정 규칙** (섹션 7.1.5): strict `>`, floor 절사, 엣지케이스
 18. **valid_until_fallback 소비자 UX 문구** (섹션 7.1.8-a)
+19. **life_cycle-lite P0 범위 동결 정책** (섹션 0.6, 3.4, 14)
+20. **balanced token budget** (섹션 5.7): 기본 `llm_max_tokens=6000`, 권장 범위 `5000-7000`, 예외 상한 `8000`
+21. **micro fixture 중심 검증 전략** (섹션 8.4, 10.0)
+22. **yearly_forecast / compatibility bugfix-only 정책** (섹션 3.4, 14)
 
 ---
 
@@ -222,7 +255,14 @@
 | `onboarding_goal` | 문자열 (4종 중 1) | 온보딩 목표 선택 결과 |
 | `current_mahadasha_planet` | 행성 코드 (2자) | 현재 마하다샤 주인 행성 (인생 주기 리포트 전용) |
 | `next_mahadasha_date` | ISO-8601 date | 다음 마하다샤 전환일 (valid_until 계산용) |
+| `product_type` | enum: `life_cycle` / `yearly_forecast` / `compatibility` | 상품 분기 키 |
+| `contract_version` | 문자열 | 적용 PRD 계약 버전 (`v1.2.4`) |
+| `render_profile` | 문자열 | 현재 렌더 프로파일 식별자 |
 
+**메타 필드 편집 위생 규칙 (LOCK):**
+- 메타 필드명은 전부 백틱으로 감싼다.
+- `contract_version` 값은 문서 버전과 동일한 ASCII 가시 문자열만 허용한다.
+- U+000B, U+000C, literal `` `r ``, literal `\n`, literal `\r` 같은 제어문자/escape 잔류는 허용하지 않는다.
 모든 날짜 범위 섹션 하단 고정 푸터:
 > "표기된 기간은 계획/주의 창이며, 개인의 체감은 상황에 따라 달라질 수 있습니다."
 
@@ -244,9 +284,14 @@
 
 ### 3.4 제품 목록
 
-1. **인생 주기 리포트 (Life Cycle Map)**: 마하다샤 기반 인생 전체 주기 지도 + 고점/저점/전환점 + 반복 패턴 + 다음 3년 구체화
+1. **인생 주기 리포트 (Life Cycle Map)**: 마하다샤 기반 인생 전체 주기 지도 + 현재 위치 + 방법론/valid_until UX + 단계별 확장 구조 *(v1.2.4 구현 단계: P0는 `life_cycle-lite`; 고점/저점 지도, 반복 패턴, 다음 3년 구체화는 P1에서 복원)*
 2. **신년운세 리포트**: 연간 구간 + 월별 12슬롯 + 중요구간 2개 + 분야별 모듈
 3. **궁합 리포트**: Ashtakoota 36점 기반 궁합 평가 + 조율 행동
+
+> **v1.2.4 구현 단계 계약 (LOCK)**:
+> - `life_cycle`는 유일한 P0 productization 대상입니다.
+> - `yearly_forecast`, `compatibility`는 bugfix-only / regression-only 정책을 적용합니다.
+> - 다중 상품 동시 productization PR은 금지합니다.
 
 ---
 
@@ -379,6 +424,34 @@ def get_action_steps(onboarding_goal: str, toolkit: dict) -> list[str]:
 
 ---
 
+### 5.7 v1.2.x Balanced Token Budget 운영 계약 (LOCK)
+
+| 항목 | 규칙 |
+|---|---|
+| 리포트당 LLM 호출 수 | 최대 1회 |
+| 기본 `llm_max_tokens` 운영값 | `6000` |
+| 권장 운영 범위 | `5000–7000` |
+| 예외 상한 | `8000` (명시적 사유 있을 때만) |
+| 운영 금지 | "최소치 경쟁" 식 하향 조정 |
+
+**토큰 절감 허용 영역**:
+- 고정 문구의 프롬프트 중복 설명 제거
+- 메타/계약 설명의 반복 제거
+- deterministic block을 프롬프트에서 재서술하던 부분 제거
+- 디버그성 설명, 내부 용어 설명 제거
+
+**토큰 절감 금지 영역**:
+- 챕터 간 연결 문장
+- 공감 시작 문장
+- 행동 마감 문장
+- `life_cycle-lite` 핵심 구조 설명 1줄
+- fallback UX의 부드러운 설명 문구
+
+**운영 원칙**:
+- 비용 절감은 "최소 토큰"이 아니라 적정 예산을 목표로 함.
+- `5000` 미만으로 기본 운영값을 낮추는 것은 금지.
+- `7000` 초과는 기본값이 아니라 예외값.
+- `8000` 초과는 별도 계약 변경 없이는 운영하지 않음.
 ## 6. 기간/타임라인 표준 (A/B/C) (LOCK)
 
 | 레벨 | 이름 | 조건 | 출력 형식 |
@@ -398,6 +471,11 @@ def get_action_steps(onboarding_goal: str, toolkit: dict) -> list[str]:
 ---
 
 ### 7.1 인생 주기 리포트 (Life Cycle Map)
+
+> **v1.2.4 구현 범위 표기 (LOCK)**:
+> - P0(`life_cycle-lite`): 7.1.1, 7.1.2의 최소 출력 구조, 7.1.3, 7.1.4, 7.1.8-a, 7.1.8-b, 7.1.9의 CTA-lite.
+> - P1(`life_cycle-full`): 7.1.5, 7.1.6, 7.1.7의 full productization.
+> - 아래 상세 계약은 보존되며, v1.2.4에서는 P1 기능 미구현만으로 FAIL 처리하지 않습니다.
 
 #### 7.1.1 목적/핵심 가치
 
@@ -498,7 +576,7 @@ def assign_life_stages(dashas: list[dict], birth_year: int) -> list[dict]:
 👉 현재 당신은 [현재 그룹 라벨] 구간에 있습니다.
 ```
 
-#### 7.1.5 고점/저점 지도 산출 기준 (결정론, LOCK)
+#### 7.1.5 고점/저점 지도 산출 기준 (결정론, LOCK, v1.2.2 구현 단계: P1)
 
 **전환 강도 분위수 판정 (LOCK)**
 
@@ -617,7 +695,7 @@ def compute_life_highs_lows(dashas_with_score: list[dict]) -> dict:
   1. YYYY-MM-DD ~ YYYY-MM-DD — [행성 주제 라벨] / 주의 창 + 대응 행동 1개
 ```
 
-#### 7.1.6 반복 패턴 분석 기준 (결정론, LOCK)
+#### 7.1.6 반복 패턴 분석 기준 (결정론, LOCK, v1.2.2 구현 단계: P1)
 
 ```python
 def compute_repeat_patterns(dashas: list[dict]) -> dict:
@@ -640,7 +718,7 @@ def compute_repeat_patterns(dashas: list[dict]) -> dict:
   👉 이 패턴에서 벗어나기 위한 행동: [행동 1개]
 ```
 
-#### 7.1.7 다음 3년 구체화 섹션 (재구매 훅, LOCK)
+#### 7.1.7 다음 3년 구체화 섹션 (재구매 훅, LOCK, v1.2.2 구현 단계: P1)
 
 **목적**: 인생 전체(70%) 이후 "지금 당장 무엇을 해야 하는가"(30%) 연결.
 
@@ -728,7 +806,7 @@ def compute_valid_until_lifecycle(
 
 #### 7.1.9 CTA/업셀 규칙 (LOCK)
 
-- **업셀 트리거 (결정론)**:
+- **업셀 트리거 (결정론)**: *(v1.2.2 P0에서는 CTA-lite만 필수, 최적화는 P1)*
   - `onboarding_goal == "relationship"` 또는 ⑤ 관계 상태 입력 있음 → 궁합 리포트 CTA
   - `valid_until`이 `next_mahadasha_date` 기준인 경우 → "전환점 심화 리포트" CTA 우선
   - 그 외 → 신년운세 리포트 CTA
@@ -805,6 +883,13 @@ overlap_ratio = overlap_days / min(
 
 ---
 
+### 8.4 v1.2.x 경량 검증 아티팩트 계약 (LOCK)
+
+- 전체 문서 golden snapshot은 운영하지 않습니다.
+- 검증은 `micro fixture + 계약 테스트 + 수동 QA` 조합으로 수행합니다.
+- micro fixture는 10~40줄 내외의 짧은 텍스트/짧은 payload를 원칙으로 합니다.
+- 문서 전체 동일성보다 presence/absence, flag, section count, deterministic copy insertion을 우선 검증합니다.
+- P0에서는 `life_cycle-lite` 최소 구조만 검증하고, P1 기능(반복 패턴/다음 3년/전환 강도 랭킹)은 회귀 테스트 대상에서 제외할 수 있습니다.
 ## 9. 품질 게이트 (HARD FAIL 16개 + 패턴 정의) (LOCK)
 
 ### 9.1 HARD FAIL vs 관찰 지표 분리
@@ -1228,6 +1313,13 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 
 ## 10. 테스트/검증
 
+### 10.0 v1.2.4 구현 단계 계약 (LOCK)
+
+- 표준 테스트 실행 명령은 `python -m pytest`입니다.
+- `pytest` CLI PATH 의존은 허용하지 않습니다.
+- v1.2.2 P0 수용 기준은 `life_cycle-lite` 최소 구조 중심으로 판정합니다.
+- 7.1.5 / 7.1.6 / 7.1.7의 상세 테스트는 계약 보존 대상이지만, v1.2.2 P0 미구현만으로 FAIL 처리하지 않습니다.
+- `yearly_forecast` / `compatibility`는 bugfix-only 정책 위반 여부만 확인합니다.
 ### 10.1 자동 테스트 (필수)
 
 **HF1–10**: 기존 단위 테스트 유지
@@ -1258,8 +1350,8 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 - 배포 4건/100 → `"none"`, 6건 → `"warn"`, 21건 → `"block"`, total=0 → `"none"`
 
 **인생 주기 리포트**:
-- `assign_life_stages()`: 다샤 9개 → [2,2,2,3] / 4개 → [1,1,1,1] / 0개 → 빈 리스트
-- `compute_life_highs_lows()`: 9개 → 상위3/하위3/전환점5 / 5개 → 전환점 4개
+- `assign_life_stages()`: 다샤 9개 → [2,2,2,3] / 4개 → [1,1,1,1] / 0개 → 빈 리스트  **(v1.2.4 P0 필수)**
+- `compute_life_highs_lows()`: 9개 → 상위3/하위3/전환점5 / 5개 → 전환점 4개  **(v1.2.4 P1)**
 - `_get_transition_intensity()`:
   - N≤2 → 호출부 "중" 고정, 함수 미호출 확인
   - delta = `low_thresh` 정확히 → **"하"** 반환 (경계값 하위 등급)
@@ -1269,7 +1361,7 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
   - **[comparator 경계 검증 전용 — 데이터 불변식 위반 케이스, 로직 회귀 방지 목적]**
     N=3, sorted_deltas=[1,5,10]: delta=11 → "상" 반환 확인
     (실제 sorted_deltas에서 발생 불가. strict `>` 비교 로직 자체의 정확성 검증용)
-- `compute_repeat_patterns()`: 동일 도메인 2회+ → 패턴 인식 / 1회 → 제외
+- `compute_repeat_patterns()`: 동일 도메인 2회+ → 패턴 인식 / 1회 → 제외  **(v1.2.4 P1)**
 - `PLANET_LABEL_MAP`: 9개 행성 코드 각각 → 라벨+tone 정확 변환
 - `VALID_PLANET_CODES`: 유효하지 않은 코드 → 오류 처리 확인
 - `compute_valid_until_lifecycle()`:
@@ -1280,14 +1372,19 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
   - 파싱 실패 케이스: 파이프라인에서 `None` 변환 후 호출 → null 케이스와 동일 동작
 - N=3 UX 안내 문구: `len(transitions) <= 3`이고 "상" 0개일 때 안내 문구 삽입 확인
 - valid_until_fallback UX: `fallback_applied=True` 시 부드러운 설명 문구 표기 확인
-- 다음 3년 구체화: 3개 슬롯 → 3개 출력 (패딩 없음) / 0개 → 고정 문구만 출력
+- 다음 3년 구체화: 3개 슬롯 → 3개 출력 (패딩 없음) / 0개 → 고정 문구만 출력  **(v1.2.4 P1)**
 
 **모듈 분리 정적 검사**:
 - `commercial_quality_constants.py`에 함수 정의 없음
 - `cheap_validation_gate.py`에서 패턴/정규식 재정의 없음
 - `_name_boundary_re()` lru_cache: 동일 이름 2회 호출 시 컴파일 1회
 
-### 10.2 수동 QA (릴리즈당 최소 3건)
+### 10.2 수동 QA (릴리즈당 최소 2건: 정상 경로 1 + fallback/edge 1)
+
+> **운영 근거 (v1.2.4)**:
+> - golden snapshot은 운영하지 않지만, v1.2.4는 P0 범위를 `life_cycle-lite`로 축소한 상태다.
+> - 자동 방어는 micro fixture + 계약 테스트 + HF 게이트로 유지한다.
+> - 따라서 수동 QA는 2건으로 유지하되, 유형은 반드시 `정상 경로 1건 + fallback_applied=True 또는 경계 케이스 1건`으로 고정한다.
 
 - 방법론 카드 (6줄 + 공감 문구) 가독성
 - 상대 기간 표현 0건 / 빈칸 템플릿 0건
@@ -1300,6 +1397,8 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
   - 예언 리스크 금지 표현 8종 육안 점검 (섹션 7.1.8-b)
   - "다음 3년 구체화" 섹션 끝 업데이트 유도 고정 문구 존재 확인
   - `fallback_applied=True` 리포트: 부드러운 설명 문구 자연스러운 노출 확인
+  - v1.2.4 P0: 4단계 구조가 과하게 복잡하지 않고 한 번에 이해되는지 확인
+  - v1.2.4 P0: 전환점/반복 패턴 부재가 오히려 문서를 더 명료하게 만드는지 확인
 
 ---
 
@@ -1330,11 +1429,14 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 | v1.0.x | 출력 품질/게이트 안정화 |
 | v1.1.0 | 개인화 슬롯 5종 / 온보딩 분기 / 월별 12슬롯 / HF15·16 추가 |
 | v1.1.1–v1.1.4 | HF15·16 품질 잠금 / 모듈 분리 / name 정규화 / H2=0 fallback |
-| v1.1.5–v1.1.8 | 인생 주기 리포트 설계 / 행성 라벨 / 단계 그룹핑 / 전환 강도 잠금 |
-| **v1.1.9 (현재)** | **N=3 UX 안내 / fallback UX 문구 / floor 절사 명시 / 코드블록 중첩 수정** |
-| v1.1.x | HF15·16 튜닝 / ②~⑤ 토큰 HF 승격 여부 결정 |
-| v1.2.x | 구독형 (월간/분기 업데이트) |
-| v1.3.x | 번들 상품화 |
+| v1.1.5–v1.1.9 | 인생 주기 리포트 설계 / 행성 라벨 / 단계 그룹핑 / 전환 강도 잠금 |
+| v1.2.0 | 현재 프로젝트 기준 실행형 PRD / micro fixture / snapshot 제거 |
+| v1.2.1 | P0 범위 동결 / balanced token budget |
+| v1.2.2 | `life_cycle-lite` P0 / 난도 하향 / 최소 상업 구조 우선 출고 |
+| v1.2.3 | 문서 정합성 복구 / P0·P1 범위 명확화 |
+| **v1.2.4 (현재)** | **오염 원문 지정 교체 / 연속 2릴리즈 트리거 고정** |
+| v1.2.x | `v1.2.4` 수용 기준 전부 충족 후 `life_cycle-full` 착수 / yearly_forecast·compatibility 정리 |
+| v1.3.x | 상품 번들화 / 운영 효율 개선 |
 | v2.x | BTR 생시보정 ON |
 
 ---
@@ -1354,37 +1456,70 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
   - 전환 강도 판정 기준 (strict `>`, floor 절사, N=3 의도된 동작)
   - valid_until_fallback 소비자 UX 문구 (섹션 7.1.8-a)
   - N=3 "상" 미발생 UX 안내 문구 (섹션 7.1.5)
+  - `life_cycle-lite` P0 범위 동결 정책
+  - balanced token budget (`6000` 기본 / `5000–7000` 권장 / `8000` 예외 상한)
+  - `yearly_forecast` / `compatibility` bugfix-only 정책
+  - micro fixture 중심 검증 전략 (섹션 8.4, 10.0)
+  - 메타 필드명/버전 문자열/LOCK 요약 라인에는 제어문자(U+000B/U+000C) 및 escape 잔류 문자(`` `r ``, `\n`, `\r`) 삽입 금지
 
 ---
 
-## 14. v1.1.9 실행 우선순위
+## 14. v1.2.4 실행 우선순위 및 남은 리스크
 
-### 14.1 P0 — N=3 UX 안내 문구 렌더 로직 추가
+### 14.1 P0 — `life_cycle-lite` 우선 출고
 
-1. 렌더 계층: `len(transitions) <= 3`이고 "상" 등급 0개일 때 전환점 섹션 상단에 고정 문구 삽입.
-2. 단위 테스트: N=3 + "상" 0개 → 안내 문구 삽입 확인 / N=6 + "상" 있음 → 미삽입 확인.
+1. `python -m pytest` 가능한 개발 환경 확보
+2. `life_cycle-lite` 분기 단일화
+3. 4단계 구조 렌더 로직 정리
+4. valid_until fallback UX 유지
+5. 방법론 카드 및 CTA-lite 고정 문구 정리
+6. micro fixture 기반 계약 테스트 추가
+7. 기본 `llm_max_tokens=6000` 운영값 고정
+8. `yearly_forecast` / `compatibility` bugfix-only 상태 고정
 
-### 14.2 P0 — fallback UX 문구 구현
+### 14.2 남은 리스크 — 구조
 
-1. 렌더 계층: `fallback_applied=True` 시 valid_until 표기에 설명 문구 병기.
-2. 소비자 본문에 오류 원인 노출 금지 확인 (운영 알림은 내부 채널만).
-3. 수동 QA: 문구 자연스러운 노출 확인.
+- `main.py`가 큰 상태라 규칙이 다시 흩어질 수 있음.
+- 대응: 상수/순수 함수 중복부터 제거하고, helper 추출은 필요 시에만 수행.
 
-### 14.3 P1 — floor 절사 주석 코드 반영
+### 14.3 남은 리스크 — 테스트 환경
 
-1. `commercial_quality_constants.py`의 `TRANSITION_INTENSITY_THRESHOLDS` 상수 위에
-   "정확한 33% 분할 아님" 주석 추가.
-2. 렌더 계층 `_get_transition_intensity()` 독스트링에 동일 주석 1줄 추가.
+- 현재 환경에서 `python -m pytest`가 바로 안 될 수 있음.
+- 대응: 기능 개발보다 dev dependency 정리를 선행.
 
-### 14.4 검증/수용 기준
+### 14.4 남은 리스크 — snapshot 미도입에 따른 문체 회귀
 
-1. 기존 HF 16개 계약 회귀 없음.
-2. N=3 UX 안내 문구 조건부 삽입 단위 테스트 통과.
-3. valid_until fallback UX 문구 수동 QA 통과.
-4. `delta=11` comparator 테스트 케이스 주석 명확성 확인.
-5. 모든 코드블록 중첩 포맷 이상 없음 확인.
+- golden snapshot을 쓰지 않으므로 미세한 문체 회귀를 일부 놓칠 수 있음.
+- 대응: deterministic copy 테스트 + 수동 QA 2건으로 방어.
 
-### 14.5 비범위 (재확인)
+### 14.5 남은 리스크 — `life_cycle-full` 구현 난도
+
+- 전환점 강도/반복 패턴/다음 3년 구체화는 여전히 높은 난도.
+- 대응: v1.2.4에서는 `life_cycle-lite`까지만 P0로 닫고, full 기능은 P1로 분리.
+
+### 14.5-a `life_cycle-full` 착수 트리거
+
+- `life_cycle-full`은 자동 착수 대상이 아닙니다.
+- 아래 조건이 모두 충족된 이후에만 P1로 승격합니다.
+  1. 14.6의 수용 기준 1-10 전부 충족
+  2. `life_cycle-lite` 수동 QA 2건(정상 경로 1건 + fallback/edge 1건)이 연속 2릴리즈에서 모두 통과
+  3. `yearly_forecast` / `compatibility` bugfix-only 정책 위반 0건 유지
+- 여기서 "연속 2릴리즈"는 중간에 실패 릴리즈나 QA 미실행 릴리즈가 끼지 않은, 배포 가능한 두 번의 연속 릴리즈를 뜻합니다.
+
+### 14.6 검증/수용 기준
+
+1. `python -m pytest` 실행 가능
+2. `life_cycle-lite` 경로 동작
+3. 4단계 구조 + 현재 위치 표시 정상
+4. HF 16개 회귀 없음
+5. valid_until fallback UX 유지
+6. 리포트당 LLM 호출 1회 초과 없음
+7. 기본 `llm_max_tokens` 운영값이 5000–7000 범위에 있음
+8. micro fixture 계약 테스트 통과
+9. 수동 QA 2건 통과
+10. `yearly_forecast` / `compatibility`는 bugfix-only 정책 위반 없음
+
+### 14.7 비범위 (재확인)
 
 - 엔진 산식 변경 금지.
 - BTR ON 전환 금지.
