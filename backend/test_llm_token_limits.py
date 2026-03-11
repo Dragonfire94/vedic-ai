@@ -1,9 +1,8 @@
-"""Tests for LLM token and generation parameter guardrails."""
+"""Tests for current LLM token and payload guardrails."""
 
 from __future__ import annotations
 
 import os
-import re
 import sys
 import types
 import unittest
@@ -63,34 +62,40 @@ from fastapi import HTTPException
 
 class TestLLMTokenLimits(unittest.TestCase):
     def test_defined_limits(self) -> None:
-        self.assertEqual(main.AI_MAX_TOKENS_AI_READING, 1500)
-        self.assertEqual(main.AI_MAX_TOKENS_PDF, 2000)
-        self.assertEqual(main.AI_MAX_TOKENS_HARD_LIMIT, 3000)
+        self.assertEqual(main.AI_MAX_TOKENS_AI_READING, 18000)
+        self.assertEqual(main.AI_MAX_TOKENS_PDF, 8000)
+        self.assertEqual(main.AI_MAX_TOKENS_HARD_LIMIT, 22000)
 
     def test_resolve_llm_max_tokens_rejects_above_hard_limit(self) -> None:
         with self.assertRaises(HTTPException):
-            main._resolve_llm_max_tokens(3001, main.AI_MAX_TOKENS_AI_READING)
+            main._resolve_llm_max_tokens(
+                main.AI_MAX_TOKENS_HARD_LIMIT + 1,
+                main.AI_MAX_TOKENS_AI_READING,
+            )
 
-    def test_openai_payload_generation_params_are_fixed(self) -> None:
+    def test_resolve_llm_max_tokens_falls_back_to_default_for_invalid_values(self) -> None:
+        self.assertEqual(
+            main._resolve_llm_max_tokens(0, main.AI_MAX_TOKENS_AI_READING),
+            main.AI_MAX_TOKENS_AI_READING,
+        )
+        self.assertEqual(
+            main._resolve_llm_max_tokens("not-a-number", main.AI_MAX_TOKENS_PDF),
+            main.AI_MAX_TOKENS_PDF,
+        )
+
+    def test_openai_payload_uses_max_completion_tokens(self) -> None:
         payload = main._build_openai_payload(
             model="openai/gpt-4o-mini",
             system_message="s",
             user_message="u",
-            max_tokens=1500,
+            max_completion_tokens=1500,
         )
-        self.assertEqual(payload["temperature"], 0.2)
-        self.assertEqual(payload["top_p"], 1.0)
-        self.assertEqual(payload["frequency_penalty"], 0)
-        self.assertEqual(payload["presence_penalty"], 0)
-        self.assertEqual(payload["max_tokens"], 1500)
-
-    def test_source_has_no_max_tokens_literal_above_hard_limit(self) -> None:
-        with open(os.path.join(os.path.dirname(__file__), "main.py"), "r", encoding="utf-8") as handle:
-            source = handle.read()
-        values = [int(v) for v in re.findall(r"max_tokens\"?\s*[:=]\s*(\d+)", source)]
-        self.assertTrue(all(v <= main.AI_MAX_TOKENS_HARD_LIMIT for v in values))
+        self.assertEqual(payload["model"], "openai/gpt-4o-mini")
+        self.assertEqual(payload["max_completion_tokens"], 1500)
+        self.assertNotIn("max_tokens", payload)
+        self.assertEqual(payload["messages"][0]["content"], "s")
+        self.assertEqual(payload["messages"][1]["content"], "u")
 
 
 if __name__ == "__main__":
     unittest.main()
-

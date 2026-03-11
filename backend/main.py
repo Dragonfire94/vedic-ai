@@ -50,6 +50,14 @@ from backend.report_engine import (
     SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
     _get_atomic_chart_interpretations,
 )
+from backend.life_cycle_helpers import (
+    build_life_cycle_payload,
+    normalize_csv_tokens,
+    normalize_onboarding_goal,
+    normalize_product_type,
+    resolve_subject_name,
+)
+from backend.life_cycle_lite_renderer import render_life_cycle_lite_markdown
 from backend.report_pipeline import (
     _active_chapter_order_for_style,
     _apply_recommendation_tone_normalization,
@@ -148,6 +156,8 @@ OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 READING_PIPELINE_VERSION = "chapter_blocks_v2"
 AI_PROMPT_VERSION = "ko_only_v2"
 APPENDIX_CACHE_SCHEMA_VERSION = "v3"
+LIFE_CYCLE_CONTRACT_VERSION = "v1.4.0"
+LIFE_CYCLE_RENDER_PROFILE = "life_cycle_lite_v1"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
 AI_MAX_TOKENS_AI_READING = 18000
@@ -333,8 +343,9 @@ def _build_openai_payload(
     }
 
 
-def _polished_output_cache_key(chapter_blocks_hash: str, language: str) -> str:
-    return f"llm_polished::{chapter_blocks_hash}::{(language or 'ko').strip().lower()}"
+def _polished_output_cache_key(chapter_blocks_hash: str, language: str, product_type: str = "generic") -> str:
+    product_token = str(product_type or "generic").strip().lower() or "generic"
+    return f"llm_polished::{product_token}::{chapter_blocks_hash}::{(language or 'ko').strip().lower()}"
 
 
 def compute_chapter_blocks_hash(chapter_blocks: dict[str, Any]) -> str:
@@ -342,8 +353,8 @@ def compute_chapter_blocks_hash(chapter_blocks: dict[str, Any]) -> str:
     return _sha256_hex(validated)
 
 
-def load_polished_reading_from_cache(*, chapter_blocks_hash: str, language: str) -> Optional[str]:
-    key = _polished_output_cache_key(chapter_blocks_hash, language)
+def load_polished_reading_from_cache(*, chapter_blocks_hash: str, language: str, product_type: str = "generic") -> Optional[str]:
+    key = _polished_output_cache_key(chapter_blocks_hash, language, product_type)
     cached = cache.get(key)
     if isinstance(cached, str) and cached.strip():
         logger.info("LLM refinement loaded from cache chapter_blocks_hash=%s", chapter_blocks_hash)
@@ -351,10 +362,10 @@ def load_polished_reading_from_cache(*, chapter_blocks_hash: str, language: str)
     return None
 
 
-def save_polished_reading_to_cache(*, chapter_blocks_hash: str, language: str, polished_reading: str) -> None:
+def save_polished_reading_to_cache(*, chapter_blocks_hash: str, language: str, polished_reading: str, product_type: str = "generic") -> None:
     if not isinstance(polished_reading, str) or not polished_reading.strip():
         return
-    key = _polished_output_cache_key(chapter_blocks_hash, language)
+    key = _polished_output_cache_key(chapter_blocks_hash, language, product_type)
     cache.set(key, polished_reading, ttl=AI_CACHE_TTL)
 
 
@@ -2587,7 +2598,217 @@ def _apply_ai_reading_debug_payload_policy(payload: dict[str, Any], debug_payloa
     # Remove duplicated heavy payloads by default.
     out.pop("structured_summary", None)
     out.pop("chapter_blocks", None)
+    out.pop("life_cycle_payload", None)
     return out
+
+
+def _json_safe_clone(value: Any) -> Any:
+    if isinstance(value, datetime):
+        return value.replace(microsecond=0).isoformat()
+    if isinstance(value, dict):
+        return {k: _json_safe_clone(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_json_safe_clone(v) for v in value]
+    return value
+
+
+def _serialize_csv_tokens(tokens: list[str]) -> str:
+    if not isinstance(tokens, list):
+        return ""
+    return ",".join(str(token).strip() for token in tokens if isinstance(token, str) and token.strip())
+
+
+def _build_product_request_fingerprint(*, product_type: str, onboarding_goal: str, focus_tokens: list[str], concern_tokens: list[str], occupation_context: str, relationship_status: str, subject_name: str) -> str:
+    return _sha256_hex(
+        {
+            "product_type": product_type,
+            "onboarding_goal": onboarding_goal,
+            "focus_tokens": focus_tokens,
+            "concern_tokens": concern_tokens,
+            "occupation_context": occupation_context,
+            "relationship_status": relationship_status,
+            "subject_name": subject_name,
+        }
+    )[:16]
+
+
+def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hours: float, onboarding_goal: str, payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "as_of_utc": as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "as_of_local": payload.get("as_of_local_iso"),
+        "timezone_offset": float(timezone_offset_hours),
+        "valid_until": payload.get("valid_until"),
+        "valid_until_fallback": bool(payload.get("valid_until_fallback")),
+        "onboarding_goal": onboarding_goal,
+        "current_mahadasha_planet": payload.get("current_mahadasha_planet"),
+        "next_mahadasha_date": payload.get("next_mahadasha_date"),
+        "product_type": "life_cycle",
+        "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
+        "render_profile": LIFE_CYCLE_RENDER_PROFILE,
+    }
+
+
+async def _build_life_cycle_ai_reading_result(
+    *,
+    request: Request,
+    request_id_value: str,
+    endpoint_name: str,
+    include_debug_payload: bool,
+    include_audit_debug: bool,
+    cache_key: str,
+    use_cache: int,
+    year: int,
+    month: int,
+    day: int,
+    hour: float,
+    lat: float,
+    lon: float,
+    house_system: str,
+    include_nodes_eff: int,
+    include_d9_eff: int,
+    include_vargas_eff: str,
+    language: str,
+    gender: str,
+    timezone_offset_resolved: float,
+    as_of_utc: datetime,
+    analysis_mode_norm: str,
+    detail_level_norm: str,
+    subject_name: str,
+    onboarding_goal: str,
+    focus_tokens: list[str],
+    concern_tokens: list[str],
+    occupation_context: str,
+    relationship_status: str,
+) -> dict[str, Any]:
+    if use_cache:
+        cached = cache.get(cache_key)
+        if isinstance(cached, dict):
+            cached_response = dict(cached)
+            cached_response["cached"] = True
+            cached_response["ai_cache_key"] = cache_key
+            if include_audit_debug:
+                cached_response["audit"] = {
+                    "request_id": request_id_value,
+                    "chart_hash": cached_response.get("chart_hash"),
+                    "chapter_blocks_hash": cached_response.get("chapter_blocks_hash"),
+                    "endpoint": endpoint_name,
+                }
+            return _apply_ai_reading_debug_payload_policy(cached_response, include_debug_payload)
+
+    chart = await asyncio.to_thread(
+        get_chart,
+        year=year,
+        month=month,
+        day=day,
+        hour=hour,
+        lat=lat,
+        lon=lon,
+        house_system=house_system,
+        include_nodes=include_nodes_eff,
+        include_d9=include_d9_eff,
+        include_vargas=include_vargas_eff,
+        gender=gender,
+        timezone=timezone_offset_resolved,
+        as_of=as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+    )
+    payload = build_life_cycle_payload(
+        chart=chart,
+        as_of_utc=as_of_utc,
+        timezone_offset_hours=timezone_offset_resolved,
+        subject_name=subject_name,
+        onboarding_goal=onboarding_goal,
+        focus_tokens=focus_tokens,
+        concern_tokens=concern_tokens,
+        occupation_context=occupation_context,
+        relationship_status=relationship_status,
+    )
+    payload_public = _json_safe_clone(payload)
+    product_fingerprint = _build_product_request_fingerprint(
+        product_type="life_cycle",
+        onboarding_goal=onboarding_goal,
+        focus_tokens=focus_tokens,
+        concern_tokens=concern_tokens,
+        occupation_context=occupation_context,
+        relationship_status=relationship_status,
+        subject_name=subject_name,
+    )
+    payload_hash = _sha256_hex({"product_type": "life_cycle", "payload": payload_public})
+    reading_text = render_life_cycle_lite_markdown(payload)
+    save_polished_reading_to_cache(
+        chapter_blocks_hash=payload_hash,
+        language=language,
+        polished_reading=reading_text,
+        product_type="life_cycle",
+    )
+    chart_hash = _sha256_hex(
+        {
+            "year": year,
+            "month": month,
+            "day": day,
+            "hour": hour,
+            "lat": lat,
+            "lon": lon,
+            "timezone": timezone_offset_resolved,
+            "house_system": house_system,
+            "include_nodes": include_nodes_eff,
+            "include_d9": include_d9_eff,
+            "include_vargas": include_vargas_eff,
+            "analysis_mode": analysis_mode_norm,
+            "detail_level": detail_level_norm,
+            "gender": gender,
+            "product_type": "life_cycle",
+            "product_fingerprint": product_fingerprint,
+        }
+    )
+    meta = _build_life_cycle_response_meta(
+        as_of_utc=as_of_utc,
+        timezone_offset_hours=timezone_offset_resolved,
+        onboarding_goal=onboarding_goal,
+        payload=payload_public,
+    )
+    result = {
+        "cached": False,
+        "fallback": False,
+        "model": "deterministic/life_cycle_lite",
+        "summary": {
+            "language": language,
+            "analysis_mode": analysis_mode_norm,
+            "product_type": "life_cycle",
+            "structured_summary": {
+                "product_type": "life_cycle",
+                "onboarding_goal": onboarding_goal,
+                "subject_name": subject_name,
+            },
+        },
+        "reading": reading_text,
+        "polished_reading": reading_text,
+        "detail_level": detail_level_norm,
+        "ai_cache_key": cache_key,
+        "request_id": request_id_value,
+        "chart_hash": chart_hash,
+        "chapter_blocks_hash": payload_hash,
+        "product_type": "life_cycle",
+        "meta": meta,
+        "life_cycle_payload": payload_public,
+        "debug_info": {
+            "product_type": "life_cycle",
+            "render_profile": LIFE_CYCLE_RENDER_PROFILE,
+            "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
+            "product_fingerprint": product_fingerprint,
+            "llm_input_source": "deterministic.life_cycle_payload",
+            "client_initialized": async_client is not None,
+        },
+    }
+    if include_audit_debug:
+        result["audit"] = {
+            "request_id": request_id_value,
+            "chart_hash": chart_hash,
+            "chapter_blocks_hash": payload_hash,
+            "endpoint": endpoint_name,
+        }
+    if use_cache:
+        cache.set(cache_key, result, ttl=AI_CACHE_TTL)
+    return _apply_ai_reading_debug_payload_policy(result, include_debug_payload)
 
 
 def _extract_structured_summary_payload(payload: dict[str, Any]) -> dict[str, Any]:
@@ -2891,6 +3112,13 @@ async def get_ai_reading(
     as_of: Optional[str] = Query(None),
     analysis_mode: str = Query("standard"),
     detail_level: str = Query("full"),
+    product_type: Optional[str] = Query(None),
+    subject_name: Optional[str] = Query(None),
+    onboarding_goal: Optional[str] = Query(None),
+    focus_tokens: str = Query(""),
+    concern_tokens: str = Query(""),
+    occupation_context: Optional[str] = Query(None),
+    relationship_status: Optional[str] = Query(None),
     llm_max_tokens: int = Query(AI_MAX_TOKENS_AI_READING, include_in_schema=False),
     debug_payload: int = Query(0),
     audit_debug: int = Query(0),
@@ -2898,6 +3126,20 @@ async def get_ai_reading(
     audit_endpoint: str = Query("/ai_reading", include_in_schema=False),
 ):
     """Generate AI reading."""
+    try:
+        product_type_norm = normalize_product_type(product_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    subject_name_norm = resolve_subject_name(subject_name)
+    onboarding_goal_norm = normalize_onboarding_goal(onboarding_goal)
+    focus_tokens_norm = normalize_csv_tokens(focus_tokens, max_items=2)
+    concern_tokens_norm = normalize_csv_tokens(concern_tokens, max_items=3)
+    occupation_context_norm = str(occupation_context or "").strip()
+    relationship_status_norm = str(relationship_status or "").strip()
+
+    if production_mode and product_type_norm == "life_cycle":
+        raise HTTPException(status_code=400, detail="product_type=life_cycle does not support production_mode=1")
+
     if production_mode:
         if not BTR_ENABLED:
             raise HTTPException(
@@ -2947,11 +3189,23 @@ async def get_ai_reading(
     events_json_norm = _normalize_json_for_cache(events_json)
     redact_cache_flag = normalize_vedic_tech_redact_flag()
 
+    product_cache_token = product_type_norm or "generic"
+    product_cache_fingerprint = ""
+    if product_type_norm == "life_cycle":
+        product_cache_fingerprint = _build_product_request_fingerprint(
+            product_type=product_type_norm,
+            onboarding_goal=onboarding_goal_norm,
+            focus_tokens=focus_tokens_norm,
+            concern_tokens=concern_tokens_norm,
+            occupation_context=occupation_context_norm,
+            relationship_status=relationship_status_norm,
+            subject_name=subject_name_norm,
+        )
     cache_key = (
         f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_"
         f"{language}_{gender}_{production_mode}_{events_json_norm}_{timezone_offset_resolved}_{analysis_mode_norm}_{detail_level_norm}_{llm_max_tokens_resolved}_"
         f"nodes{include_nodes_eff}_d9{include_d9_eff}_vargas{include_vargas_eff}_"
-        f"asof{as_of_bucket}_"
+        f"asof{as_of_bucket}_product{product_cache_token}_{product_cache_fingerprint}_"
         f"{AI_PROMPT_VERSION}_{READING_PIPELINE_VERSION}_{VEDIC_TECH_APPENDIX_VERSION}_{APPENDIX_CACHE_SCHEMA_VERSION}_redact{redact_cache_flag}"
     )
     request_settings = {
@@ -2970,6 +3224,39 @@ async def get_ai_reading(
         "as_of_utc": as_of_utc_iso,
         "as_of_bucket": as_of_bucket,
     }
+
+    if product_type_norm == "life_cycle":
+        return await _build_life_cycle_ai_reading_result(
+            request=request,
+            request_id_value=request_id_value,
+            endpoint_name=endpoint_name,
+            include_debug_payload=include_debug_payload,
+            include_audit_debug=include_audit_debug,
+            cache_key=cache_key,
+            use_cache=use_cache,
+            year=year,
+            month=month,
+            day=day,
+            hour=hour,
+            lat=lat,
+            lon=lon,
+            house_system=house_system,
+            include_nodes_eff=include_nodes_eff,
+            include_d9_eff=include_d9_eff,
+            include_vargas_eff=include_vargas_eff,
+            language=language,
+            gender=gender,
+            timezone_offset_resolved=timezone_offset_resolved,
+            as_of_utc=as_of_utc,
+            analysis_mode_norm=analysis_mode_norm,
+            detail_level_norm=detail_level_norm,
+            subject_name=subject_name_norm,
+            onboarding_goal=onboarding_goal_norm,
+            focus_tokens=focus_tokens_norm,
+            concern_tokens=concern_tokens_norm,
+            occupation_context=occupation_context_norm,
+            relationship_status=relationship_status_norm,
+        )
 
     async def _resolve_cached_appendix_context(cached_payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
         cached_ctx = _extract_cached_appendix_context(cached_payload)
@@ -3331,6 +3618,7 @@ async def get_ai_reading(
         polished_reading = load_polished_reading_from_cache(
             chapter_blocks_hash=chapter_blocks_hash,
             language=language,
+            product_type=product_type_norm or "generic",
         ) if use_cache else None
         selected_model = OPENAI_MODEL
         model_used = "cache/polished_reuse" if polished_reading else OPENAI_MODEL
@@ -3362,6 +3650,7 @@ async def get_ai_reading(
                     chapter_blocks_hash=chapter_blocks_hash,
                     language=language,
                     polished_reading=polished_reading,
+                    product_type=product_type_norm or "generic",
                 )
 
         deterministic_reading = _render_chapter_blocks_deterministic(chapter_blocks, language=language)
@@ -3573,6 +3862,13 @@ async def generate_pdf(
     as_of: Optional[str] = Query(None),
     analysis_mode: str = Query("standard"),
     detail_level: str = Query("full"),
+    product_type: Optional[str] = Query(None),
+    subject_name: Optional[str] = Query(None),
+    onboarding_goal: Optional[str] = Query(None),
+    focus_tokens: str = Query(""),
+    concern_tokens: str = Query(""),
+    occupation_context: Optional[str] = Query(None),
+    relationship_status: Optional[str] = Query(None),
     audit_debug: int = Query(0),
     ai_cache_key: str = Query(None),
     cache_only: int = Query(0)
@@ -3662,6 +3958,13 @@ async def generate_pdf(
                 as_of=as_of,
                 analysis_mode=analysis_mode_norm,
                 detail_level=detail_level_norm,
+                product_type=product_type,
+                subject_name=subject_name,
+                onboarding_goal=onboarding_goal,
+                focus_tokens=focus_tokens,
+                concern_tokens=concern_tokens,
+                occupation_context=occupation_context,
+                relationship_status=relationship_status,
                 llm_max_tokens=AI_MAX_TOKENS_PDF,
                 audit_debug=audit_debug,
                 audit_endpoint="/pdf",

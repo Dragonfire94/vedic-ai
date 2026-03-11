@@ -1,5 +1,12 @@
 # Backend API Notes
 
+## Runtime Source of Truth
+
+- Current shipped product-specific runtime contract is `GET /ai_reading?product_type=life_cycle` baseline `contract_version=v1.4.0` / `render_profile=life_cycle_lite_v1`.
+- Primary source of truth for that path is `PRD/PRODUCT_SPEC_PRD_v1_4_0.md`, `PRD/IMPLEMENTATION_CHECKLIST_v1_4_0.md`, and `PRD/release_evidence/v1_4_0/`.
+- If legacy generic docs and PRD differ, prefer the v1.4.0 baseline documents for `product_type=life_cycle`.
+- Omitting `product_type` still routes to the legacy generic `/ai_reading` behavior.
+
 ## Timezone Parameter Policy
 
 - `timezone` query/body parameter means **UTC offset hours (float)** only.
@@ -21,12 +28,13 @@ Transit timing rows (`transits.timing_map`) are interval-based:
 
 Only `month_*` keys are mapped into `timing_map`; non-month keys (for example `trend`) are excluded.
 
-## GET `/ai_reading` (v1.2.25 target public contract)
+## GET `/ai_reading` (current runtime baseline contract: v1.4.0)
 
 - Route shape remains query-string GET.
-- Existing chart/query inputs remain additive; `product_type` is an optional query parameter.
-- Allowed `product_type` values: `life_cycle`, `yearly_forecast`, `compatibility`.
-- v1.2.25 P0 productization target is `product_type=life_cycle`; `yearly_forecast` and `compatibility` remain bugfix-only until separately shipped.
+- Existing chart/query inputs remain additive.
+- `product_type` is optional. Current shipped product-specific path is `product_type=life_cycle`.
+- Normalizer accepts `life_cycle`, `yearly_forecast`, `compatibility`, but only `life_cycle` has a dedicated runtime contract today.
+- If `product_type` is omitted, runtime stays on the legacy generic path.
 - `life_cycle` personalization inputs:
   - `subject_name: string`
   - `onboarding_goal: career_money | relationship | condition | life_direction`
@@ -38,8 +46,25 @@ Only `month_*` keys are mapped into `timing_map`; non-month keys (for example `t
 - If `onboarding_goal` is omitted or invalid, the normalized fallback value is `life_direction` and that normalized value is written into response meta.
 - `life_cycle` response meta contract includes: `as_of_utc`, `as_of_local`, `timezone_offset`, `valid_until`, `valid_until_fallback`, `onboarding_goal`, `current_mahadasha_planet`, `next_mahadasha_date`, `product_type`, `contract_version`, `render_profile`.
 - `valid_until` and `next_mahadasha_date` serialize as local dates (`YYYY-MM-DD`); `next_mahadasha_date` may be `null`.
-- This section documents the v1.2.25 target public contract. Until productization lands in code, older runtimes may still return the legacy generic `/ai_reading` behavior.
-- Current runtime still uses the legacy query signature and generic cache isolation; treat this section as target-state documentation, not shipped runtime behavior.
+- Current baseline response also guarantees:
+  - top-level `product_type == "life_cycle"`
+  - non-empty `polished_reading`
+  - deterministic `reading` / `summary.structured_summary`
+  - product-aware `ai_cache_key` and polished cache namespace isolation
+- `life_cycle` polished markdown uses this exact H2 order:
+  - `cover/meta`
+  - `How to use 1p`
+  - `인생 구조 한 장 요약`
+  - `4단계 인생 구조`
+  - `현재 위치`
+  - `마하다샤 단계 목록`
+  - `방법론 카드`
+  - `valid_until 설명`
+  - `CTA-lite`
+  - `면책/윤리/데이터 보호`
+- P1-only target sections (`인생 고점/저점 지도`, `반복 패턴 분석`, `다음 3년 구체화`) are intentionally absent from the current baseline runtime.
+- `/pdf` forwards the same `product_type`, personalization inputs, and cache alignment into the internal `get_ai_reading()` call so render/finalize/cache policy stays product-aware.
+- Release review artifacts for the current baseline live under `PRD/release_evidence/v1_4_0/`.
 
 ## POST `/btr/analyze`
 
@@ -60,4 +85,3 @@ Router gate order:
 - when requested is `true` but env gate is off, the request is accepted but tuning is ignored (warning log is emitted)
 
 Only the effective `true` value stores model-tuning payloads to `data/tuning_inputs.log`.
-

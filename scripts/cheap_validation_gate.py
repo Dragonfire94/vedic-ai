@@ -60,7 +60,7 @@ from backend.front_contract_constants import (
     RULE_SEPARATOR,
 )
 from backend.report_engine import build_dasha_narrative_context, build_report_payload, build_semantic_signals
-from backend.vedic_lexicon import scan_timing_map_contract, scan_vedic_term_budget
+from backend.vedic_lexicon import YEAR_QUARTER_PATTERNS, scan_timing_map_contract, scan_vedic_term_budget
 
 
 OUT_DIR = Path("logs/cheap_validation_gate")
@@ -99,6 +99,43 @@ _FRONT_ASCII_ALPHA_RE = re.compile(r"[A-Za-z]+")
 _SYNTHETIC_ACTION_H2_RE = re.compile(r"(?mi)^\s*##\s+.*\bAction Steps\b\s*$")
 _DEFINITION_SHRINK_LINE = "(용어 설명은 상단 참조)"
 _INLINE_CHAIN_LEADING_PREFIX_RE = re.compile(r"^\s*(?:-\s+|•\s+|\d+\.\s+)")
+_LIFECYCLE_REQUIRED_H2 = [
+    "cover/meta",
+    "How to use 1p",
+    "인생 구조 한 장 요약",
+    "4단계 인생 구조",
+    "현재 위치",
+    "마하다샤 단계 목록",
+    "방법론 카드",
+    "valid_until 설명",
+    "CTA-lite",
+    "면책/윤리/데이터 보호",
+]
+_LIFECYCLE_FORBIDDEN_H2 = {
+    "인생 고점/저점 지도",
+    "반복 패턴 분석",
+    "다음 3년 구체화",
+}
+_LIFECYCLE_HF11_EXCLUDE_HEADERS = {
+    "cover/meta",
+    "How to use 1p",
+    "방법론 카드",
+    "valid_until 설명",
+    "CTA-lite",
+    "면책/윤리/데이터 보호",
+}
+_LIFECYCLE_ACTION_REQUIRED_HEADERS = {
+    "How to use 1p",
+    "valid_until 설명",
+    "CTA-lite",
+}
+_LIFECYCLE_ACTION_LINE_RE = re.compile(r"(?m)^\s*(?:오늘의 행동|행동|Action)\s*:")
+_LIFECYCLE_BULLET_LINE_RE = re.compile(r"(?m)^\s*-\s+.+$")
+_LIFECYCLE_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]{2,}")
+_LIFECYCLE_SECONDARY_CONTROL_RE = re.compile(r"(동의 버튼|동의\b|checkbox|check box|consent|체크박스|secondary control)", re.IGNORECASE)
+_LIFECYCLE_EMPATHY_RE = re.compile(r"(지금|요즘|흐름|흔들|망설|버겁|불안|막막|정리)")
+_LIFECYCLE_BUTTON_LABEL_RE = re.compile(r"(?m)^\s*버튼\s*:\s*(.+)$")
+_FORBIDDEN_YEAR_QUARTER_PATTERN_KEYS = {pattern.pattern for pattern in YEAR_QUARTER_PATTERNS}
 
 
 def _normalize_chapter_key_for_match(value: str) -> str:
@@ -298,6 +335,124 @@ def _compute_action_steps_contract_metrics(text: str) -> dict[str, int | bool]:
         "action_steps_actionable_bullets": int(actionable_action_step_bullets),
         "action_steps_actionable_ratio": float(actionable_ratio),
     }
+
+
+def _split_h2_sections_ordered(text: str) -> list[tuple[str, str]]:
+    normalized = str(text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    matches = list(_H2_HEADING_RE.finditer(normalized))
+    if not matches:
+        return []
+    out: list[tuple[str, str]] = []
+    for idx, match in enumerate(matches):
+        key = str(match.group(1) or match.group(2) or "").strip()
+        if not key:
+            continue
+        start = match.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(normalized)
+        out.append((key, normalized[start:end].strip()))
+    return out
+
+def _extract_lifecycle_overlap_tokens(text: str) -> set[str]:
+    tokens = {token.strip().lower() for token in _LIFECYCLE_TOKEN_RE.findall(str(text or "")) if token and len(token.strip()) >= 2}
+    return {token for token in tokens if token not in {"today", "action", "valid", "until"}}
+
+
+def _has_lifecycle_action_line(body: str) -> bool:
+    return _LIFECYCLE_ACTION_LINE_RE.search(str(body or "")) is not None
+
+
+def _compute_life_cycle_lite_release_metrics(text: str, *, subject_name: str | None = None, valid_until_fallback: bool | None = None) -> dict[str, Any]:
+    sections = _split_h2_sections_ordered(text)
+    headers = [header for header, _body in sections]
+    header_counts: dict[str, int] = {}
+    for header in headers:
+        header_counts[header] = header_counts.get(header, 0) + 1
+
+    missing_headers = [header for header in _LIFECYCLE_REQUIRED_H2 if header_counts.get(header, 0) == 0]
+    duplicate_headers = [header for header in _LIFECYCLE_REQUIRED_H2 if header_counts.get(header, 0) > 1]
+    unexpected_headers = [header for header in headers if header not in _LIFECYCLE_REQUIRED_H2]
+    forbidden_headers_present = [header for header in headers if header in _LIFECYCLE_FORBIDDEN_H2]
+    exact_order_ok = headers == _LIFECYCLE_REQUIRED_H2
+    front_contract_ok = not missing_headers and not duplicate_headers and not unexpected_headers and not forbidden_headers_present and exact_order_ok
+
+    section_map = {header: body for header, body in sections}
+    how_to_use = section_map.get("How to use 1p", "")
+    valid_until_body = section_map.get("valid_until 설명", "")
+    cta_body = section_map.get("CTA-lite", "")
+    summary_body = section_map.get("인생 구조 한 장 요약", "")
+
+    how_to_use_bullets = _LIFECYCLE_BULLET_LINE_RE.findall(how_to_use)
+    how_to_use_ok = len(how_to_use_bullets) >= 5 and "복구 플랜" in how_to_use and _has_lifecycle_action_line(how_to_use)
+    valid_until_action_lines = len(_LIFECYCLE_ACTION_LINE_RE.findall(valid_until_body))
+    valid_until_ok = valid_until_action_lines >= 1
+    cta_action_lines = len(_LIFECYCLE_ACTION_LINE_RE.findall(cta_body))
+    cta_secondary_controls = len(_LIFECYCLE_SECONDARY_CONTROL_RE.findall(cta_body))
+    cta_button_labels = [str(match.group(1) or "").strip() for match in _LIFECYCLE_BUTTON_LABEL_RE.finditer(cta_body)]
+    cta_button_too_long = any(len(label) > 20 for label in cta_button_labels)
+    cta_ok = cta_action_lines == 1 and cta_secondary_controls == 0 and not cta_button_too_long
+
+    hf12_ok = how_to_use_ok and valid_until_ok and cta_ok
+    hf14_overlap = sorted(_extract_lifecycle_overlap_tokens(valid_until_body) & _extract_lifecycle_overlap_tokens(cta_body))
+    hf14_ok = exact_order_ok and len(hf14_overlap) > 0
+
+    narrative_body = ""
+    narrative_header = None
+    for header, body in sections:
+        if header in _LIFECYCLE_HF11_EXCLUDE_HEADERS:
+            continue
+        narrative_header = header
+        narrative_body = body
+        break
+    subject_name_norm = str(subject_name or "").strip()
+    hf11_ok = bool(narrative_header and narrative_body and (_LIFECYCLE_EMPATHY_RE.search(narrative_body) or (subject_name_norm and subject_name_norm in narrative_body)))
+
+    if not subject_name_norm or subject_name_norm == "당신":
+        hf16_ok = True
+        hf16_skipped = True
+    else:
+        hf16_ok = subject_name_norm in summary_body
+        hf16_skipped = False
+
+    action_steps_contract_ok = front_contract_ok and hf12_ok and hf14_ok
+    release_ok = front_contract_ok and action_steps_contract_ok and hf11_ok and hf12_ok and hf14_ok and hf16_ok
+
+    return {
+        "release_mode": "life_cycle_lite",
+        "front_contract_ok": bool(front_contract_ok),
+        "front_contract_detail": {
+            "required_headers": list(_LIFECYCLE_REQUIRED_H2),
+            "headers": headers,
+            "missing_headers": missing_headers,
+            "duplicate_headers": duplicate_headers,
+            "unexpected_headers": unexpected_headers,
+            "forbidden_headers_present": forbidden_headers_present,
+            "exact_order_ok": bool(exact_order_ok),
+        },
+        "action_steps_contract_ok": bool(action_steps_contract_ok),
+        "action_steps_block_count_violations": int(0 if how_to_use_ok and valid_until_ok and cta_ok else 1),
+        "life_cycle_how_to_use_ok": bool(how_to_use_ok),
+        "life_cycle_valid_until_ok": bool(valid_until_ok),
+        "life_cycle_cta_ok": bool(cta_ok),
+        "life_cycle_hf11_ok": bool(hf11_ok),
+        "life_cycle_hf11_target_header": narrative_header,
+        "life_cycle_hf12_ok": bool(hf12_ok),
+        "life_cycle_hf14_ok": bool(hf14_ok),
+        "life_cycle_hf14_overlap_tokens": hf14_overlap[:20],
+        "life_cycle_hf16_ok": bool(hf16_ok),
+        "life_cycle_hf16_skipped": bool(hf16_skipped),
+        "life_cycle_release_ok": bool(release_ok),
+        "valid_until_fallback": valid_until_fallback if isinstance(valid_until_fallback, bool) else None,
+    }
+
+
+def _filter_forbidden_hits_for_release_mode(findings: list[dict[str, str]], release_mode: str | None) -> list[dict[str, str]]:
+    if str(release_mode or "").strip() != "life_cycle_lite":
+        return findings
+    return [
+        hit
+        for hit in findings
+        if str(hit.get("pattern") or "") not in _FORBIDDEN_YEAR_QUARTER_PATTERN_KEYS
+    ]
 
 
 def _compute_inline_action_chain_violations(text: str) -> int:
@@ -747,15 +902,21 @@ def _dry_structure_check(chapter_blocks: dict[str, Any], *, strict_vedic: bool =
     normalized = normalize_llm_layout_strict(deterministic)
     remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
     style_errors = _reading_style_error_codes(remediated)
-    forbidden_hits = scan_forbidden_patterns(
-        remediated,
-        allow_year_quarter_in_timing_map=bool(strict_vedic),
+    forbidden_hits = _filter_forbidden_hits_for_release_mode(
+        scan_forbidden_patterns(
+            remediated,
+            allow_year_quarter_in_timing_map=bool(strict_vedic),
+        ),
+        release_mode_norm,
     )
     vedic_scan = scan_vedic_term_budget(remediated) if strict_vedic else None
     timing_map_contract = scan_timing_map_contract(remediated) if strict_vedic else None
 
     density_metrics = _compute_body_paragraph_density_metrics(remediated)
     warn_only = {"label_pattern_detected", "paragraph_too_long", "warn_paragraph_density_low"}
+    if release_mode_norm == "life_cycle_lite":
+        warn_only = set(warn_only)
+        warn_only.update({"paragraph_density_low", "paragraph_too_long"})
     hard_style_errors = [e for e in style_errors if e not in warn_only]
     warn_style_errors = [e for e in style_errors if e in warn_only]
 
@@ -769,6 +930,7 @@ def _dry_structure_check(chapter_blocks: dict[str, Any], *, strict_vedic: bool =
         "vedic_violation": _strict_vedic_violations(vedic_scan) if strict_vedic else None,
         "timing_map_contract": timing_map_contract,
         "paragraph_density_metrics": density_metrics,
+        **life_cycle_release_metrics,
     }
 
 
@@ -916,6 +1078,28 @@ def _run_single_true_path(
     front_playbook_slot_contract_ok_count = int(front_contract.get("slot_ok_count", 0))
     front_byte_equal_after_b_pass = bool(scored_surface_metrics.get("front_byte_equal_after_b_pass", True))
     front_end_offset_stable = bool(scored_surface_metrics.get("front_end_offset_stable", True))
+    meta = data.get("meta") if isinstance(data.get("meta"), dict) else {}
+    summary_payload = data.get("summary") if isinstance(data.get("summary"), dict) else {}
+    structured_summary_payload = summary_payload.get("structured_summary") if isinstance(summary_payload.get("structured_summary"), dict) else {}
+    release_mode = None
+    life_cycle_release_metrics: dict[str, Any] = {}
+    if str(data.get("product_type") or meta.get("product_type") or "").strip().lower() == "life_cycle" or str(meta.get("render_profile") or "").strip() == "life_cycle_lite_v1":
+        release_mode = "life_cycle_lite"
+        life_cycle_release_metrics = _compute_life_cycle_lite_release_metrics(
+            scored_surface_text,
+            subject_name=str(structured_summary_payload.get("subject_name") or "").strip() or None,
+            valid_until_fallback=meta.get("valid_until_fallback") if isinstance(meta.get("valid_until_fallback"), bool) else None,
+        )
+        front_contract = life_cycle_release_metrics.get("front_contract_detail", {})
+        action_steps_metrics["action_steps_contract_ok"] = bool(life_cycle_release_metrics.get("action_steps_contract_ok", False))
+        action_steps_metrics["action_steps_block_count_violations"] = int(life_cycle_release_metrics.get("action_steps_block_count_violations", 0))
+    forbidden_findings = _filter_forbidden_hits_for_release_mode(
+        scan_forbidden_patterns(
+            scored_surface_text,
+            allow_year_quarter_in_timing_map=bool(strict_vedic),
+        ),
+        release_mode or "generic",
+    )
     vedic_scan = scan_vedic_term_budget(scored_surface_text) if strict_vedic else None
     timing_map_contract = scan_timing_map_contract(scored_surface_text) if strict_vedic else None
     density_metrics = _compute_body_paragraph_density_metrics(scored_surface_text)
@@ -1009,17 +1193,13 @@ def _run_single_true_path(
         "scored_surface_name": scored_surface_name,
         "reading_length": len(scored_surface_text),
         "heading_count": scored_surface_text.count("\n## ") + (1 if scored_surface_text.startswith("## ") else 0),
-        "forbidden_hits": len(
-            scan_forbidden_patterns(
-                scored_surface_text,
-                allow_year_quarter_in_timing_map=bool(strict_vedic),
-            )
-        ),
+        "forbidden_hits": len(forbidden_findings),
         "actionable_bullet_coverage": actionable_bullet_coverage,
         "conversion_metrics": conversion_metrics,
         "front_english_token_hits": front_english_token_hits,
         "front_markdown_integrity": front_markdown_integrity,
-        "front_contract_ok": bool(front_contract.get("ok")),
+        "release_mode": release_mode or "generic",
+        "front_contract_ok": bool(life_cycle_release_metrics.get("front_contract_ok")) if release_mode == "life_cycle_lite" else bool(front_contract.get("ok")),
         "front_contract_detail": front_contract,
         "front_contract_fallback_applied": bool(front_contract_fallback_applied),
         "front_playbook_repaired": front_playbook_repaired,
@@ -1029,6 +1209,7 @@ def _run_single_true_path(
         "front_byte_equal_after_b_pass": bool(front_byte_equal_after_b_pass),
         "front_end_offset_stable": bool(front_end_offset_stable),
         **action_steps_metrics,
+        **life_cycle_release_metrics,
         "inline_action_chain_violations": int(inline_action_chain_violations),
         **structure_definition_metrics,
         **quality_metrics,
@@ -1147,24 +1328,26 @@ async def run_cheap_validation(
             return 1
         if int(truepath.get("forbidden_hits", 0)) > 0:
             return 1
+        if str(truepath.get("release_mode") or "") == "life_cycle_lite" and not bool(truepath.get("life_cycle_release_ok", False)):
+            return 1
         if strict_vedic and _strict_vedic_failed(truepath.get("vedic_scan"), truepath.get("timing_map_contract")):
             _log_strict_vedic_fail("truepath", truepath.get("vedic_scan"), truepath.get("timing_map_contract"))
             return 1
     return 0
 
 
-def run_strict_vedic_scan(path: str, strict_vedic: bool) -> int:
+def run_strict_vedic_scan(path: str, strict_vedic: bool, release_mode: str = "generic", subject_name: str = "") -> int:
     input_path = Path(path)
     if not input_path.exists() or not input_path.is_file():
         logger.error("input file not found: %s", input_path)
         return 1
 
     raw_text = input_path.read_text(encoding="utf-8")
-    normalized = normalize_llm_layout_strict(raw_text)
-    remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
-    remediated = postprocess_commercial_quality(remediated)
-    chapters_text_for_quality, chapters_boundary_fallback_used = _extract_chapters_text_for_quality(remediated)
-    if chapters_boundary_fallback_used:
+    release_mode_norm = str(release_mode or "").strip()
+    if release_mode_norm == "life_cycle_lite":
+        normalized = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
+        remediated = normalized
+        chapters_boundary_fallback_used = False
         quality_metrics: dict[str, int | bool] = {
             "action_steps_inline_heading_repairs": 0,
             "action_boundary_window_extended_count": 0,
@@ -1185,23 +1368,63 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool) -> int:
             "commercial_quality_metrics_valid": False,
         }
     else:
-        _quality_text, quality_metrics = postprocess_commercial_quality_with_metrics(chapters_text_for_quality)
+        normalized = normalize_llm_layout_strict(raw_text)
+        remediated = _apply_style_remediation(normalized, allow_zero_term_injection=False)
+        remediated = postprocess_commercial_quality(remediated)
+        chapters_text_for_quality, chapters_boundary_fallback_used = _extract_chapters_text_for_quality(remediated)
+        if chapters_boundary_fallback_used:
+            quality_metrics = {
+                "action_steps_inline_heading_repairs": 0,
+                "action_boundary_window_extended_count": 0,
+                "action_steps_contaminated_line_repairs": 0,
+                "action_steps_tail_move_count": 0,
+                "action_steps_tail_move_dedup_skips": 0,
+                "inline_action_chain_migrations": 0,
+                "inline_execution_lines_moved": 0,
+                "inline_action_chain_overflow_summaries": 0,
+                "action_steps_non_actionable_rewrites": 0,
+                "action_steps_duplicate_replacements": 0,
+                "definition_dasha_occurrences_after": 0,
+                "definition_nested_phrase_violations_after": 0,
+                "dasha_definition_nested_pattern_repairs": 0,
+                "dasha_definition_redundancy_repairs": 0,
+                "one_page_summary_dedup_repairs": 0,
+                "dasha_insert_retry_blocked": False,
+                "commercial_quality_metrics_valid": False,
+            }
+        else:
+            _quality_text, quality_metrics = postprocess_commercial_quality_with_metrics(chapters_text_for_quality)
     actionable_bullet_coverage = _compute_actionable_bullet_coverage(remediated)
     duplicate_metrics = _compute_exact_duplicate_metrics(remediated)
     style_errors = _reading_style_error_codes(remediated)
-    forbidden_hits = scan_forbidden_patterns(
-        remediated,
-        allow_year_quarter_in_timing_map=bool(strict_vedic),
+    forbidden_hits = _filter_forbidden_hits_for_release_mode(
+        scan_forbidden_patterns(
+            remediated,
+            allow_year_quarter_in_timing_map=bool(strict_vedic),
+        ),
+        release_mode_norm,
     )
     vedic_scan = scan_vedic_term_budget(remediated) if strict_vedic else None
     timing_map_contract = scan_timing_map_contract(remediated) if strict_vedic else None
 
     density_metrics = _compute_body_paragraph_density_metrics(remediated)
     warn_only = {"label_pattern_detected", "paragraph_too_long", "warn_paragraph_density_low"}
+    if release_mode_norm == "life_cycle_lite":
+        warn_only = set(warn_only)
+        warn_only.update({"paragraph_density_low", "paragraph_too_long"})
     hard_style_errors = [e for e in style_errors if e not in warn_only]
+    life_cycle_release_metrics: dict[str, Any] = {}
+    if release_mode_norm == "life_cycle_lite":
+        life_cycle_release_metrics = _compute_life_cycle_lite_release_metrics(
+            remediated,
+            subject_name=str(subject_name or "").strip() or None,
+            valid_until_fallback=None,
+        )
+
     payload = {
         "input_path": str(input_path),
         "strict_vedic": bool(strict_vedic),
+        "release_mode": release_mode_norm or "generic",
         "text_length": len(remediated),
         "hard_style_errors": hard_style_errors,
         "warn_style_errors": [e for e in style_errors if e in warn_only],
@@ -1215,6 +1438,7 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool) -> int:
         "vedic_violation": _strict_vedic_violations(vedic_scan) if strict_vedic else None,
         "timing_map_contract": timing_map_contract,
         "paragraph_density_metrics": density_metrics,
+        **life_cycle_release_metrics,
     }
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -1234,6 +1458,8 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool) -> int:
     )
 
     if len(forbidden_hits) > 0 or len(hard_style_errors) > 0:
+        return 1
+    if release_mode_norm == "life_cycle_lite" and not bool(payload.get("life_cycle_release_ok", False)):
         return 1
     if strict_vedic and _strict_vedic_failed(vedic_scan, timing_map_contract):
         _log_strict_vedic_fail("input", vedic_scan, timing_map_contract)
@@ -1288,9 +1514,27 @@ if __name__ == "__main__":
         default="",
         help="Direct markdown/text path for synchronous strict scan. Bypasses profile pipeline.",
     )
+    parser.add_argument(
+        "--release-mode",
+        default="generic",
+        choices=["generic", "life_cycle_lite"],
+        help="Optional product-specific release semantics for direct input scans.",
+    )
+    parser.add_argument(
+        "--subject-name",
+        default="",
+        help="Optional subject name used by life_cycle_lite HF16 checks.",
+    )
     args = parser.parse_args()
     if isinstance(args.input, str) and args.input.strip():
-        raise SystemExit(run_strict_vedic_scan(path=args.input.strip(), strict_vedic=bool(args.strict_vedic)))
+        raise SystemExit(
+            run_strict_vedic_scan(
+                path=args.input.strip(),
+                strict_vedic=bool(args.strict_vedic),
+                release_mode=str(args.release_mode or "generic"),
+                subject_name=str(args.subject_name or ""),
+            )
+        )
     raise SystemExit(
         asyncio.run(
             run_cheap_validation(

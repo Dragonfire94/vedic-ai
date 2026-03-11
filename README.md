@@ -98,7 +98,7 @@
 4. OpenAI API(비동기 클라이언트)
 5. ReportLab 기반 PDF 생성
 
-주요 의존성은 [requirements.txt](C:/dev/vedic-ai/backend/requirements.txt) 참고.
+주요 의존성은 [requirements.txt](backend/requirements.txt) 참고.
 
 ### Frontend
 
@@ -108,7 +108,7 @@
 4. Zustand 상태관리
 5. Playwright E2E 테스트
 
-주요 의존성/스크립트는 [frontend/package.json](C:/dev/vedic-ai/frontend/package.json) 참고.
+주요 의존성/스크립트는 [frontend/package.json](frontend/package.json) 참고.
 
 ---
 
@@ -251,6 +251,8 @@ npm run dev
 
 ## 7. API 요약
 
+현재 `product_type=life_cycle` baseline runtime source of truth는 `PRD/PRODUCT_SPEC_PRD_v1_4_0.md`, `backend/API.md`, `backend/QUALITY_GATES.md`입니다.
+
 ### 시간 기준(as_of)
 
 - `/ai_reading`, `/pdf`, `/chart`는 `as_of`(optional) 파라미터를 받습니다.
@@ -258,7 +260,7 @@ npm run dev
 - 응답 메타(`vedic_technical_data.meta`)에 `as_of_utc`, `as_of_bucket`을 포함하여 재현성을 확보합니다.
 - `as_of_bucket` 정책은 **월 버킷 `m_YYYY-MM` 단일**입니다.
 
-주요 라우트는 [main.py](C:/dev/vedic-ai/backend/main.py)에 정의되어 있습니다.
+주요 라우트는 `backend/main.py`에 정의되어 있습니다.
 
 ### 진단/차트
 
@@ -277,9 +279,14 @@ npm run dev
    - 기본 언어 `ko`
    - `detail_level`은 현재 `full`만 허용
    - `use_cache`로 응답 캐시 사용 가능
+   - `product_type=life_cycle`를 주면 baseline product path로 진입
+   - 추가 personalization 입력: `subject_name`, `onboarding_goal`, `focus_tokens`, `concern_tokens`, `occupation_context`, `relationship_status`
+   - `focus_tokens`, `concern_tokens`는 CSV query string으로 전달
+   - `life_cycle` meta에는 `valid_until`, `valid_until_fallback`, `current_mahadasha_planet`, `next_mahadasha_date`, `contract_version=v1.4.0`, `render_profile=life_cycle_lite_v1`가 포함
 2. `GET /pdf`
    - 차트 + 내러티브를 PDF로 생성
    - `include_ai=1`이면 `/ai_reading` 결과를 포함
+   - `product_type=life_cycle`와 personalization 입력을 내부 `get_ai_reading()` 호출에 그대로 전달
    - 기본값에서 `PDF_DISABLED=1`이므로 운영 전 활성화 필요
 
 ### BTR
@@ -295,6 +302,7 @@ npm run dev
 4. `POST /btr/admin/recalculate-weights`
    - 관리자용 경험적 가중치 재계산 엔드포인트
 
+
 ---
 
 ## 8. 리포트 생성 파이프라인
@@ -307,6 +315,7 @@ npm run dev
 4. LLM이 블록을 읽어 가독성 개선 텍스트 생성
 5. 후처리(톤 정규화/레이아웃 정리/스타일 점검)
 6. 응답 캐시 저장
+7. `product_type=life_cycle`면 generic finalizer/front 경로를 우회하고 baseline renderer + product-aware cache/meta contract를 사용
 
 중요한 설계 원칙:
 
@@ -334,38 +343,52 @@ npm run dev
 
 ## 10. 품질 게이트와 테스트
 
-품질 정책 문서: [QUALITY_GATES.md](C:/dev/vedic-ai/backend/QUALITY_GATES.md)
+품질 정책 문서: [backend/QUALITY_GATES.md](backend/QUALITY_GATES.md)
 
-### PR 게이트(필수)
+### 현재 baseline release gate (`product_type=life_cycle`)
+
+```powershell
+python -m pytest backend/test_life_cycle_gate_metrics.py backend/test_cheap_validation_gate_metrics.py backend/test_life_cycle_helpers.py backend/test_life_cycle_lite_renderer.py backend/test_life_cycle_route_contract.py backend/test_llm_token_limits.py backend/test_vedic_technical_appendix.py -q -p no:cacheprovider
+```
+
+검토 필수 증적:
+
+1. `PRD/release_evidence/v1_4_0/life_cycle_lite_manual_qa.md`
+2. `PRD/release_evidence/v1_4_0/life_cycle_lite_sample_response.json`
+3. `PRD/release_evidence/v1_4_0/life_cycle_lite_gate_summary.json`
+4. `PRD/release_evidence/v1_4_0/life_cycle_lite_release_manifest.json`
+
+### legacy generic 유지 게이트
 
 ```powershell
 python -m backend.golden_sample_runner --mode structural
 python -m backend.fast_llm_gate --samples 2 --profile-mode extremes
 ```
 
-### Nightly/Release 게이트(필수)
+필요 시 generic Nightly/Release에서는 아래를 추가합니다.
 
 ```powershell
-python -m pytest backend\test_pdf_output_scanner.py -q
+python -m pytest backend/test_pdf_output_scanner.py -q
 python -m backend.golden_sample_runner --mode full
 ```
 
 ### 기타 검증 스크립트
 
 1. 저비용 게이트: `scripts/cheap_validation_gate.py`
+   - direct input mode에서 `--release-mode life_cycle_lite --subject-name <name>` 지원
 2. 샘플 런: `scripts/tmp_phase11_run7.py`
 3. 한글 깨짐 점검: `scripts/check_no_mojibake.py`
 
 ### 상업 본문 품질 게이트(저비용)
 
-`scripts/cheap_validation_gate.py`는 상업 리포트 품질 계약의 관측 지표를 출력합니다(하드 실패 승격 없이 추적).
+`scripts/cheap_validation_gate.py`는 상업 리포트 품질 계약을 계산합니다. `life_cycle_lite` release mode에서는 baseline 섹션 집합/행동 계약/공감/CTA/name exposure를 hard-fail로 판정합니다.
 
-예: Action Steps/헤더/정의 중복/FRONT 계약
-- `action_steps_contract_ok`
-- `header_structure_violations`
-- `definition_dedup_removed_count`, `definition_dedup_shrink_count`
+예: baseline gate 핵심 필드
+- `life_cycle_release_ok`
 - `front_contract_ok`
-- `core_action_chapter_match_miss_count`
+- `action_steps_contract_ok`
+- `life_cycle_hf11_ok`, `life_cycle_hf12_ok`, `life_cycle_hf14_ok`, `life_cycle_hf16_ok`
+- `hard_fail_count`
 
 
 ---
@@ -381,6 +404,8 @@ python -m backend.golden_sample_runner --mode full
    - `ai_reading_response.json`: 모델/해시/구조요약/디버그 포함 원본 응답
 2. `logs/golden_samples_fast_gate/`
    - fast gate 요약 지표
+3. `PRD/release_evidence/v1_4_0/`
+   - `life_cycle` baseline reviewer artifacts 4종
 
 Technical appendix 메타 해석 규칙:
 
@@ -547,9 +572,9 @@ python scripts/validate_vedic_audit_result.py `
 ## 15. 참고 문서
 
 1. [Birth_Time_Rectification_Full_Spec.TXT](C:/dev/vedic-ai/Birth_Time_Rectification_Full_Spec.TXT)
-2. [backend/API.md](C:/dev/vedic-ai/backend/API.md)
-3. [backend/QUALITY_GATES.md](C:/dev/vedic-ai/backend/QUALITY_GATES.md)
-4. [backend/LOAD_TESTING.md](C:/dev/vedic-ai/backend/LOAD_TESTING.md)
+2. [backend/API.md](backend/API.md)
+3. [backend/QUALITY_GATES.md](backend/QUALITY_GATES.md)
+4. [backend/LOAD_TESTING.md](backend/LOAD_TESTING.md)
 
 ---
 
