@@ -1,0 +1,16 @@
+{
+  "generated_at_kst": "2026-03-11T17:02:50+09:00",
+  "contract_version": "v1.4.0",
+  "release_evidence_dir": "PRD/release_evidence/v1_4_0",
+  "render_profile": "life_cycle_lite_v1",
+  "request_fingerprint": "490a7a73f1cd2658",
+  "evidence_case_id": "life_cycle_lite_baseline_primary",
+  "commit_sha": "99b73d9cec19fe0d20f1545c2fa21b5b117f30ef",
+  "dirty_worktree": false,
+  "manual_qa_path": "PRD/release_evidence/v1_4_0/life_cycle_lite_manual_qa.md",
+  "sample_response_path": "PRD/release_evidence/v1_4_0/life_cycle_lite_sample_response.json",
+  "gate_summary_path": "PRD/release_evidence/v1_4_0/life_cycle_lite_gate_summary.json",
+  "manual_qa_sha256": "4c597523aa5c2dbbf9c78d7271e9df840dbea4c736ffde0ed582ca7e4199a0f7",
+  "sample_response_sha256": "9440cbb9667243bb26fc240a3c38ee7660df47f4ac795575883cb75c915c82dc",
+  "gate_summary_sha256": "6a5f81851f3c34bbbf3aafe014610c6b17021afd04a7a8a045c8c5ad84f1fbae"
+}
