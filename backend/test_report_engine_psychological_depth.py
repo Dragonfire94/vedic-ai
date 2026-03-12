@@ -33,7 +33,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
             },
             {
                 "id": "high_pressure_identity_fragmentation",
-                "chapter": "Core Disposition",
+                "chapter": "Emotional Fault Lines",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 95,
@@ -52,14 +52,14 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 },
             },
             {
-                "id": "high_pressure_identity_fragmentation",
+                "id": "deep_payload_block",
                 "chapter": "Final Integration",
                 "conditions": [{"field": "flags.never", "operator": "==", "value": True}],
                 "logic": "AND",
                 "priority": 80,
                 "chain_followups": [],
                 "content": {
-                    "title": "HPIF Summary",
+                    "title": "Deep Summary",
                     "summary": "summary",
                     "analysis": "analysis",
                     "implication": "implication",
@@ -188,7 +188,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 40},
             }
         )
-        ids = [block["id"] for block in selected["Core Disposition"]]
+        ids = [block["id"] for block in selected["Emotional Fault Lines"]]
         self.assertIn("high_pressure_identity_fragmentation", ids)
 
     def test_recursive_correction_injection(self):
@@ -204,12 +204,11 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
     def test_psychological_echo(self):
         selected = report_engine.select_template_blocks(
             {
-                "psychological_tension_axis": {"score": 90},
-                "stability_metrics": {"stability_index": 30},
+                "flags": {"deep": True},
             }
         )
         final_ids = [block["id"] for block in selected["Final Integration"]]
-        self.assertIn("high_pressure_identity_fragmentation", final_ids)
+        self.assertIn("deep_payload_block", final_ids)
 
     def test_no_duplicate_injection(self):
         selected = report_engine.select_template_blocks(
@@ -218,7 +217,7 @@ class TestReportEnginePsychologicalDepth(unittest.TestCase):
                 "stability_metrics": {"stability_index": 25},
             }
         )
-        psych_ids = [block["id"] for block in selected["Core Disposition"]]
+        psych_ids = [block["id"] for block in selected["Emotional Fault Lines"]]
         self.assertEqual(psych_ids.count("high_pressure_identity_fragmentation"), 1)
 
         payload = report_engine.build_report_payload({"flags": {"cap": True}})

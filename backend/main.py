@@ -49,6 +49,7 @@ from backend.report_engine import (
     build_semantic_signals,
     SYSTEM_PROMPT as REPORT_SYSTEM_PROMPT,
     _get_atomic_chart_interpretations,
+    REPORT_CHAPTERS,
 )
 from backend.life_cycle_helpers import (
     build_life_cycle_payload,
@@ -58,6 +59,7 @@ from backend.life_cycle_helpers import (
     resolve_subject_name,
 )
 from backend.life_cycle_lite_renderer import render_life_cycle_lite_markdown
+from backend.life_cycle_target_renderer import render_life_cycle_target_markdown
 from backend.report_pipeline import (
     _active_chapter_order_for_style,
     _apply_recommendation_tone_normalization,
@@ -113,6 +115,7 @@ import pytz
 from timezonefinder import TimezoneFinder
 
 from fastapi import FastAPI, Query, Response, HTTPException, Body, Request, Header
+from fastapi.params import Param
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, model_validator
 
@@ -158,8 +161,13 @@ AI_PROMPT_VERSION = "ko_only_v2"
 APPENDIX_CACHE_SCHEMA_VERSION = "v3"
 LIFE_CYCLE_CONTRACT_VERSION = "v1.4.0"
 LIFE_CYCLE_RENDER_PROFILE = "life_cycle_lite_v1"
+LIFE_CYCLE_TARGET_RENDER_PROFILE = "life_cycle_target_v1"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
+LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT = 7000
+LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MIN = 6000
+LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MAX = 8000
+LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP = 9000
 AI_MAX_TOKENS_AI_READING = 18000
 AI_MAX_TOKENS_PDF = 8000
 AI_MAX_TOKENS_HARD_LIMIT = 22000
@@ -324,6 +332,45 @@ def _resolve_llm_max_tokens(raw_value: Any, default_value: int) -> int:
             detail=f"llm_max_tokens must be <= {AI_MAX_TOKENS_HARD_LIMIT}",
         )
     return tokens
+
+
+def _unwrap_fastapi_param_default(raw_value: Any) -> Any:
+    if isinstance(raw_value, Param):
+        default_value = raw_value.default
+        if default_value is Ellipsis:
+            return None
+        return default_value
+    return raw_value
+
+
+def _query_param_was_supplied(request: Request, key: str) -> bool:
+    try:
+        return key in request.query_params
+    except Exception:
+        return False
+
+
+def _resolve_life_cycle_llm_max_tokens(raw_value: Any, default_value: int) -> int:
+    try:
+        tokens = int(raw_value)
+    except (TypeError, ValueError):
+        tokens = int(default_value)
+    if tokens <= 0:
+        tokens = int(default_value)
+    if tokens > LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"llm_max_tokens must be <= {LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP} for product_type=life_cycle",
+        )
+    return tokens
+
+
+def _resolve_product_llm_max_tokens(*, request: Request, product_type: Optional[str], raw_value: Any) -> int:
+    if product_type == "life_cycle":
+        if not _query_param_was_supplied(request, "llm_max_tokens"):
+            return LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT
+        return _resolve_life_cycle_llm_max_tokens(raw_value, LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT)
+    return _resolve_llm_max_tokens(raw_value, AI_MAX_TOKENS_AI_READING)
 
 
 def _build_openai_payload(
@@ -1115,6 +1162,13 @@ def _is_low_quality_reading(text: str) -> bool:
     return False
 
 from backend import pdf_service
+
+PDF_FEATURE_AVAILABLE = pdf_service.PDF_FEATURE_AVAILABLE
+PDF_FEATURE_ERROR = pdf_service.PDF_FEATURE_ERROR
+SouthIndianChart = pdf_service.SouthIndianChart
+parse_markdown_to_flowables = pdf_service.parse_markdown_to_flowables
+render_report_payload_to_pdf = pdf_service.render_report_payload_to_pdf
+create_pdf_styles = pdf_service.create_pdf_styles
 from backend.pdf_service import init_fonts
 
 init_fonts()
@@ -2632,7 +2686,7 @@ def _build_product_request_fingerprint(*, product_type: str, onboarding_goal: st
     )[:16]
 
 
-def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hours: float, onboarding_goal: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hours: float, onboarding_goal: str, payload: dict[str, Any], render_profile: str) -> dict[str, Any]:
     return {
         "as_of_utc": as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "as_of_local": payload.get("as_of_local_iso"),
@@ -2644,8 +2698,16 @@ def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hour
         "next_mahadasha_date": payload.get("next_mahadasha_date"),
         "product_type": "life_cycle",
         "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
-        "render_profile": LIFE_CYCLE_RENDER_PROFILE,
+        "render_profile": render_profile,
     }
+
+
+def _render_life_cycle_markdown(payload: dict[str, Any], *, report_stage: str) -> tuple[str, str]:
+    if report_stage == "baseline":
+        return render_life_cycle_lite_markdown(payload), LIFE_CYCLE_RENDER_PROFILE
+    if report_stage == "target":
+        return render_life_cycle_target_markdown(payload), LIFE_CYCLE_TARGET_RENDER_PROFILE
+    raise ValueError(f"unsupported life_cycle report_stage: {report_stage}")
 
 
 async def _build_life_cycle_ai_reading_result(
@@ -2679,6 +2741,7 @@ async def _build_life_cycle_ai_reading_result(
     concern_tokens: list[str],
     occupation_context: str,
     relationship_status: str,
+    llm_max_tokens_resolved: int,
 ) -> dict[str, Any]:
     if use_cache:
         cached = cache.get(cache_key)
@@ -2733,7 +2796,7 @@ async def _build_life_cycle_ai_reading_result(
         subject_name=subject_name,
     )
     payload_hash = _sha256_hex({"product_type": "life_cycle", "payload": payload_public})
-    reading_text = render_life_cycle_lite_markdown(payload)
+    reading_text, render_profile = _render_life_cycle_markdown(payload, report_stage="baseline")
     save_polished_reading_to_cache(
         chapter_blocks_hash=payload_hash,
         language=language,
@@ -2765,6 +2828,7 @@ async def _build_life_cycle_ai_reading_result(
         timezone_offset_hours=timezone_offset_resolved,
         onboarding_goal=onboarding_goal,
         payload=payload_public,
+        render_profile=render_profile,
     )
     result = {
         "cached": False,
@@ -2792,10 +2856,14 @@ async def _build_life_cycle_ai_reading_result(
         "life_cycle_payload": payload_public,
         "debug_info": {
             "product_type": "life_cycle",
-            "render_profile": LIFE_CYCLE_RENDER_PROFILE,
+            "render_profile": render_profile,
             "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
             "product_fingerprint": product_fingerprint,
             "llm_input_source": "deterministic.life_cycle_payload",
+            "llm_max_tokens_resolved": llm_max_tokens_resolved,
+            "llm_max_tokens_default": LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT,
+            "llm_max_tokens_soft_range": [LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MIN, LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MAX],
+            "llm_max_tokens_hard_cap": LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP,
             "client_initialized": async_client is not None,
         },
     }
@@ -3126,6 +3194,32 @@ async def get_ai_reading(
     audit_endpoint: str = Query("/ai_reading", include_in_schema=False),
 ):
     """Generate AI reading."""
+    house_system = _unwrap_fastapi_param_default(house_system)
+    include_nodes = _unwrap_fastapi_param_default(include_nodes)
+    include_d9 = _unwrap_fastapi_param_default(include_d9)
+    include_vargas = _unwrap_fastapi_param_default(include_vargas)
+    language = _unwrap_fastapi_param_default(language)
+    gender = _unwrap_fastapi_param_default(gender)
+    use_cache = _unwrap_fastapi_param_default(use_cache)
+    production_mode = _unwrap_fastapi_param_default(production_mode)
+    events_json = _unwrap_fastapi_param_default(events_json)
+    timezone = _unwrap_fastapi_param_default(timezone)
+    as_of = _unwrap_fastapi_param_default(as_of)
+    analysis_mode = _unwrap_fastapi_param_default(analysis_mode)
+    detail_level = _unwrap_fastapi_param_default(detail_level)
+    product_type = _unwrap_fastapi_param_default(product_type)
+    subject_name = _unwrap_fastapi_param_default(subject_name)
+    onboarding_goal = _unwrap_fastapi_param_default(onboarding_goal)
+    focus_tokens = _unwrap_fastapi_param_default(focus_tokens)
+    concern_tokens = _unwrap_fastapi_param_default(concern_tokens)
+    occupation_context = _unwrap_fastapi_param_default(occupation_context)
+    relationship_status = _unwrap_fastapi_param_default(relationship_status)
+    llm_max_tokens = _unwrap_fastapi_param_default(llm_max_tokens)
+    debug_payload = _unwrap_fastapi_param_default(debug_payload)
+    audit_debug = _unwrap_fastapi_param_default(audit_debug)
+    request_id = _unwrap_fastapi_param_default(request_id)
+    audit_endpoint = _unwrap_fastapi_param_default(audit_endpoint)
+
     try:
         product_type_norm = normalize_product_type(product_type)
     except ValueError as exc:
@@ -3136,7 +3230,6 @@ async def get_ai_reading(
     concern_tokens_norm = normalize_csv_tokens(concern_tokens, max_items=3)
     occupation_context_norm = str(occupation_context or "").strip()
     relationship_status_norm = str(relationship_status or "").strip()
-
     if production_mode and product_type_norm == "life_cycle":
         raise HTTPException(status_code=400, detail="product_type=life_cycle does not support production_mode=1")
 
@@ -3165,7 +3258,7 @@ async def get_ai_reading(
     detail_level_norm = str(detail_level or "full").strip().lower()
     if detail_level_norm != "full":
         raise HTTPException(status_code=400, detail="detail_level must be 'full'")
-    llm_max_tokens_resolved = _resolve_llm_max_tokens(llm_max_tokens, AI_MAX_TOKENS_AI_READING)
+    llm_max_tokens_resolved = _resolve_product_llm_max_tokens(request=request, product_type=product_type_norm, raw_value=llm_max_tokens)
     endpoint_name = audit_endpoint.strip() if isinstance(audit_endpoint, str) and audit_endpoint.strip() else "/ai_reading"
     request_id_value = _resolve_request_id(request, request_id)
     as_of_utc, _ = parse_as_of_utc(as_of)
@@ -3256,6 +3349,7 @@ async def get_ai_reading(
             concern_tokens=concern_tokens_norm,
             occupation_context=occupation_context_norm,
             relationship_status=relationship_status_norm,
+            llm_max_tokens_resolved=llm_max_tokens_resolved,
         )
 
     async def _resolve_cached_appendix_context(cached_payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
@@ -3874,6 +3968,28 @@ async def generate_pdf(
     cache_only: int = Query(0)
 ):
     """Generate PDF report."""
+    house_system = _unwrap_fastapi_param_default(house_system)
+    include_nodes = _unwrap_fastapi_param_default(include_nodes)
+    include_d9 = _unwrap_fastapi_param_default(include_d9)
+    include_vargas = _unwrap_fastapi_param_default(include_vargas)
+    include_ai = _unwrap_fastapi_param_default(include_ai)
+    language = _unwrap_fastapi_param_default(language)
+    gender = _unwrap_fastapi_param_default(gender)
+    timezone = _unwrap_fastapi_param_default(timezone)
+    as_of = _unwrap_fastapi_param_default(as_of)
+    analysis_mode = _unwrap_fastapi_param_default(analysis_mode)
+    detail_level = _unwrap_fastapi_param_default(detail_level)
+    product_type = _unwrap_fastapi_param_default(product_type)
+    subject_name = _unwrap_fastapi_param_default(subject_name)
+    onboarding_goal = _unwrap_fastapi_param_default(onboarding_goal)
+    focus_tokens = _unwrap_fastapi_param_default(focus_tokens)
+    concern_tokens = _unwrap_fastapi_param_default(concern_tokens)
+    occupation_context = _unwrap_fastapi_param_default(occupation_context)
+    relationship_status = _unwrap_fastapi_param_default(relationship_status)
+    audit_debug = _unwrap_fastapi_param_default(audit_debug)
+    ai_cache_key = _unwrap_fastapi_param_default(ai_cache_key)
+    cache_only = _unwrap_fastapi_param_default(cache_only)
+
     if PDF_DISABLED:
         raise HTTPException(
             status_code=503,
@@ -3894,12 +4010,12 @@ async def generate_pdf(
     if detail_level_norm != "full":
         raise HTTPException(status_code=400, detail="detail_level must be 'full'")
 
-    if not pdf_service.PDF_FEATURE_AVAILABLE:
+    if not PDF_FEATURE_AVAILABLE:
         raise HTTPException(
             status_code=503,
             detail=(
                 "PDF generation is unavailable because Korean font initialization failed. "
-                f"error={pdf_service.PDF_FEATURE_ERROR}"
+                f"error={PDF_FEATURE_ERROR}"
             ),
         )
     timezone_offset_resolved = resolve_validated_timezone_offset(
@@ -3985,6 +4101,10 @@ async def generate_pdf(
         resolve_pdf_narrative_content_fn=_resolve_pdf_narrative_content,
         build_report_payload_fn=build_report_payload,
         build_structural_summary_fn=build_structural_summary,
+        south_chart_cls=SouthIndianChart,
+        parse_markdown_to_flowables_fn=parse_markdown_to_flowables,
+        render_report_payload_to_pdf_fn=render_report_payload_to_pdf,
+        create_pdf_styles_fn=create_pdf_styles,
     )
     
     return Response(
@@ -4302,3 +4422,9 @@ if __name__ == "__main__":
     import uvicorn
     init_fonts()
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+
+
+
+

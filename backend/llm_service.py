@@ -3643,6 +3643,9 @@ STYLE OVERRIDE (run151158_like)
 - Hook은 매 챕터마다 다른 감정/상황에서 시작한다. 같은 도입 문장 패턴 반복 금지.
 - "~할 수 있다", "~가능성이 있다", "~경향이 있다" 종결을 연속 2회 이상 쓰지 않는다.
 - Bullets 3개가 모두 명령형으로 끝나는 구조 금지. 최소 1개는 질문형 또는 관찰형.
+- ABSOLUTELY NO REPETITIVE CLOSINGS OR CHATBOT TONE.
+- Closing boilerplate phrases must not repeat across chapters.
+- Each paragraph MUST NOT exceed 4 sentences.
 """
     actionable_keys_csv = ", ".join(
         [

@@ -44,6 +44,9 @@ def test_ai_reading_life_cycle_route_returns_baseline_contract(monkeypatch) -> N
     assert data["meta"]["contract_version"] == "v1.4.0"
     assert data["meta"]["render_profile"] == "life_cycle_lite_v1"
     assert data["meta"]["product_type"] == "life_cycle"
+    assert data["debug_info"]["llm_max_tokens_resolved"] == main_module.LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT
+    assert data["debug_info"]["llm_max_tokens_default"] == main_module.LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT
+    assert data["debug_info"]["llm_max_tokens_hard_cap"] == main_module.LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP
     assert "life_cycle_payload" not in data
     assert "productlife_cycle_" in data["ai_cache_key"]
     headings = [line for line in data["polished_reading"].splitlines() if line.startswith("## ")]
@@ -52,3 +55,60 @@ def test_ai_reading_life_cycle_route_returns_baseline_contract(monkeypatch) -> N
         "## How to use 1p",
         "## 인생 구조 한 장 요약",
     ]
+
+
+def test_ai_reading_life_cycle_route_rejects_token_values_above_product_cap(monkeypatch) -> None:
+    monkeypatch.setattr(main_module, "get_chart", _fake_chart)
+    client = TestClient(main_module.app)
+    response = client.get(
+        "/ai_reading",
+        params={
+            "year": 1990,
+            "month": 1,
+            "day": 1,
+            "hour": 12,
+            "lat": 37.5665,
+            "lon": 126.9780,
+            "timezone": 9,
+            "use_cache": 0,
+            "product_type": "life_cycle",
+            "llm_max_tokens": main_module.LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP + 1,
+        },
+    )
+    assert response.status_code == 400
+    assert response.json()["detail"] == "llm_max_tokens must be <= 9000 for product_type=life_cycle"
+
+
+def test_ai_reading_life_cycle_debug_payload_includes_target_prep_map(monkeypatch) -> None:
+    monkeypatch.setattr(main_module, "get_chart", _fake_chart)
+    client = TestClient(main_module.app)
+    response = client.get(
+        "/ai_reading",
+        params={
+            "year": 1990,
+            "month": 1,
+            "day": 1,
+            "hour": 12,
+            "lat": 37.5665,
+            "lon": 126.9780,
+            "timezone": 9,
+            "use_cache": 0,
+            "debug_payload": 1,
+            "product_type": "life_cycle",
+            "subject_name": "민서",
+            "onboarding_goal": "life_direction",
+            "focus_tokens": "커리어,리듬",
+            "concern_tokens": "우선순위,전환",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    payload = data["life_cycle_payload"]
+    assert "high_low_map" in payload
+    assert payload["high_low_map"]["highs"]
+    assert payload["high_low_map"]["lows"]
+    assert payload["high_low_map"]["transitions"]
+    assert payload["repeat_patterns"]
+    assert "next_three_years" in payload
+    assert "closing_note" in payload["next_three_years"]
+    assert "## 인생 고점/저점 지도" not in data["polished_reading"]

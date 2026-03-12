@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from backend.life_cycle_lite_renderer import render_life_cycle_lite_markdown
+from backend.life_cycle_lite_renderer import LIFE_CYCLE_LITE_H2_ORDER, render_life_cycle_lite_markdown
 
 
 def test_render_life_cycle_lite_markdown_uses_exact_h2_order() -> None:
@@ -28,18 +28,7 @@ def test_render_life_cycle_lite_markdown_uses_exact_h2_order() -> None:
     }
     out = render_life_cycle_lite_markdown(payload)
     headings = [line for line in out.splitlines() if line.startswith("## ")]
-    assert headings == [
-        "## cover/meta",
-        "## How to use 1p",
-        "## 인생 구조 한 장 요약",
-        "## 4단계 인생 구조",
-        "## 현재 위치",
-        "## 마하다샤 단계 목록",
-        "## 방법론 카드",
-        "## valid_until 설명",
-        "## CTA-lite",
-        "## 면책/윤리/데이터 보호",
-    ]
+    assert headings == LIFE_CYCLE_LITE_H2_ORDER
     assert "## 인생 고점/저점 지도" not in out
     assert "## 반복 패턴 분석" not in out
     assert "## 다음 3년 구체화" not in out

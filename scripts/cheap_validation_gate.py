@@ -116,6 +116,27 @@ _LIFECYCLE_FORBIDDEN_H2 = {
     "반복 패턴 분석",
     "다음 3년 구체화",
 }
+_LIFECYCLE_TARGET_REQUIRED_H2 = [
+    "cover/meta",
+    "How to use 1p",
+    "인생 구조 한 장 요약",
+    "4단계 인생 구조",
+    "현재 위치",
+    "마하다샤 단계 목록",
+    "인생 고점/저점 지도",
+    "반복 패턴 분석",
+    "다음 3년 구체화",
+    "방법론 카드",
+    "valid_until 설명",
+    "CTA-lite",
+    "면책/윤리/데이터 보호",
+]
+_LIFECYCLE_TARGET_ACTION_REQUIRED_HEADERS = {
+    "How to use 1p",
+    "다음 3년 구체화",
+    "valid_until 설명",
+    "CTA-lite",
+}
 _LIFECYCLE_HF11_EXCLUDE_HEADERS = {
     "cover/meta",
     "How to use 1p",
@@ -135,6 +156,7 @@ _LIFECYCLE_TOKEN_RE = re.compile(r"[0-9A-Za-z가-힣]{2,}")
 _LIFECYCLE_SECONDARY_CONTROL_RE = re.compile(r"(동의 버튼|동의\b|checkbox|check box|consent|체크박스|secondary control)", re.IGNORECASE)
 _LIFECYCLE_EMPATHY_RE = re.compile(r"(지금|요즘|흐름|흔들|망설|버겁|불안|막막|정리)")
 _LIFECYCLE_BUTTON_LABEL_RE = re.compile(r"(?m)^\s*버튼\s*:\s*(.+)$")
+_LIFECYCLE_TARGET_NEXT_ACTION_RE = re.compile(r"(?m)^\s*(?:행동|지금 메모할 질문|Action)\s*:")
 _FORBIDDEN_YEAR_QUARTER_PATTERN_KEYS = {pattern.pattern for pattern in YEAR_QUARTER_PATTERNS}
 
 
@@ -445,8 +467,127 @@ def _compute_life_cycle_lite_release_metrics(text: str, *, subject_name: str | N
     }
 
 
+def _compute_life_cycle_target_release_metrics(text: str, *, subject_name: str | None = None, valid_until_fallback: bool | None = None) -> dict[str, Any]:
+    sections = _split_h2_sections_ordered(text)
+    headers = [header for header, _body in sections]
+    header_counts: dict[str, int] = {}
+    for header in headers:
+        header_counts[header] = header_counts.get(header, 0) + 1
+
+    missing_headers = [header for header in _LIFECYCLE_TARGET_REQUIRED_H2 if header_counts.get(header, 0) == 0]
+    duplicate_headers = [header for header in _LIFECYCLE_TARGET_REQUIRED_H2 if header_counts.get(header, 0) > 1]
+    unexpected_headers = [header for header in headers if header not in _LIFECYCLE_TARGET_REQUIRED_H2]
+    exact_order_ok = headers == _LIFECYCLE_TARGET_REQUIRED_H2
+    front_contract_ok = not missing_headers and not duplicate_headers and not unexpected_headers and exact_order_ok
+
+    section_map = {header: body for header, body in sections}
+    how_to_use = section_map.get("How to use 1p", "")
+    current_position_body = section_map.get("현재 위치", "")
+    valid_until_body = section_map.get("valid_until 설명", "")
+    cta_body = section_map.get("CTA-lite", "")
+    summary_body = section_map.get("인생 구조 한 장 요약", "")
+    high_low_body = section_map.get("인생 고점/저점 지도", "")
+    repeat_pattern_body = section_map.get("반복 패턴 분석", "")
+    next_three_years_body = section_map.get("다음 3년 구체화", "")
+
+    how_to_use_bullets = _LIFECYCLE_BULLET_LINE_RE.findall(how_to_use)
+    how_to_use_ok = len(how_to_use_bullets) >= 5 and "복구 플랜" in how_to_use and _has_lifecycle_action_line(how_to_use)
+    valid_until_action_lines = len(_LIFECYCLE_ACTION_LINE_RE.findall(valid_until_body))
+    valid_until_ok = valid_until_action_lines >= 1
+    cta_action_lines = len(_LIFECYCLE_ACTION_LINE_RE.findall(cta_body))
+    cta_secondary_controls = len(_LIFECYCLE_SECONDARY_CONTROL_RE.findall(cta_body))
+    cta_button_labels = [str(match.group(1) or "").strip() for match in _LIFECYCLE_BUTTON_LABEL_RE.finditer(cta_body)]
+    cta_button_too_long = any(len(label) > 20 for label in cta_button_labels)
+    cta_ok = cta_action_lines == 1 and cta_secondary_controls == 0 and not cta_button_too_long
+
+    high_low_ok = (
+        "🔺 가장 상승 가능성 높은 3구간" in high_low_body
+        and "⚡ 인생 전환점 5개" in high_low_body
+        and "⚠ 경계해야 할 구간 3개" in high_low_body
+        and len(re.findall(r"(?m)^\s*\d+\.\s", high_low_body)) >= 3
+    )
+    repeat_patterns_ok = (
+        bool(repeat_pattern_body.strip())
+        and "👉" in repeat_pattern_body
+        and any(token in repeat_pattern_body for token in ("반복 시기", "2회 이상", "반복 패턴"))
+    )
+    next_three_years_has_slots = bool(re.search(r"(?m)^\s*\d+\.\s+\d{4}-\d{2}-\d{2}\s+~\s+\d{4}-\d{2}-\d{2}\s+—", next_three_years_body))
+    next_three_years_has_closing = (
+        "새로운 챕터로 넘어갑니다" in next_three_years_body
+        and "업데이트된 지도를 확인해보세요" in next_three_years_body
+    )
+    next_three_years_has_action = _LIFECYCLE_TARGET_NEXT_ACTION_RE.search(next_three_years_body) is not None
+    next_three_years_ok = next_three_years_has_closing and (next_three_years_has_action or not next_three_years_has_slots)
+
+    hf12_ok = how_to_use_ok and valid_until_ok and cta_ok and next_three_years_ok
+    hf14_overlap = sorted(_extract_lifecycle_overlap_tokens(valid_until_body) & _extract_lifecycle_overlap_tokens(cta_body))
+    hf14_ok = exact_order_ok and len(hf14_overlap) > 0
+
+    narrative_body = ""
+    narrative_header = None
+    for header, body in sections:
+        if header in _LIFECYCLE_HF11_EXCLUDE_HEADERS:
+            continue
+        narrative_header = header
+        narrative_body = body
+        break
+    subject_name_norm = str(subject_name or "").strip()
+    hf11_ok = bool(narrative_header and narrative_body and (_LIFECYCLE_EMPATHY_RE.search(narrative_body) or (subject_name_norm and subject_name_norm in narrative_body)))
+
+    if not subject_name_norm or subject_name_norm == "당신":
+        hf16_ok = True
+        hf16_skipped = True
+    else:
+        hf16_ok = subject_name_norm in summary_body
+        hf16_skipped = False
+
+    personalization_sections = []
+    if subject_name_norm:
+        if subject_name_norm in summary_body:
+            personalization_sections.append("인생 구조 한 장 요약")
+        if subject_name_norm in current_position_body:
+            personalization_sections.append("현재 위치")
+        if subject_name_norm in next_three_years_body:
+            personalization_sections.append("다음 3년 구체화")
+
+    action_steps_contract_ok = front_contract_ok and hf12_ok and hf14_ok and high_low_ok and repeat_patterns_ok and next_three_years_ok
+    release_ok = action_steps_contract_ok and hf11_ok and hf12_ok and hf14_ok and hf16_ok
+
+    return {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": bool(front_contract_ok),
+        "front_contract_detail": {
+            "required_headers": list(_LIFECYCLE_TARGET_REQUIRED_H2),
+            "headers": headers,
+            "missing_headers": missing_headers,
+            "duplicate_headers": duplicate_headers,
+            "unexpected_headers": unexpected_headers,
+            "exact_order_ok": bool(exact_order_ok),
+        },
+        "action_steps_contract_ok": bool(action_steps_contract_ok),
+        "action_steps_block_count_violations": int(0 if how_to_use_ok and valid_until_ok and cta_ok and next_three_years_ok else 1),
+        "life_cycle_target_high_low_ok": bool(high_low_ok),
+        "life_cycle_target_repeat_patterns_ok": bool(repeat_patterns_ok),
+        "life_cycle_target_next_three_years_ok": bool(next_three_years_ok),
+        "life_cycle_target_next_three_years_has_slots": bool(next_three_years_has_slots),
+        "life_cycle_target_personalization_sections": personalization_sections,
+        "life_cycle_how_to_use_ok": bool(how_to_use_ok),
+        "life_cycle_valid_until_ok": bool(valid_until_ok),
+        "life_cycle_cta_ok": bool(cta_ok),
+        "life_cycle_hf11_ok": bool(hf11_ok),
+        "life_cycle_hf11_target_header": narrative_header,
+        "life_cycle_hf12_ok": bool(hf12_ok),
+        "life_cycle_hf14_ok": bool(hf14_ok),
+        "life_cycle_hf14_overlap_tokens": hf14_overlap[:20],
+        "life_cycle_hf16_ok": bool(hf16_ok),
+        "life_cycle_hf16_skipped": bool(hf16_skipped),
+        "life_cycle_release_ok": bool(release_ok),
+        "valid_until_fallback": valid_until_fallback if isinstance(valid_until_fallback, bool) else None,
+    }
+
+
 def _filter_forbidden_hits_for_release_mode(findings: list[dict[str, str]], release_mode: str | None) -> list[dict[str, str]]:
-    if str(release_mode or "").strip() != "life_cycle_lite":
+    if str(release_mode or "").strip() not in {"life_cycle_lite", "life_cycle_target"}:
         return findings
     return [
         hit
@@ -914,7 +1055,7 @@ def _dry_structure_check(chapter_blocks: dict[str, Any], *, strict_vedic: bool =
 
     density_metrics = _compute_body_paragraph_density_metrics(remediated)
     warn_only = {"label_pattern_detected", "paragraph_too_long", "warn_paragraph_density_low"}
-    if release_mode_norm == "life_cycle_lite":
+    if release_mode_norm in {"life_cycle_lite", "life_cycle_target"}:
         warn_only = set(warn_only)
         warn_only.update({"paragraph_density_low", "paragraph_too_long"})
     hard_style_errors = [e for e in style_errors if e not in warn_only]
@@ -1083,7 +1224,18 @@ def _run_single_true_path(
     structured_summary_payload = summary_payload.get("structured_summary") if isinstance(summary_payload.get("structured_summary"), dict) else {}
     release_mode = None
     life_cycle_release_metrics: dict[str, Any] = {}
-    if str(data.get("product_type") or meta.get("product_type") or "").strip().lower() == "life_cycle" or str(meta.get("render_profile") or "").strip() == "life_cycle_lite_v1":
+    render_profile = str(meta.get("render_profile") or "").strip()
+    if render_profile == "life_cycle_target_v1":
+        release_mode = "life_cycle_target"
+        life_cycle_release_metrics = _compute_life_cycle_target_release_metrics(
+            scored_surface_text,
+            subject_name=str(structured_summary_payload.get("subject_name") or "").strip() or None,
+            valid_until_fallback=meta.get("valid_until_fallback") if isinstance(meta.get("valid_until_fallback"), bool) else None,
+        )
+        front_contract = life_cycle_release_metrics.get("front_contract_detail", {})
+        action_steps_metrics["action_steps_contract_ok"] = bool(life_cycle_release_metrics.get("action_steps_contract_ok", False))
+        action_steps_metrics["action_steps_block_count_violations"] = int(life_cycle_release_metrics.get("action_steps_block_count_violations", 0))
+    elif str(data.get("product_type") or meta.get("product_type") or "").strip().lower() == "life_cycle" or render_profile == "life_cycle_lite_v1":
         release_mode = "life_cycle_lite"
         life_cycle_release_metrics = _compute_life_cycle_lite_release_metrics(
             scored_surface_text,
@@ -1199,7 +1351,7 @@ def _run_single_true_path(
         "front_english_token_hits": front_english_token_hits,
         "front_markdown_integrity": front_markdown_integrity,
         "release_mode": release_mode or "generic",
-        "front_contract_ok": bool(life_cycle_release_metrics.get("front_contract_ok")) if release_mode == "life_cycle_lite" else bool(front_contract.get("ok")),
+        "front_contract_ok": bool(life_cycle_release_metrics.get("front_contract_ok")) if release_mode in {"life_cycle_lite", "life_cycle_target"} else bool(front_contract.get("ok")),
         "front_contract_detail": front_contract,
         "front_contract_fallback_applied": bool(front_contract_fallback_applied),
         "front_playbook_repaired": front_playbook_repaired,
@@ -1328,7 +1480,7 @@ async def run_cheap_validation(
             return 1
         if int(truepath.get("forbidden_hits", 0)) > 0:
             return 1
-        if str(truepath.get("release_mode") or "") == "life_cycle_lite" and not bool(truepath.get("life_cycle_release_ok", False)):
+        if str(truepath.get("release_mode") or "") in {"life_cycle_lite", "life_cycle_target"} and not bool(truepath.get("life_cycle_release_ok", False)):
             return 1
         if strict_vedic and _strict_vedic_failed(truepath.get("vedic_scan"), truepath.get("timing_map_contract")):
             _log_strict_vedic_fail("truepath", truepath.get("vedic_scan"), truepath.get("timing_map_contract"))
@@ -1344,7 +1496,7 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool, release_mode: str = "ge
 
     raw_text = input_path.read_text(encoding="utf-8")
     release_mode_norm = str(release_mode or "").strip()
-    if release_mode_norm == "life_cycle_lite":
+    if release_mode_norm in {"life_cycle_lite", "life_cycle_target"}:
         normalized = str(raw_text or "").replace("\r\n", "\n").replace("\r", "\n").strip()
         remediated = normalized
         chapters_boundary_fallback_used = False
@@ -1409,13 +1561,19 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool, release_mode: str = "ge
 
     density_metrics = _compute_body_paragraph_density_metrics(remediated)
     warn_only = {"label_pattern_detected", "paragraph_too_long", "warn_paragraph_density_low"}
-    if release_mode_norm == "life_cycle_lite":
+    if release_mode_norm in {"life_cycle_lite", "life_cycle_target"}:
         warn_only = set(warn_only)
         warn_only.update({"paragraph_density_low", "paragraph_too_long"})
     hard_style_errors = [e for e in style_errors if e not in warn_only]
     life_cycle_release_metrics: dict[str, Any] = {}
     if release_mode_norm == "life_cycle_lite":
         life_cycle_release_metrics = _compute_life_cycle_lite_release_metrics(
+            remediated,
+            subject_name=str(subject_name or "").strip() or None,
+            valid_until_fallback=None,
+        )
+    elif release_mode_norm == "life_cycle_target":
+        life_cycle_release_metrics = _compute_life_cycle_target_release_metrics(
             remediated,
             subject_name=str(subject_name or "").strip() or None,
             valid_until_fallback=None,
@@ -1459,7 +1617,7 @@ def run_strict_vedic_scan(path: str, strict_vedic: bool, release_mode: str = "ge
 
     if len(forbidden_hits) > 0 or len(hard_style_errors) > 0:
         return 1
-    if release_mode_norm == "life_cycle_lite" and not bool(payload.get("life_cycle_release_ok", False)):
+    if release_mode_norm in {"life_cycle_lite", "life_cycle_target"} and not bool(payload.get("life_cycle_release_ok", False)):
         return 1
     if strict_vedic and _strict_vedic_failed(vedic_scan, timing_map_contract):
         _log_strict_vedic_fail("input", vedic_scan, timing_map_contract)
@@ -1517,13 +1675,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--release-mode",
         default="generic",
-        choices=["generic", "life_cycle_lite"],
+        choices=["generic", "life_cycle_lite", "life_cycle_target"],
         help="Optional product-specific release semantics for direct input scans.",
     )
     parser.add_argument(
         "--subject-name",
         default="",
-        help="Optional subject name used by life_cycle_lite HF16 checks.",
+        help="Optional subject name used by life_cycle release-mode HF16 checks.",
     )
     args = parser.parse_args()
     if isinstance(args.input, str) and args.input.strip():

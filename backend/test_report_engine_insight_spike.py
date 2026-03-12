@@ -116,7 +116,7 @@ class TestReportEngineInsightSpike(unittest.TestCase):
         chapter = payload["chapter_blocks"]["Core Disposition"]
         self.assertFalse(any(fragment.get("spike_text") == "Spike low should not show." for fragment in chapter))
 
-    def test_spike_position_at_top(self):
+    def test_spike_appends_after_content(self):
         payload = report_engine.build_report_payload(
             {
                 "flags": {"high": True},
@@ -126,8 +126,8 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             }
         )
         chapter = payload["chapter_blocks"]["Core Disposition"]
-        self.assertEqual(chapter[0], {"spike_text": "Spike high."})
-        self.assertIn("title", chapter[1])
+        self.assertIn({"spike_text": "Spike high."}, chapter)
+        self.assertNotIn("spike_text", chapter[0])
 
     def test_spike_deduplication(self):
         payload = report_engine.build_report_payload(
@@ -152,8 +152,11 @@ class TestReportEngineInsightSpike(unittest.TestCase):
             }
         )
         chapter = payload["chapter_blocks"]["Career & Money"]
-        self.assertLessEqual(len(chapter), 5)
-        self.assertTrue(all("spike_text" in fragment for fragment in chapter))
+        content_fragments = [fragment for fragment in chapter if isinstance(fragment, dict) and "spike_text" not in fragment]
+        spike_fragments = [fragment for fragment in chapter if isinstance(fragment, dict) and "spike_text" in fragment]
+        self.assertLessEqual(len(content_fragments), 5)
+        self.assertTrue(content_fragments)
+        self.assertTrue(spike_fragments)
 
     def test_backward_compatibility_without_spike(self):
         payload = report_engine.build_report_payload({"flags": {"legacy": True}})

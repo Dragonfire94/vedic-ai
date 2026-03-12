@@ -106,14 +106,14 @@ class TestLlmRefinementPipeline(unittest.TestCase):
         self.assertGreater(len(result.get("polished_reading", "")), len(deterministic_text))
         create_kwargs = fake_client.chat.completions.create.await_args.kwargs
         user_content = create_kwargs["messages"][1]["content"]
-        self.assertIn("Structural signals:", user_content)
-        self.assertIn("STEP 1  Identify dominant forces", user_content)
-        self.assertIn("STEP 2  Identify internal tensions and imbalances", user_content)
-        self.assertIn("STEP 3  Identify execution and behavioral architecture", user_content)
-        self.assertIn("STEP 4  Identify structural trajectory and life-pattern tendencies", user_content)
-        self.assertIn("STEP 5  Synthesize unified interpretation", user_content)
-        self.assertIn("life_purpose_vector", user_content)
-        self.assertIn("Draft Narrative Blocks", user_content)
+        self.assertIn("Structural Executive Overview:", user_content)
+        self.assertIn("Timing Context (internal cue):", user_content)
+        self.assertIn("Relationship Compact Context (JSON):", user_content)
+        self.assertIn("[GLOBAL CHART EVIDENCE]", user_content)
+        self.assertIn("[CHAPTER SPECIFIC EVIDENCE]", user_content)
+        self.assertIn("SANITIZED INPUT BLOCKS:", user_content)
+        self.assertIn("Draft Narrative Blocks (Sanitized):", user_content)
+        self.assertIn("Chapter Blocks (JSON):", user_content)
 
 
 if __name__ == "__main__":

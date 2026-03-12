@@ -58,6 +58,7 @@ if "openai" not in sys.modules:
 
 from backend import main
 from fastapi import HTTPException
+from starlette.requests import Request
 
 
 class TestLLMTokenLimits(unittest.TestCase):
@@ -82,6 +83,26 @@ class TestLLMTokenLimits(unittest.TestCase):
             main._resolve_llm_max_tokens("not-a-number", main.AI_MAX_TOKENS_PDF),
             main.AI_MAX_TOKENS_PDF,
         )
+
+    def test_life_cycle_product_token_policy_uses_default_without_query_override(self) -> None:
+        request = Request({"type": "http", "query_string": b""})
+        self.assertEqual(
+            main._resolve_product_llm_max_tokens(
+                request=request,
+                product_type="life_cycle",
+                raw_value=main.AI_MAX_TOKENS_AI_READING,
+            ),
+            main.LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT,
+        )
+
+    def test_life_cycle_product_token_policy_rejects_above_product_cap(self) -> None:
+        request = Request({"type": "http", "query_string": b"llm_max_tokens=9001"})
+        with self.assertRaises(HTTPException):
+            main._resolve_product_llm_max_tokens(
+                request=request,
+                product_type="life_cycle",
+                raw_value=main.LIFE_CYCLE_AI_MAX_TOKENS_HARD_CAP + 1,
+            )
 
     def test_openai_payload_uses_max_completion_tokens(self) -> None:
         payload = main._build_openai_payload(

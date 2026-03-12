@@ -884,7 +884,16 @@ def generate_pdf_report(
     resolve_pdf_narrative_content_fn,
     build_report_payload_fn,
     build_structural_summary_fn,
+    south_chart_cls=None,
+    parse_markdown_to_flowables_fn=None,
+    render_report_payload_to_pdf_fn=None,
+    create_pdf_styles_fn=None,
 ) -> bytes:
+    south_chart_cls = south_chart_cls or SouthIndianChart
+    parse_markdown_to_flowables_fn = parse_markdown_to_flowables_fn or parse_markdown_to_flowables
+    render_report_payload_to_pdf_fn = render_report_payload_to_pdf_fn or render_report_payload_to_pdf
+    create_pdf_styles_fn = create_pdf_styles_fn or create_pdf_styles
+
     layout_config = load_pdf_layout_config()
     page_cfg = layout_config.get("page", {}) if isinstance(layout_config.get("page"), dict) else {}
 
@@ -900,7 +909,7 @@ def generate_pdf_report(
         )
 
         story = []
-        styles = create_pdf_styles()
+        styles = create_pdf_styles_fn()
         color_cfg = layout_config.get("colors", {}) if isinstance(layout_config.get("colors"), dict) else {}
         panel_bg = colors.HexColor(color_cfg.get("panel_bg", "#F8FAFC"))
         separator_color = colors.HexColor(color_cfg.get("separator", "#D1D9E6"))
@@ -985,7 +994,7 @@ def generate_pdf_report(
 
         # D1 chart
         story.append(Paragraph("D1 Chart (Rasi)", styles['ChapterTitle']))
-        story.append(SouthIndianChart(chart, width=350, height=350))
+        story.append(south_chart_cls(chart, width=350, height=350))
         story.append(Spacer(1, 0.5*cm))
 
         # Planetary positions
@@ -1036,7 +1045,7 @@ def generate_pdf_report(
 
         deterministic_elements: list[Any] = []
         if narrative_source != "polished" and isinstance(narrative_report_payload, dict):
-            deterministic_elements = render_report_payload_to_pdf(
+            deterministic_elements = render_report_payload_to_pdf_fn(
                 narrative_report_payload,
                 styles,
                 layout_config,
@@ -1050,7 +1059,7 @@ def generate_pdf_report(
         if include_d9 and "d9" in chart:
             story.append(PageBreak())
             story.append(Paragraph("D9 Chart (Navamsa)", styles['ChapterTitle']))
-            story.append(SouthIndianChart(chart, width=350, height=350, is_d9=True))
+            story.append(south_chart_cls(chart, width=350, height=350, is_d9=True))
             story.append(Spacer(1, 0.5*cm))
 
         vargas = chart.get("vargas", {}) if isinstance(chart, dict) else {}
@@ -1089,14 +1098,14 @@ def generate_pdf_report(
             story.append(PageBreak())
             story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
             story.append(Spacer(1, 0.3*cm))
-            story.extend(parse_markdown_to_flowables(polished_reading_text, styles))
+            story.extend(parse_markdown_to_flowables_fn(polished_reading_text, styles))
         elif (not deterministic_elements) and ai_reading and ai_reading.get("reading"):
             story.append(PageBreak())
             story.append(Paragraph("AI Detailed Reading", styles['ChapterTitle']))
             story.append(Spacer(1, 0.3*cm))
 
             reading_text = ai_reading["reading"]
-            flowables = parse_markdown_to_flowables(reading_text, styles)
+            flowables = parse_markdown_to_flowables_fn(reading_text, styles)
             story.extend(flowables)
 
         def _draw_page_chrome(canvas, _doc):

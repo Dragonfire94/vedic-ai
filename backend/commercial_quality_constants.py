@@ -122,3 +122,13 @@ CODE_FENCE_TOGGLE_RE = re.compile(r"^\s*`{3,}")
 RESIDUAL_VALID_CHAR_RE = re.compile(r"[0-9A-Za-z가-힣]")
 RESIDUAL_SENTENCE_END_RE = re.compile(r"(?:[.!?]|다\.|니다\.|요\.)")
 RESIDUAL_MIN_CHARS = 8
+
+# life_cycle target-stage transition ranking contract.
+# Floor-index quantiles are used intentionally; do not interpolate.
+TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
+
+PLANET_DOMAIN_MAP: dict[str, list[str]] = {
+    "관계": ["Venus", "Moon"],
+    "돈·커리어": ["Jupiter", "Sun", "Mercury"],
+    "건강·에너지": ["Mars", "Rahu", "Ketu"],
+}

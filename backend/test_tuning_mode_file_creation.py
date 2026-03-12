@@ -4,16 +4,15 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-if "swisseph" not in sys.modules:
-    swe_stub = types.SimpleNamespace(julday=lambda y, m, d, h: 2451545.0)
-    sys.modules["swisseph"] = swe_stub
+try:
+    import swisseph  # noqa: F401
+except Exception:
+    pass
 
 from backend.btr_engine import analyze_birth_time
 
