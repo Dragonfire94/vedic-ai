@@ -470,6 +470,8 @@ def build_vedic_technical_data(chart_context: dict[str, Any], *, pipeline_versio
     meta_ctx = ctx.get("meta", {}) if isinstance(ctx.get("meta"), dict) else {}
     if isinstance(meta_ctx.get("generated_utc"), str):
         generated_utc = meta_ctx.get("generated_utc")
+    elif isinstance(meta_ctx.get("as_of_utc"), str):
+        generated_utc = meta_ctx.get("as_of_utc")
     if not generated_utc:
         generated_utc = _utc_now_iso_seconds()
 

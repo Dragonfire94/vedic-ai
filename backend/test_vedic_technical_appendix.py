@@ -142,6 +142,13 @@ def test_determinism_for_data_and_markdown() -> None:
     assert md1 == md2
 
 
+def test_generated_utc_falls_back_to_as_of_utc_when_available() -> None:
+    ctx = _build_context()
+    ctx["meta"] = {"as_of_utc": "2026-03-01T00:00:00Z"}
+    data = build_vedic_technical_data(ctx, pipeline_version="test-pipeline")
+    assert data["meta"]["generated_utc"] == "2026-03-01T00:00:00Z"
+
+
 def test_availability_reason_enum() -> None:
     data = build_vedic_technical_data(_build_context(), pipeline_version="x")
     reason = data.get("availability", {}).get("reason")
