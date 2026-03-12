@@ -1,11 +1,11 @@
 {
-  "generated_at_kst": "2026-03-12T14:43:28+09:00",
+  "generated_at_kst": "2026-03-12T15:43:13+09:00",
   "contract_version": "v1.4.0",
   "release_evidence_dir": "PRD/release_evidence/v1_4_0",
   "render_profile": "life_cycle_target_v1",
   "request_fingerprint": "05d44aaccc79aedd",
   "evidence_case_id": "life_cycle_target_primary",
-  "commit_sha": "d42d83da02944588290801b62e8cdbdbcb1d7b09",
+  "commit_sha": "b362c5b0810296e5b07b2fe54c6b4e0edf59226a",
   "dirty_worktree": false,
   "manual_qa_path": "PRD/release_evidence/v1_4_0/life_cycle_target_manual_qa.md",
   "sample_response_path": "PRD/release_evidence/v1_4_0/life_cycle_target_sample_response.json",
@@ -13,10 +13,10 @@
   "editorial_rubric_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md",
   "editorial_review_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md",
   "editorial_case_matrix_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json",
-  "manual_qa_sha256": "c68890ccb56389a85c498cc26127bf000a6bf53f8dd21a5efc77cdd83fa3178a",
-  "sample_response_sha256": "284fcfe9ef2e6b496dacd2dcdd7f83483565d29cd4aaf122179cb87df3b7d319",
-  "gate_summary_sha256": "63640a09f688fa23aaba1c85ba8cc787e7153d0808df9ca0b7293d532d3a2b5c",
-  "editorial_rubric_sha256": "83f9d24ea763cef8d294ba1e02af444115331a856f03c04b1f2fdd333de34660",
-  "editorial_review_sha256": "ee42945d8cadd9d24f7a90f5ae9fb08a1b20a6c9ba8080d30be81061c21e59c2",
-  "editorial_case_matrix_sha256": "0421f1943a77e37c3e6d6737ba47fab76d7673acac1a1daaadb43e0625cdd482"
+  "manual_qa_sha256": "85c16c417dac5b6446ceb37f91a38e55fc7e909669016e3e7b90c52fb5c94a04",
+  "sample_response_sha256": "308b7d449fff8858ef99d690c57fcd5f3958db1814b86c451b8182a2c169e11a",
+  "gate_summary_sha256": "ad93fc847363f687d9c83c98e694ae6c8bca7d927e26b78d9ae5d23836d9f094",
+  "editorial_rubric_sha256": "22251c1ac2d45b1d191cbbcae46ab6ad0074239c456e5b69e260abc2a02f81fd",
+  "editorial_review_sha256": "0e34e31f9fa806109df6cde76f2774cde632b1041450cf1b4826f06820672113",
+  "editorial_case_matrix_sha256": "87d91f57f7708e1a258104e9cc1588255dc8737037e3e763c6b746e49f117c6e"
 }
