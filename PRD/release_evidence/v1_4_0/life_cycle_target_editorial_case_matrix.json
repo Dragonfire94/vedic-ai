@@ -1,0 +1,2167 @@
+{
+  "generated_at_kst": "2026-03-12T14:43:28+09:00",
+  "contract_version": "v1.4.0",
+  "render_profile": "life_cycle_target_v1",
+  "reviewed_cases": [
+    {
+      "case_id": "target_case_01",
+      "note": "career baseline",
+      "input": {
+        "subject_name": "민서",
+        "onboarding_goal": "career_money",
+        "focus_tokens": [
+          "커리어",
+          "돈"
+        ],
+        "concern_tokens": [
+          "이직 타이밍",
+          "수입 안정"
+        ],
+        "occupation_context": "브랜드 전략 업무",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "05d44aaccc79aedd",
+      "render_sha256": "e0fe0310d860febde8de73d3da45b1ef6f7028cca7ddd8920fc654d1b49b03a7",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_02",
+      "note": "founder scale",
+      "input": {
+        "subject_name": "도윤",
+        "onboarding_goal": "career_money",
+        "focus_tokens": [
+          "사업",
+          "확장"
+        ],
+        "concern_tokens": [
+          "채용 기준",
+          "현금흐름"
+        ],
+        "occupation_context": "초기 스타트업 대표",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "dc956cbe920d7877",
+      "render_sha256": "e570b61983087bc244212acd8815283f6334fe66d5ddd9ea865e4ed17691aeb7",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_03",
+      "note": "relationship reset",
+      "input": {
+        "subject_name": "서윤",
+        "onboarding_goal": "relationship",
+        "focus_tokens": [
+          "관계",
+          "감정"
+        ],
+        "concern_tokens": [
+          "경계선",
+          "재회 여부"
+        ],
+        "occupation_context": "마케팅 리드",
+        "relationship_status": "재정비 중",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "fc24072c31f784e4",
+      "render_sha256": "f892cfb2257a919137a671a0e5c798354417d2001382abec75a08d1a3488a217",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_04",
+      "note": "newlywed balance",
+      "input": {
+        "subject_name": "예준",
+        "onboarding_goal": "relationship",
+        "focus_tokens": [
+          "대화",
+          "리듬"
+        ],
+        "concern_tokens": [
+          "갈등 패턴",
+          "합의 기준"
+        ],
+        "occupation_context": "전략 컨설턴트",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "6bac99e57025245c",
+      "render_sha256": "f7bdad6c2db02382f17a2b9e2ab5ea33c8a8f8d607e84fee78a01e79b6905926",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_05",
+      "note": "burnout recovery",
+      "input": {
+        "subject_name": "하린",
+        "onboarding_goal": "condition",
+        "focus_tokens": [
+          "컨디션",
+          "루틴"
+        ],
+        "concern_tokens": [
+          "회복 리듬",
+          "수면"
+        ],
+        "occupation_context": "콘텐츠 디렉터",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "1c6fcd31a4b061af",
+      "render_sha256": "296120ada46ac416dce287749894d642e1ed6947eae4016b99c5b5859b5b69bd",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_06",
+      "note": "parent energy",
+      "input": {
+        "subject_name": "시우",
+        "onboarding_goal": "condition",
+        "focus_tokens": [
+          "에너지",
+          "생활"
+        ],
+        "concern_tokens": [
+          "체력 분배",
+          "가족"
+        ],
+        "occupation_context": "운영 매니저",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "c5fd34b4fbfe88de",
+      "render_sha256": "2e6ec4ed2cdcbc454bb963d3ae9c2a47305c7acac442cdee79215f899165d018",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_07",
+      "note": "direction rebuild",
+      "input": {
+        "subject_name": "유진",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "방향",
+          "의미"
+        ],
+        "concern_tokens": [
+          "우선순위",
+          "정체성"
+        ],
+        "occupation_context": "프리랜서 라이터",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "5eb30f85f8f8e15f",
+      "render_sha256": "f7f5504e0523c91daf46f2065047845ebd9d8882e071b0372cac45d1a8fa9b7a",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_08",
+      "note": "midlife shift",
+      "input": {
+        "subject_name": "지훈",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "전환",
+          "방향"
+        ],
+        "concern_tokens": [
+          "역할 전환",
+          "후회"
+        ],
+        "occupation_context": "재무 팀장",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "500ec6d730616643",
+      "render_sha256": "cea4f9c31a749f778d07df077e551f456f9674bd309051a99caebec7512b2aed",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_09",
+      "note": "sparse repeat",
+      "input": {
+        "subject_name": "수아",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "방향",
+          "균형"
+        ],
+        "concern_tokens": [
+          "기준 재설정",
+          "일정"
+        ],
+        "occupation_context": "디자인 매니저",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": true,
+        "empty_future": false
+      },
+      "request_fingerprint": "5de18253020f1682",
+      "render_sha256": "f79a2918107b69a659a24c1aae84779a22b851f8965793d61dc6e416eb1e998f",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_10",
+      "note": "empty future",
+      "input": {
+        "subject_name": "태민",
+        "onboarding_goal": "relationship",
+        "focus_tokens": [
+          "관계",
+          "미래"
+        ],
+        "concern_tokens": [
+          "관계 속도",
+          "대화"
+        ],
+        "occupation_context": "영업 리드",
+        "relationship_status": "연애 중",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": true
+      },
+      "request_fingerprint": "55ebc4d9c06ad60e",
+      "render_sha256": "18d48b4b7d04326f7291698d07a9ad4230c87f289aced9bea398866891f35c1f",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": false,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "빈 슬롯 케이스는 재구매 훅이 약해질 수 있어 후속 편집 점검이 필요함",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_11",
+      "note": "fallback valid until",
+      "input": {
+        "subject_name": "서아",
+        "onboarding_goal": "career_money",
+        "focus_tokens": [
+          "역할",
+          "돈"
+        ],
+        "concern_tokens": [
+          "협상 타이밍",
+          "결정 기준"
+        ],
+        "occupation_context": "프로덕트 매니저",
+        "relationship_status": "싱글",
+        "fallback_valid_until": true,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "ff580590cb7292e7",
+      "render_sha256": "f11da066e0edc13b7ba16673af057c996d2a2d34996fedb96e7212d10c043b94",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": true
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_12",
+      "note": "fallback + empty future",
+      "input": {
+        "subject_name": "현우",
+        "onboarding_goal": "condition",
+        "focus_tokens": [
+          "에너지",
+          "보호선"
+        ],
+        "concern_tokens": [
+          "회복",
+          "우선순위"
+        ],
+        "occupation_context": "간호사",
+        "relationship_status": "싱글",
+        "fallback_valid_until": true,
+        "sparse_repeat": false,
+        "empty_future": true
+      },
+      "request_fingerprint": "dbb37254c33166ad",
+      "render_sha256": "60f8c544d05a3d35c9f089ab6cba71559d9ad582a5a6c274a4775d468025f424",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": false,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": true
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "빈 슬롯 케이스는 재구매 훅이 약해질 수 있어 후속 편집 점검이 필요함",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_13",
+      "note": "minimal context",
+      "input": {
+        "subject_name": "가은",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "방향"
+        ],
+        "concern_tokens": [
+          "핵심 질문",
+          "정리"
+        ],
+        "occupation_context": "",
+        "relationship_status": "",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "756159d52ac66baf",
+      "render_sha256": "730de605e5d8cb070fa10959560227b9231c64a5b7618671212ee48f0a6cb053",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "현재 위치 첫 문장이 아직 다소 템플릿감 있게 느껴질 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_14",
+      "note": "steady relationship",
+      "input": {
+        "subject_name": "준호",
+        "onboarding_goal": "relationship",
+        "focus_tokens": [
+          "관계",
+          "조율"
+        ],
+        "concern_tokens": [
+          "대화 타이밍",
+          "기대치"
+        ],
+        "occupation_context": "법무 담당",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "b0018733c4176727",
+      "render_sha256": "9f1c0fc8b551f892990e1f6fbdc38b71b6fb9d22840bc3cf4e14e41798518885",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_15",
+      "note": "dense concern set",
+      "input": {
+        "subject_name": "채원",
+        "onboarding_goal": "career_money",
+        "focus_tokens": [
+          "사업",
+          "속도"
+        ],
+        "concern_tokens": [
+          "현금흐름",
+          "채용",
+          "우선순위"
+        ],
+        "occupation_context": "크리에이티브 스튜디오 운영",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "fe6cba43fc259fca",
+      "render_sha256": "0a09ae935e39311576c3543fe42639f7bf14c7a0e9546ca04969a9b2b53ac733",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_16",
+      "note": "artist direction",
+      "input": {
+        "subject_name": "이안",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "표현",
+          "방향"
+        ],
+        "concern_tokens": [
+          "창작 기준",
+          "리듬"
+        ],
+        "occupation_context": "일러스트레이터",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "22331415d13da43b",
+      "render_sha256": "f075cb83d9af52f9135d9740ce736852cd57b85dd1f73d3cf4dc89a7fe72772a",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_17",
+      "note": "educator pacing",
+      "input": {
+        "subject_name": "나연",
+        "onboarding_goal": "life_direction",
+        "focus_tokens": [
+          "의미",
+          "역할"
+        ],
+        "concern_tokens": [
+          "소진 예방",
+          "집중도"
+        ],
+        "occupation_context": "교사",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "8132f1339f4d434d",
+      "render_sha256": "6987e9f4c836f4478f7cfa6c1058db4e316628e5315f793a0772546b2cd3b7c0",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_18",
+      "note": "healthcare rhythm",
+      "input": {
+        "subject_name": "주원",
+        "onboarding_goal": "condition",
+        "focus_tokens": [
+          "회복",
+          "에너지"
+        ],
+        "concern_tokens": [
+          "야간 리듬",
+          "체력 분배"
+        ],
+        "occupation_context": "응급실 근무",
+        "relationship_status": "싱글",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "af64c17260d4e158",
+      "render_sha256": "3441e6f6edd23d4b9a634cf5be1473742da73f27d8e1f8d7577162f19cd3ddd3",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_19",
+      "note": "consulting decisions",
+      "input": {
+        "subject_name": "소윤",
+        "onboarding_goal": "career_money",
+        "focus_tokens": [
+          "커리어",
+          "확장"
+        ],
+        "concern_tokens": [
+          "제안 선별",
+          "계약"
+        ],
+        "occupation_context": "전략 컨설턴트",
+        "relationship_status": "연애 중",
+        "fallback_valid_until": false,
+        "sparse_repeat": false,
+        "empty_future": false
+      },
+      "request_fingerprint": "e11395dd69d595b9",
+      "render_sha256": "135d490a50bb39f62a6bb78079f7f631e9c1a19d0be63474aa9ba44ec04c5d53",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    },
+    {
+      "case_id": "target_case_20",
+      "note": "caretaker balance",
+      "input": {
+        "subject_name": "다온",
+        "onboarding_goal": "relationship",
+        "focus_tokens": [
+          "가족",
+          "관계"
+        ],
+        "concern_tokens": [
+          "돌봄 피로",
+          "경계선"
+        ],
+        "occupation_context": "가족 돌봄 조정자",
+        "relationship_status": "기혼",
+        "fallback_valid_until": false,
+        "sparse_repeat": true,
+        "empty_future": false
+      },
+      "request_fingerprint": "181aec878f1dc4db",
+      "render_sha256": "1286d557a4319b3678ebe4ad2357dd17329c2f20719603c4298d66c8c6d001cf",
+      "gate": {
+        "release_mode": "life_cycle_target",
+        "front_contract_ok": true,
+        "front_contract_detail": {
+          "required_headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "headers": [
+            "cover/meta",
+            "How to use 1p",
+            "인생 구조 한 장 요약",
+            "4단계 인생 구조",
+            "현재 위치",
+            "마하다샤 단계 목록",
+            "인생 고점/저점 지도",
+            "반복 패턴 분석",
+            "다음 3년 구체화",
+            "방법론 카드",
+            "valid_until 설명",
+            "CTA-lite",
+            "면책/윤리/데이터 보호"
+          ],
+          "missing_headers": [],
+          "duplicate_headers": [],
+          "unexpected_headers": [],
+          "exact_order_ok": true
+        },
+        "action_steps_contract_ok": true,
+        "action_steps_block_count_violations": 0,
+        "life_cycle_target_high_low_ok": true,
+        "life_cycle_target_repeat_patterns_ok": true,
+        "life_cycle_target_next_three_years_ok": true,
+        "life_cycle_target_next_three_years_has_slots": true,
+        "life_cycle_target_personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ],
+        "life_cycle_how_to_use_ok": true,
+        "life_cycle_valid_until_ok": true,
+        "life_cycle_cta_ok": true,
+        "life_cycle_hf11_ok": true,
+        "life_cycle_hf11_target_header": "인생 구조 한 장 요약",
+        "life_cycle_hf12_ok": true,
+        "life_cycle_hf14_ok": true,
+        "life_cycle_hf14_overlap_tokens": [
+          "다음",
+          "두세요",
+          "행동"
+        ],
+        "life_cycle_hf16_ok": true,
+        "life_cycle_hf16_skipped": false,
+        "life_cycle_release_ok": true,
+        "valid_until_fallback": false
+      },
+      "scores": {
+        "exact_h2_ok": true,
+        "read_flow": 5,
+        "self_relevance": 5,
+        "action_connection": 5,
+        "jargon_control": 4,
+        "overall_pass": true,
+        "strengths": [
+          "개인화 흔적이 분명함",
+          "행동 연결이 또렷함"
+        ],
+        "risk_note": "고점/저점 문단은 아직 맥락 문장이 더 붙으면 설득력이 올라갈 수 있음",
+        "personalization_sections": [
+          "인생 구조 한 장 요약",
+          "현재 위치",
+          "다음 3년 구체화"
+        ]
+      }
+    }
+  ]
+}

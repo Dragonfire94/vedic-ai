@@ -1,0 +1,22 @@
+{
+  "generated_at_kst": "2026-03-12T14:43:28+09:00",
+  "contract_version": "v1.4.0",
+  "release_evidence_dir": "PRD/release_evidence/v1_4_0",
+  "render_profile": "life_cycle_target_v1",
+  "request_fingerprint": "05d44aaccc79aedd",
+  "evidence_case_id": "life_cycle_target_primary",
+  "commit_sha": "d42d83da02944588290801b62e8cdbdbcb1d7b09",
+  "dirty_worktree": false,
+  "manual_qa_path": "PRD/release_evidence/v1_4_0/life_cycle_target_manual_qa.md",
+  "sample_response_path": "PRD/release_evidence/v1_4_0/life_cycle_target_sample_response.json",
+  "gate_summary_path": "PRD/release_evidence/v1_4_0/life_cycle_target_gate_summary.json",
+  "editorial_rubric_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md",
+  "editorial_review_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md",
+  "editorial_case_matrix_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json",
+  "manual_qa_sha256": "e989c23f3cde68255430409e040e62b683efe35f9cbb9cdd83258977e620c2e6",
+  "sample_response_sha256": "284fcfe9ef2e6b496dacd2dcdd7f83483565d29cd4aaf122179cb87df3b7d319",
+  "gate_summary_sha256": "63640a09f688fa23aaba1c85ba8cc787e7153d0808df9ca0b7293d532d3a2b5c",
+  "editorial_rubric_sha256": "83f9d24ea763cef8d294ba1e02af444115331a856f03c04b1f2fdd333de34660",
+  "editorial_review_sha256": "ee42945d8cadd9d24f7a90f5ae9fb08a1b20a6c9ba8080d30be81061c21e59c2",
+  "editorial_case_matrix_sha256": "0421f1943a77e37c3e6d6737ba47fab76d7673acac1a1daaadb43e0625cdd482"
+}
