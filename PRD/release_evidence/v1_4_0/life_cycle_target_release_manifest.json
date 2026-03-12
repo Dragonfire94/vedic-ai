@@ -13,7 +13,7 @@
   "editorial_rubric_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md",
   "editorial_review_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md",
   "editorial_case_matrix_path": "PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json",
-  "manual_qa_sha256": "85c16c417dac5b6446ceb37f91a38e55fc7e909669016e3e7b90c52fb5c94a04",
+  "manual_qa_sha256": "e06e3f0cb72f951beb4f8a418bc97961a30f8f24207ab225de0d6b46e9375bc1",
   "sample_response_sha256": "308b7d449fff8858ef99d690c57fcd5f3958db1814b86c451b8182a2c169e11a",
   "gate_summary_sha256": "ad93fc847363f687d9c83c98e694ae6c8bca7d927e26b78d9ae5d23836d9f094",
   "editorial_rubric_sha256": "22251c1ac2d45b1d191cbbcae46ab6ad0074239c456e5b69e260abc2a02f81fd",
