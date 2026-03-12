@@ -428,6 +428,17 @@ def _flatten_antardasha_rows(
     return rows
 
 
+def _build_next_three_years_action(concern_hint: str, slot_index: int) -> str:
+    prompts = [
+        f"{concern_hint}에 대한 기준 1개를 이 구간 시작 전에 다시 정리하세요.",
+        f"이 구간 중간에는 {concern_hint}에 대한 기준이 흔들릴 때 다시 볼 문장 1개를 남겨두세요.",
+        f"이 구간이 끝나기 전에는 {concern_hint}에 대한 판단 기준이 실제로 맞았는지 점검 메모 1개를 남기세요.",
+        f"{concern_hint}에 대한 기준을 넓히기 전에 이번 구간에서 지킬 보호선 1개를 먼저 적어두세요.",
+        f"다음 전환 전까지 {concern_hint}에 대한 기준 중 계속 가져갈 것 1개를 정리하세요.",
+    ]
+    return prompts[slot_index % len(prompts)]
+
+
 def compute_next_three_years(
     antardasha_rows: list[dict[str, Any]],
     *,
@@ -466,7 +477,7 @@ def compute_next_three_years(
                 "bhukti_label": bhukti_label,
                 "topic_label": topic_label,
                 "summary": f"{bhukti_label} 흐름이 {summary_target}에서 무엇을 조정해야 하는지 더 선명하게 드러나는 구간입니다.",
-                "action": f"{concern_hint}와 연결된 기준 1개를 이 구간 시작 전에 다시 정리하세요.",
+                "action": _build_next_three_years_action(concern_hint, len(slots)),
             }
         )
 

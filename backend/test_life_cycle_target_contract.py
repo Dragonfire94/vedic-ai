@@ -138,11 +138,12 @@ def test_render_life_cycle_target_markdown_deepens_personalization_across_requir
 
     assert "민서님" in summary_body
     assert "커리어와 돈" in summary_body
-    assert "브랜드 전략 업무" in current_body
-    assert "싱글" in current_body
+    assert "현재 맥락은 브랜드 전략 업무이며, 관계 상태는 싱글입니다." in current_body
+    assert "브랜드 전략 업무 / 싱글" not in current_body
     assert "브랜드 전략 업무" in next_three_years_body
     assert "싱글" in next_three_years_body
     assert "이직 타이밍" in next_three_years_body
+    assert "지금 메모할 질문: 이 3년 구간에서 이직 타이밍에 대한 기준을 어떻게 추적할지 한 줄로 적어두세요." in next_three_years_body
 
 def test_render_life_cycle_markdown_dispatch_keeps_baseline_default_and_exposes_target_branch() -> None:
     payload = _target_payload()

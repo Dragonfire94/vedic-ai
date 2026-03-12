@@ -173,13 +173,21 @@ def test_compute_next_three_years_skips_past_rows_and_keeps_empty_closing_note()
     assert "업데이트된 지도를 확인해보세요" in out["closing_note"]
 
 
-def test_compute_next_three_years_uses_concern_token_in_action() -> None:
+def test_compute_next_three_years_uses_distinct_concern_actions_without_particle_glitches() -> None:
     as_of_local = datetime(2026, 3, 11, tzinfo=dt_timezone.utc)
     out = compute_next_three_years(
-        [_antardasha_row(2026, mahadasha="Moon", bhukti="Mercury", month=6)],
+        [
+            _antardasha_row(2026, mahadasha="Moon", bhukti="Mercury", month=6),
+            _antardasha_row(2027, mahadasha="Moon", bhukti="Ketu", month=1),
+            _antardasha_row(2027, mahadasha="Moon", bhukti="Venus", month=8),
+        ],
         as_of_local=as_of_local,
         onboarding_goal="relationship",
         concern_tokens=["전환 타이밍"],
     )
-    assert out["slot_count"] == 1
-    assert "전환 타이밍" in out["slots"][0]["action"]
+    actions = [slot["action"] for slot in out["slots"]]
+
+    assert out["slot_count"] == 3
+    assert all("전환 타이밍" in action for action in actions)
+    assert len(set(actions)) == len(actions)
+    assert not any("타이밍와" in action or "타이밍를" in action for action in actions)

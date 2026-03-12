@@ -72,3 +72,79 @@ def test_target_editorial_pack_main_keeps_sample_gate_manifest_identity_aligned(
     assert manifest["sample_response_sha256"] == pack._file_sha256(pack.SAMPLE_RESPONSE_PATH)
     assert "## Human Spot Check" in manual_qa
     assert "## Suggested First-Pass Copy" in manual_qa
+
+
+def test_target_editorial_pack_main_preserves_existing_human_spot_check(monkeypatch) -> None:
+    out_dir = Path("logs") / f"life_cycle_target_editorial_pack_preserve_{uuid4().hex}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    monkeypatch.setattr(pack, "OUT_DIR", out_dir)
+    monkeypatch.setattr(pack, "EDITORIAL_RUBRIC_PATH", out_dir / "life_cycle_target_editorial_rubric.md")
+    monkeypatch.setattr(pack, "EDITORIAL_REVIEW_PATH", out_dir / "life_cycle_target_editorial_review_20.md")
+    monkeypatch.setattr(pack, "EDITORIAL_CASES_PATH", out_dir / "life_cycle_target_editorial_case_matrix.json")
+    monkeypatch.setattr(pack, "MANUAL_QA_PATH", out_dir / "life_cycle_target_manual_qa.md")
+    monkeypatch.setattr(pack, "SAMPLE_RESPONSE_PATH", out_dir / "life_cycle_target_sample_response.json")
+    monkeypatch.setattr(pack, "GATE_SUMMARY_PATH", out_dir / "life_cycle_target_gate_summary.json")
+    monkeypatch.setattr(pack, "MANIFEST_PATH", out_dir / "life_cycle_target_release_manifest.json")
+    monkeypatch.setattr(pack, "RELEASE_EVIDENCE_DIR", "tmp/life_cycle_target")
+
+    existing_manual_qa = """# Life Cycle Target Manual QA
+
+## Human Spot Check
+
+- reviewer: human-reviewer
+- review_date_kst: 2026-03-12
+- sample_path: tmp/life_cycle_target/life_cycle_target_sample_response.json
+- result: PASS
+
+### Check 1
+- result: PASS
+- note: natural
+
+### Check 2
+- result: PASS
+- note: personalized
+
+### Check 3
+- result: PASS
+- note: present
+
+### Check 4
+- result: PASS
+- note: action line connected
+
+### Check 5
+- result: PASS
+- note: jargon controlled
+
+### Check 6
+- result: PASS
+- note: actionable
+
+### Final Note
+- cutover_ready: NO
+- reviewer_summary: copy issue noted
+
+## Suggested First-Pass Copy
+"""
+    pack.MANUAL_QA_PATH.write_text(existing_manual_qa, encoding="utf-8", newline="\n")
+
+    def _fake_git_text(args: list[str]) -> str:
+        if args[:3] == ["git", "rev-parse", "HEAD"]:
+            return "deadbeefcafebabe"
+        if args[:2] == ["git", "status"]:
+            return ""
+        raise AssertionError(f"unexpected git args: {args}")
+
+    monkeypatch.setattr(pack, "_git_text", _fake_git_text)
+
+    assert pack.main() == 0
+
+    manual_qa = pack.MANUAL_QA_PATH.read_text(encoding="utf-8")
+    human_block = manual_qa.split("## Human Spot Check\n", 1)[1].split("\n## Suggested First-Pass Copy", 1)[0]
+
+    assert "- reviewer: human-reviewer" in human_block
+    assert "- result: PASS" in human_block
+    assert "- cutover_ready: NO" in human_block
+    assert "- reviewer_summary: copy issue noted" in human_block
+    assert "PASS | FAIL" not in human_block

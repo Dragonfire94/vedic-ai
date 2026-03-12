@@ -134,7 +134,7 @@ def _render_next_three_years_lines(payload: dict[str, Any]) -> list[str]:
         )
     )
     if concern_tokens:
-        lines.append(f"지금 메모할 질문: {concern_tokens[0]}를 이 3년 구간에서 어떤 기준으로 추적할지 한 줄로 적어두세요.")
+        lines.append(f"지금 메모할 질문: 이 3년 구간에서 {concern_tokens[0]}에 대한 기준을 어떻게 추적할지 한 줄로 적어두세요.")
     return lines
 
 
@@ -142,14 +142,21 @@ def _decorate_target_baseline_sections(payload: dict[str, Any], sections: list[t
     subject_name = _safe_text(payload.get("subject_name"), "당신")
     occupation_context = _safe_text(payload.get("occupation_context"))
     relationship_status = _safe_text(payload.get("relationship_status"))
-    context_tokens = [token for token in [occupation_context, relationship_status] if token]
+
+    context_sentence = ""
+    if occupation_context and relationship_status:
+        context_sentence = f"현재 맥락은 {occupation_context}이며, 관계 상태는 {relationship_status}입니다."
+    elif occupation_context:
+        context_sentence = f"현재 맥락은 {occupation_context}입니다."
+    elif relationship_status:
+        context_sentence = f"현재 관계 상태는 {relationship_status}입니다."
 
     out: list[tuple[str, list[str]]] = []
     for heading, body_lines in sections:
         if heading == "## 현재 위치":
-            intro = f"- {subject_name}님은 지금 큰 판단을 넓히기보다 현재 기준을 좁혀야 하는 시즌에 있습니다."
-            if context_tokens:
-                intro = intro[:-1] + f" 현재 맥락은 {' / '.join(context_tokens[:2])}입니다."
+            intro = f"- {subject_name}님은 지금 큰 판단을 넓히기보다, 먼저 지금 기준을 분명히 해야 하는 시즌에 있습니다."
+            if context_sentence:
+                intro = f"{intro} {context_sentence}"
             out.append((heading, [intro, *body_lines]))
             continue
         out.append((heading, body_lines))

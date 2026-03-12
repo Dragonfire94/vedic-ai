@@ -251,6 +251,74 @@ def _build_primary_sample(
     }
 
 
+def _default_human_spot_check_block() -> str:
+    return f"""## Human Spot Check
+
+- reviewer:
+- review_date_kst: 2026-03-12
+- sample_path: {RELEASE_EVIDENCE_DIR}/life_cycle_target_sample_response.json
+- result: PASS | FAIL
+
+### Check 1
+
+- item: 인생 구조 한 장 요약 첫 문장 자연스러움
+- result: PASS | FAIL
+- note:
+
+### Check 2
+
+- item: 현재 위치에 이름/관심사/맥락 자연 반영
+- result: PASS | FAIL
+- note:
+
+### Check 3
+
+- item: target 3개 섹션(고점/저점, 반복 패턴, 다음 3년) 각 1회 존재
+- result: PASS | FAIL
+- note:
+
+### Check 4
+
+- item: How to use -> 다음 3년 -> valid_until -> CTA 행동선 연결
+- result: PASS | FAIL
+- note:
+
+### Check 5
+
+- item: 내부 SKU 표현/과한 영문/jargon 없음
+- result: PASS | FAIL
+- note:
+
+### Check 6
+
+- item: 전체적으로 내 얘기 같고 바로 행동이 떠오름
+- result: PASS | FAIL
+- note:
+
+### Final Note
+
+- cutover_ready: YES | NO
+- reviewer_summary:"""
+
+
+def _load_existing_human_spot_check_block() -> str | None:
+    if not MANUAL_QA_PATH.exists():
+        return None
+    existing_text = MANUAL_QA_PATH.read_text(encoding="utf-8")
+    start_marker = "## Human Spot Check\n"
+    end_marker = "\n## Suggested First-Pass Copy"
+    if start_marker not in existing_text or end_marker not in existing_text:
+        return None
+    block = existing_text.split(start_marker, 1)[1].split(end_marker, 1)[0].strip()
+    if not block:
+        return None
+    return start_marker + block
+
+
+def _render_human_spot_check_block() -> str:
+    return _load_existing_human_spot_check_block() or _default_human_spot_check_block()
+
+
 def main() -> int:
     generated_at_kst = datetime.now(KST).replace(microsecond=0).isoformat()
     commit_sha = _git_text(["git", "rev-parse", "HEAD"])
@@ -486,53 +554,7 @@ def main() -> int:
 - reviewer: Codex
 - run date (Asia/Seoul): {generated_at_kst}
 
-## Human Spot Check
-
-- reviewer:
-- review_date_kst: 2026-03-12
-- sample_path: PRD/release_evidence/v1_4_0/life_cycle_target_sample_response.json
-- result: PASS | FAIL
-
-### Check 1
-
-- item: 인생 구조 한 장 요약 첫 문장 자연스러움
-- result: PASS | FAIL
-- note:
-
-### Check 2
-
-- item: 현재 위치에 이름/관심사/맥락 자연 반영
-- result: PASS | FAIL
-- note:
-
-### Check 3
-
-- item: target 3개 섹션(고점/저점, 반복 패턴, 다음 3년) 각 1회 존재
-- result: PASS | FAIL
-- note:
-
-### Check 4
-
-- item: How to use -> 다음 3년 -> valid_until -> CTA 행동선 연결
-- result: PASS | FAIL
-- note:
-
-### Check 5
-
-- item: 내부 SKU 표현/과한 영문/jargon 없음
-- result: PASS | FAIL
-- note:
-
-### Check 6
-
-- item: 전체적으로 내 얘기 같고 바로 행동이 떠오름
-- result: PASS | FAIL
-- note:
-
-### Final Note
-
-- cutover_ready: YES | NO
-- reviewer_summary:
+{_render_human_spot_check_block()}
 
 ## Suggested First-Pass Copy
 

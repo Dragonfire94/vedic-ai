@@ -149,7 +149,7 @@ def test_run_strict_vedic_scan_honors_life_cycle_target_release_mode(monkeypatch
         "   행동: 전환 타이밍과 연결된 기준 1개를 이 구간 시작 전에 다시 정리하세요.\n",
         "",
     ).replace(
-        "지금 메모할 질문: 전환 타이밍를 이 3년 구간에서 어떤 기준으로 추적할지 한 줄로 적어두세요.\n",
+        "지금 메모할 질문: 이 3년 구간에서 전환 타이밍에 대한 기준을 어떻게 추적할지 한 줄로 적어두세요.\n",
         "",
     )
     failing_path = temp_dir / "life_cycle_target_fail.md"

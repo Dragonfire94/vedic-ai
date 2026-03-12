@@ -71,7 +71,7 @@ def build_life_cycle_lite_sections(payload: dict[str, Any]) -> list[tuple[str, l
     fallback_text = (
         "다음 마하다샤 시작일이 불분명해 3년 기준의 보수적 유효기간을 사용했습니다."
         if payload.get("valid_until_fallback")
-        else f"다음 큰 전환 시점은 {next_mahadasha} 전후로 읽히므로 그 전까지를 현재 해석의 유효기간으로 봅니다."
+        else f"다음 큰 전환일은 {next_mahadasha} 전후로 읽히므로 그 전까지를 현재 해석의 유효기간으로 봅니다."
     )
 
     return [
@@ -110,7 +110,7 @@ def build_life_cycle_lite_sections(payload: dict[str, Any]) -> list[tuple[str, l
             [
                 f"- 현재 단계: {_safe_text(current_stage.get('label'), '미정')} | {_safe_text(current_stage.get('summary_label'), '흐름 재정리')}",
                 f"- 현재 마하다샤: {_safe_text(current_mahadasha.get('planet_label'), '미정')}",
-                f"- 다음 큰 전환 예상일: {next_mahadasha}",
+                f"- 다음 큰 전환일: {next_mahadasha}",
                 f"- 지금 필요한 태도: {_safe_text(current_mahadasha.get('theme'), '지금 단계의 기준을 다시 세우기')}",
             ],
         ),
