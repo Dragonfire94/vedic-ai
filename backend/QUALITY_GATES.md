@@ -67,6 +67,54 @@ Notes:
 - Year/quarter timing hits are filtered only for `life_cycle_lite`; other forbidden-pattern rules remain active.
 - Target-report sections are not part of the baseline gate and must remain absent in this cut.
 
+## Life Cycle Baseline Fast Contract Check (dev loop only)
+
+Run:
+
+```bash
+python -m pytest backend/test_life_cycle_lite_contract.py -q
+```
+
+Notes:
+- This is a micro-fixture contract check for baseline `life_cycle-lite` meta/structure/P1-hidden guarantees.
+- It is meant for fast local verification during development.
+- It does not replace the baseline release gate above.
+
+## Life Cycle Target Candidate Pack (pre-cutover)
+
+Run:
+
+```bash
+python scripts/build_life_cycle_target_editorial_pack.py
+```
+
+Review artifacts:
+- `PRD/release_evidence/v1_4_0/life_cycle_target_manual_qa.md`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_sample_response.json`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_gate_summary.json`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_release_manifest.json`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md`
+- `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json`
+
+Notes:
+- This pack is for internal target-report review before route cutover.
+- `life_cycle_target_v1` is not yet the shipped `/ai_reading?product_type=life_cycle` render profile.
+- Final cutover should be claimed only after target evidence is regenerated on a clean commit and a human spot-check confirms the editorial pack.
+
+## Life Cycle Final Cutover Readiness Check
+
+Run:
+
+```bash
+python scripts/check_life_cycle_target_cutover_ready.py
+```
+
+Notes:
+- This command is expected to fail until the git worktree is clean and the Human Spot Check section is fully completed.
+- After editing `life_cycle_target_manual_qa.md`, run `python scripts/refresh_life_cycle_target_manifest.py` once before the final evidence commit so manifest hashes stay aligned.
+- A passing result means the target evidence pack, manifest hashes, gate summary, editorial case matrix, and human spot-check are all aligned for final cutover review.
+
 ## Environment Notes
 
 - `pytest` must be installed in the same interpreter used for backend commands.

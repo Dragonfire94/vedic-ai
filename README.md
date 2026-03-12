@@ -358,6 +358,47 @@ python -m pytest backend/test_life_cycle_gate_metrics.py backend/test_cheap_vali
 3. `PRD/release_evidence/v1_4_0/life_cycle_lite_gate_summary.json`
 4. `PRD/release_evidence/v1_4_0/life_cycle_lite_release_manifest.json`
 
+### baseline fast contract check (dev loop only)
+
+```powershell
+python -m pytest backend/test_life_cycle_lite_contract.py -q
+```
+
+주의:
+- 이 테스트는 baseline `life_cycle-lite` 메타/구조/P1 미노출을 빠르게 확인하는 micro fixture입니다.
+- 최종 출고 판정은 위 baseline release gate가 기준입니다.
+
+### target candidate review pack (`life_cycle_target_v1`, pre-cutover)
+
+```powershell
+python scripts/build_life_cycle_target_editorial_pack.py
+```
+
+검토 권장 산출물:
+
+1. `PRD/release_evidence/v1_4_0/life_cycle_target_manual_qa.md`
+2. `PRD/release_evidence/v1_4_0/life_cycle_target_sample_response.json`
+3. `PRD/release_evidence/v1_4_0/life_cycle_target_gate_summary.json`
+4. `PRD/release_evidence/v1_4_0/life_cycle_target_release_manifest.json`
+5. `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md`
+6. `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md`
+7. `PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json`
+
+주의:
+- 이 pack은 아직 route cutover 전 internal target candidate 검토용입니다.
+- 최종 출고 source of truth는 여전히 baseline `life_cycle_lite_v1` evidence입니다.
+
+### final cutover readiness check
+
+```powershell
+python scripts/check_life_cycle_target_cutover_ready.py
+```
+
+주의:
+- 이 명령은 git worktree가 clean하고, target manual QA의 Human Spot Check가 실제로 채워진 뒤에만 PASS합니다.
+- Human Spot Check를 수정한 뒤에는 `python scripts/refresh_life_cycle_target_manifest.py`를 한 번 실행해서 manifest 해시를 다시 맞춰야 합니다.
+- PASS가 나와야 마지막 cutover review에 들어갈 수 있습니다.
+
 ### legacy generic 유지 게이트
 
 ```powershell
