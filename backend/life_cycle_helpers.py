@@ -430,11 +430,22 @@ def _flatten_antardasha_rows(
 
 def _build_next_three_years_action(concern_hint: str, slot_index: int) -> str:
     prompts = [
-        f"{concern_hint}에 대한 기준 1개를 이 구간 시작 전에 다시 정리하세요.",
-        f"이 구간 중간에는 {concern_hint}에 대한 기준이 흔들릴 때 다시 볼 문장 1개를 남겨두세요.",
-        f"이 구간이 끝나기 전에는 {concern_hint}에 대한 판단 기준이 실제로 맞았는지 점검 메모 1개를 남기세요.",
-        f"{concern_hint}에 대한 기준을 넓히기 전에 이번 구간에서 지킬 보호선 1개를 먼저 적어두세요.",
-        f"다음 전환 전까지 {concern_hint}에 대한 기준 중 계속 가져갈 것 1개를 정리하세요.",
+        f"{concern_hint} 기준 1개를 이번 구간 시작 전에 먼저 적어두세요.",
+        f"{concern_hint} 메모 옆에, 다시 돌아올 문장 1개를 적어두세요.",
+        f"이 구간이 끝날 즈음 {concern_hint} 기준이 현실에서 맞았는지 짧게 점검해 보세요.",
+        f"이번 구간에서 지킬 {concern_hint} 보호선 1개를 먼저 정해두세요.",
+        f"다음 전환 전까지 {concern_hint} 기준 중 계속 가져갈 것과 버릴 것을 나눠 보세요.",
+    ]
+    return prompts[slot_index % len(prompts)]
+
+
+def _build_next_three_years_summary(summary_target: str, bhukti_label: str, slot_index: int) -> str:
+    prompts = [
+        f"{bhukti_label} 부크티가 시작되면서 {summary_target}에서 무엇부터 정리해야 할지가 또렷해지는 구간입니다.",
+        f"{bhukti_label} 부크티에서는 속도를 더 내기보다, {summary_target}의 기준이 흔들리는 지점을 점검해 보는 편이 좋습니다.",
+        f"{bhukti_label} 부크티는 앞서 세운 기준이 현실에서 맞는지 차분히 확인해 보는 구간입니다.",
+        f"{bhukti_label} 부크티에서는 {summary_target}의 우선순위를 다시 고르고 덜 중요한 것은 내려놓는 연습이 중요합니다.",
+        f"{bhukti_label} 부크티는 다음 전환 전에 {summary_target}의 중심축을 다시 묶어 두기 좋은 구간입니다.",
     ]
     return prompts[slot_index % len(prompts)]
 
@@ -476,7 +487,7 @@ def compute_next_three_years(
                 "bhukti": row.get("bhukti"),
                 "bhukti_label": bhukti_label,
                 "topic_label": topic_label,
-                "summary": f"{bhukti_label} 흐름이 {summary_target}에서 무엇을 조정해야 하는지 더 선명하게 드러나는 구간입니다.",
+                "summary": _build_next_three_years_summary(summary_target, bhukti_label, len(slots)),
                 "action": _build_next_three_years_action(concern_hint, len(slots)),
             }
         )
@@ -609,7 +620,7 @@ def build_life_cycle_payload(
         "occupation_context": occupation_context,
         "relationship_status": relationship_status,
         "summary_target": summary_target,
-        "summary_hook": f"{subject_name}님의 지금 흐름은 {summary_target}을 {current_stage_label}의 방식으로 다시 정리하는 단계에 가깝습니다.",
+        "summary_hook": f"{subject_name}님은 지금 {summary_target}에서 답을 더 넓히기보다, 먼저 자기 기준을 다시 세우는 쪽이 더 잘 맞는 구간에 들어와 있습니다.",
         "stage_count": len(stages),
         "stages": stages,
         "current_stage": current_stage,

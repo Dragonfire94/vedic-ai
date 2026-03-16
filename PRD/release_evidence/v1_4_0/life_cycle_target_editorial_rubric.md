@@ -4,7 +4,7 @@
 - release_evidence_dir: PRD/release_evidence/v1_4_0
 - render_profile: life_cycle_target_v1
 - reviewer_mode: Codex AI-assisted first pass
-- generated_at_kst: 2026-03-12T15:43:13+09:00
+- generated_at_kst: 2026-03-16T13:24:39+09:00
 
 이 문서는 `Vedic Life Cycle Report` target candidate를 20개 샘플로 읽을 때 같은 기준으로 점검하기 위한 루브릭입니다.
 이 평가는 사람이 다시 읽을 때 기준을 맞추기 위한 첫 패스이며, 최종 컷오버 직전에는 사람 spot-check를 한 번 더 권장합니다.

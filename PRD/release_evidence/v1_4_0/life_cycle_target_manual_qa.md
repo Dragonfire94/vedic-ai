@@ -5,11 +5,11 @@
 - render_profile: life_cycle_target_v1
 - request_fingerprint: 05d44aaccc79aedd
 - evidence_case_id: life_cycle_target_primary
-- commit_sha: b362c5b0810296e5b07b2fe54c6b4e0edf59226a
+- commit_sha: 5d7f78a834992e87fdb2c2fb3848e358ffcc0c27
 - release_manifest_path: PRD/release_evidence/v1_4_0/life_cycle_target_release_manifest.json
 - editorial_rubric_path: PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md
 - editorial_review_path: PRD/release_evidence/v1_4_0/life_cycle_target_editorial_review_20.md
-- dirty_worktree: false
+- dirty_worktree: true
 
 ## Case 1: life_cycle_target_primary
 
@@ -28,7 +28,7 @@
   - personalization sections: 인생 구조 한 장 요약, 현재 위치, 다음 3년 구체화
 - PASS/FAIL: PASS
 - reviewer: Codex
-- run date (Asia/Seoul): 2026-03-12T15:43:13+09:00
+- run date (Asia/Seoul): 2026-03-16T13:24:39+09:00
 
 ## Human Spot Check
 - reviewer: USER
@@ -123,4 +123,4 @@
   - case matrix path: PRD/release_evidence/v1_4_0/life_cycle_target_editorial_case_matrix.json
 - PASS/FAIL: PASS
 - reviewer: Codex
-- run date (Asia/Seoul): 2026-03-12T15:43:13+09:00
+- run date (Asia/Seoul): 2026-03-16T13:24:39+09:00

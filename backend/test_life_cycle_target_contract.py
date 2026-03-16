@@ -18,7 +18,7 @@ def _section_body(markdown: str, heading: str) -> str:
 def _target_payload() -> dict:
     return {
         "subject_name": "민서",
-        "summary_hook": "민서님의 지금 흐름은 삶의 큰 방향을 학습과 협상의 방식으로 다시 정리하는 단계에 가깝습니다.",
+        "summary_hook": "민서님은 지금 삶의 큰 방향에서 답을 더 넓히기보다, 먼저 자기 기준을 다시 세우는 쪽이 더 잘 맞는 구간에 들어와 있습니다.",
         "summary_target": "삶의 큰 방향",
         "focus_tokens": ["커리어", "리듬"],
         "concern_tokens": ["전환 타이밍", "우선순위"],
@@ -79,8 +79,8 @@ def _target_payload() -> dict:
                     "bhukti": "Mercury",
                     "bhukti_label": "수성",
                     "topic_label": "소통·분석·학습",
-                    "summary": "수성 흐름이 삶의 큰 방향에서 무엇을 조정해야 하는지 더 선명하게 드러나는 구간입니다.",
-                    "action": "전환 타이밍과 연결된 기준 1개를 이 구간 시작 전에 다시 정리하세요.",
+                    "summary": "수성 부크티가 시작되면서 삶의 큰 방향에서 무엇부터 정리해야 할지가 또렷해지는 구간입니다.",
+                    "action": "전환 타이밍 기준 1개를 이번 구간 시작 전에 먼저 적어두세요.",
                 },
                 {
                     "start_date": "2027-01-01",
@@ -88,8 +88,8 @@ def _target_payload() -> dict:
                     "bhukti": "Jupiter",
                     "bhukti_label": "목성",
                     "topic_label": "성장·지혜·풍요",
-                    "summary": "목성 흐름이 삶의 큰 방향에서 확장 기준을 다시 정리하게 만드는 구간입니다.",
-                    "action": "전환 타이밍과 연결된 기준 1개를 이 구간 시작 전에 다시 정리하세요.",
+                    "summary": "목성 부크티에서는 속도를 더 내기보다, 삶의 큰 방향의 기준이 흔들리는 지점을 점검해 보는 편이 좋습니다.",
+                    "action": "전환 타이밍 메모 옆에, 다시 돌아올 문장 1개를 적어두세요.",
                 },
             ],
             "closing_note": "이 구간이 지나면 당신의 인생 주기 지도는 새로운 챕터로 넘어갑니다.\n3년 후 또는 다음 주요 전환점에서 업데이트된 지도를 확인해보세요.",
@@ -122,13 +122,13 @@ def test_render_life_cycle_target_markdown_renders_target_sections_without_sku_w
 
 def test_render_life_cycle_target_markdown_deepens_personalization_across_required_sections() -> None:
     payload = _target_payload()
-    payload["summary_hook"] = "민서님의 지금 흐름은 커리어와 돈을 브랜드 전략 업무의 방식으로 다시 정리하는 단계에 가깝습니다."
+    payload["summary_hook"] = "민서님은 지금 커리어와 돈에서 답을 더 넓히기보다, 먼저 자기 기준을 다시 세우는 쪽이 더 잘 맞는 구간에 들어와 있습니다."
     payload["summary_target"] = "커리어와 돈"
     payload["occupation_context"] = "브랜드 전략 업무"
     payload["relationship_status"] = "싱글"
     payload["concern_tokens"] = ["이직 타이밍", "수입 안정"]
-    payload["next_three_years"]["slots"][0]["summary"] = "수성 흐름이 커리어와 돈에서 무엇을 조정해야 하는지 더 선명하게 드러나는 구간입니다."
-    payload["next_three_years"]["slots"][0]["action"] = "이직 타이밍과 연결된 기준 1개를 이 구간 시작 전에 다시 정리하세요."
+    payload["next_three_years"]["slots"][0]["summary"] = "수성 부크티가 시작되면서 커리어와 돈에서 무엇부터 정리해야 할지가 또렷해지는 구간입니다."
+    payload["next_three_years"]["slots"][0]["action"] = "이직 타이밍 기준 1개를 이번 구간 시작 전에 먼저 적어두세요."
 
     out = render_life_cycle_target_markdown(payload)
 
@@ -138,7 +138,7 @@ def test_render_life_cycle_target_markdown_deepens_personalization_across_requir
 
     assert "민서님" in summary_body
     assert "커리어와 돈" in summary_body
-    assert "현재 맥락은 브랜드 전략 업무이며, 관계 상태는 싱글입니다." in current_body
+    assert "지금 생활 맥락은 브랜드 전략 업무이고, 관계 상태는 싱글입니다." in current_body
     assert "브랜드 전략 업무 / 싱글" not in current_body
     assert "브랜드 전략 업무" in next_three_years_body
     assert "싱글" in next_three_years_body
