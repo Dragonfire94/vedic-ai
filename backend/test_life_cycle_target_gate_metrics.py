@@ -11,7 +11,7 @@ from backend.life_cycle_target_renderer import render_life_cycle_target_markdown
 def _target_payload() -> dict:
     return {
         "subject_name": "민서",
-        "summary_hook": "민서님은 지금 삶의 큰 방향에서 답을 더 넓히기보다, 먼저 자기 기준을 다시 세우는 쪽이 더 잘 맞는 구간에 들어와 있습니다.",
+        "summary_hook": "민서님은 지금 삶의 큰 방향을 바로 넓히기보다, 흔들리지 않을 자기 기준부터 다시 세워야 하는 때에 가까워 보입니다.",
         "summary_target": "삶의 큰 방향",
         "focus_tokens": ["커리어", "리듬"],
         "concern_tokens": ["전환 타이밍", "우선순위"],
@@ -72,8 +72,8 @@ def _target_payload() -> dict:
                     "bhukti": "Mercury",
                     "bhukti_label": "수성",
                     "topic_label": "소통·분석·학습",
-                    "summary": "수성 부크티가 시작되면서 삶의 큰 방향에서 무엇부터 정리해야 할지가 또렷해지는 구간입니다.",
-                    "action": "전환 타이밍 기준 1개를 이번 구간 시작 전에 먼저 적어두세요.",
+                    "summary": "수성 부크티가 열리면 삶의 큰 방향에서 무엇부터 손봐야 할지가 예상보다 빨리 선명해집니다.",
+                    "action": "전환 타이밍에서 절대 놓치지 않을 기준 하나를 구간이 시작되기 전에 적어두세요.",
                 },
                 {
                     "start_date": "2027-01-01",
@@ -81,8 +81,8 @@ def _target_payload() -> dict:
                     "bhukti": "Jupiter",
                     "bhukti_label": "목성",
                     "topic_label": "성장·지혜·풍요",
-                    "summary": "목성 부크티에서는 속도를 더 내기보다, 삶의 큰 방향의 기준이 흔들리는 지점을 점검해 보는 편이 좋습니다.",
-                    "action": "전환 타이밍 메모 옆에, 다시 돌아올 문장 1개를 적어두세요.",
+                    "summary": "목성 부크티에서는 속도를 더 내기보다, 삶의 큰 방향에서 왜 기준이 흔들리는지부터 돌아보는 편이 낫습니다.",
+                    "action": "흔들릴 때마다 다시 읽을 한 문장을 전환 타이밍 메모 맨 위에 남겨두세요.",
                 },
             ],
             "closing_note": "이 구간이 지나면 당신의 인생 주기 지도는 새로운 챕터로 넘어갑니다.\n3년 후 또는 다음 주요 전환점에서 업데이트된 지도를 확인해보세요.",

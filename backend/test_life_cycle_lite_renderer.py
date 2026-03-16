@@ -29,6 +29,11 @@ def test_render_life_cycle_lite_markdown_uses_exact_h2_order() -> None:
     out = render_life_cycle_lite_markdown(payload)
     headings = [line for line in out.splitlines() if line.startswith("## ")]
     assert headings == LIFE_CYCLE_LITE_H2_ORDER
+    assert "기준 시점(as_of_local)" not in out
+    assert "리포트 유효기간(valid_until)" not in out
+    assert "이번 해석이 유효한 동안에는 커리어, 리듬에만 집중하고" in out
+    assert "현재 단계: 2단계 | 생각과 대화의 질이 결과를 가르는 구간" in out
+    assert "지금 필요한 태도: 정보를 더 모으기보다 지금 필요한 질문 하나로 압축하기" in out
     assert "## 인생 고점/저점 지도" not in out
     assert "## 반복 패턴 분석" not in out
     assert "## 다음 3년 구체화" not in out

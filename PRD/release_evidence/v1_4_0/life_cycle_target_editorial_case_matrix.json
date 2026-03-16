@@ -1,5 +1,5 @@
 {
-  "generated_at_kst": "2026-03-16T13:27:27+09:00",
+  "generated_at_kst": "2026-03-16T13:47:36+09:00",
   "contract_version": "v1.4.0",
   "render_profile": "life_cycle_target_v1",
   "reviewed_cases": [
@@ -24,7 +24,7 @@
         "empty_future": false
       },
       "request_fingerprint": "05d44aaccc79aedd",
-      "render_sha256": "c00d801055690550a5e3050e36ddf1cec4b2c91b301b6344e8334a0ec5e2cffa",
+      "render_sha256": "44e0bcb1eb3d99f1ae3c36b35ebba76db51ba257b024f1f51e44e9b0d4a7ff97",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -132,7 +132,7 @@
         "empty_future": false
       },
       "request_fingerprint": "dc956cbe920d7877",
-      "render_sha256": "67f6e2f6bb2ab95c33e676049386b6f77c199d5219b2ceeb95598f66b0c96f64",
+      "render_sha256": "439b86c1020913037200d4319219c20c911fec0ab32ead49d99b9d511b3f0586",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -240,7 +240,7 @@
         "empty_future": false
       },
       "request_fingerprint": "fc24072c31f784e4",
-      "render_sha256": "71f3488962d9c4114db202897f297b41913aa715efb7514fba2298c359167611",
+      "render_sha256": "96ddc8c34487308aeffa7444a24d7caa0404c195c33961f1f5f3502d401c8865",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -348,7 +348,7 @@
         "empty_future": false
       },
       "request_fingerprint": "6bac99e57025245c",
-      "render_sha256": "da4fc53066da13026a5d39a2ff88cef8e2b458185f7f5f26db1706ea62fde0b4",
+      "render_sha256": "c0586cd019bb469f1c816215e50396070e011e99296830372fa498a535861949",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -456,7 +456,7 @@
         "empty_future": false
       },
       "request_fingerprint": "1c6fcd31a4b061af",
-      "render_sha256": "65325ba64ac654e112adeb7a5baa01e18bc54c9652379dd0f8a29b8805e4e748",
+      "render_sha256": "be049e975d5f2c195ed577e83c03d3a8fd0450f92b9abc8d8f1cdeb22a4b0787",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -564,7 +564,7 @@
         "empty_future": false
       },
       "request_fingerprint": "c5fd34b4fbfe88de",
-      "render_sha256": "365d078b981aa8d523e5a47ac65ed8eca1805626a0edda5cd5a9ff4358b4ec32",
+      "render_sha256": "7e21115eef7b52386a66ff663d9c339bfd4f14eaea923fbdf35e120e0db0a312",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -672,7 +672,7 @@
         "empty_future": false
       },
       "request_fingerprint": "5eb30f85f8f8e15f",
-      "render_sha256": "b37e3a42d094684f1fa832801498e15a8921c36c5569c83da124089438adb110",
+      "render_sha256": "6fb6019d4af54e2cc8a69a2b6e116167d9c5f1f34e60a34c5066908347bc525b",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -780,7 +780,7 @@
         "empty_future": false
       },
       "request_fingerprint": "500ec6d730616643",
-      "render_sha256": "e6c6949aa8fc7966ec2a59792464e3f2ab79b9d85efdae5f133f1959134722a9",
+      "render_sha256": "ec50d27408d8886e47dfe381ad11f0ffb57b0040abf6279c31def1f93da43d2d",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -888,7 +888,7 @@
         "empty_future": false
       },
       "request_fingerprint": "5de18253020f1682",
-      "render_sha256": "706545df424118691aa51859956e3964aea663a7137df06ff39d31ea2d4a6f0c",
+      "render_sha256": "9585afdf56afd6459794ba6ad9a8e08bf28d1cee2ead6769d8f6e33a28b0d688",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -996,7 +996,7 @@
         "empty_future": true
       },
       "request_fingerprint": "55ebc4d9c06ad60e",
-      "render_sha256": "74e4a5e816748966ac4b23b3296314d6df2180848aa6d83a3ca613dcfc4d8e33",
+      "render_sha256": "c454ea7fa7380192500c5a9affb93e01c65a6d076f037cdfdcc418573d2abd36",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1104,7 +1104,7 @@
         "empty_future": false
       },
       "request_fingerprint": "ff580590cb7292e7",
-      "render_sha256": "9f918cb1acc1c64d550b1cd14836989239e8a9c378c16f86e71a4bd4a2e92138",
+      "render_sha256": "317ac0ce9db12f9ef1ec2bd1087d6f235d5cd646f464d299e67069e640b042be",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1212,7 +1212,7 @@
         "empty_future": true
       },
       "request_fingerprint": "dbb37254c33166ad",
-      "render_sha256": "13d9dfaf0deb9f9cabdda513b8e988b442dfbed5f05b477fc05d61c26de491b8",
+      "render_sha256": "6b7d2fd3d1f1ad4561340aae4d442095685527948684feb3d5c3b4858b8afb21",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1319,7 +1319,7 @@
         "empty_future": false
       },
       "request_fingerprint": "756159d52ac66baf",
-      "render_sha256": "6e0a574ce6bd585ed6464e1d93e161f7f9327572f0a2f53220d4684c3bd724a7",
+      "render_sha256": "d2c3c6cd6a82b90c9d45c8aa5209c5e3aab3b00d384c07f9bd6339e599be4662",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1427,7 +1427,7 @@
         "empty_future": false
       },
       "request_fingerprint": "b0018733c4176727",
-      "render_sha256": "1b4b51ee1f93305bc02938b978aef0ea0625fa5ba0cbe85c465f80d8706e3c6d",
+      "render_sha256": "04baa8d9fb56f7e8442f83b696b0d4c9da62b40bcd6ee806759bfd407fa16be8",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1536,7 +1536,7 @@
         "empty_future": false
       },
       "request_fingerprint": "fe6cba43fc259fca",
-      "render_sha256": "a7041032cb03a382ee5b07da0d798bcfed23022695b12ccbf091c354af945c01",
+      "render_sha256": "5c553adf05876659e3f54aedc830be01a2852562502830a26b3958c6f387c809",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1644,7 +1644,7 @@
         "empty_future": false
       },
       "request_fingerprint": "22331415d13da43b",
-      "render_sha256": "0456fd2515aa868724f5b3949491a81d319f1a7c3c9ec22ad8ab8b3fe7bd41ee",
+      "render_sha256": "df6bd862eef53e57a189e76ce2201351dd7a6f5812413ff368744425c631f113",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1752,7 +1752,7 @@
         "empty_future": false
       },
       "request_fingerprint": "8132f1339f4d434d",
-      "render_sha256": "db459599fe66e7b1eb4c9b6f707b82dea608e09e9c99aa65f3fa03ec173bd1dd",
+      "render_sha256": "ebdbf18c9e8cfd5c752f7709139dae8b352ce8f77a1bea47d541b0e0a73e6c87",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1860,7 +1860,7 @@
         "empty_future": false
       },
       "request_fingerprint": "af64c17260d4e158",
-      "render_sha256": "2bcf24811dcba663f4790e5c26ecaa95a704fee98a8053358c60da43cb01a3c2",
+      "render_sha256": "59d87f141b743d305384ba2853d6169156bfb64e1027c7b72430168efa9932bf",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -1968,7 +1968,7 @@
         "empty_future": false
       },
       "request_fingerprint": "e11395dd69d595b9",
-      "render_sha256": "8f1720bc23156495bf6bff415ef4f87dc476a512c4d25191e38f9191d705556d",
+      "render_sha256": "7bab98c7762682a17e2ec9a19a57d89402f5a01ebfad51060e441eb58b9513b5",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,
@@ -2076,7 +2076,7 @@
         "empty_future": false
       },
       "request_fingerprint": "181aec878f1dc4db",
-      "render_sha256": "10d1da8b5db90168baa7d1455b1559a2094cd6d90371268b2ce2f7646263eaa5",
+      "render_sha256": "699355fff1516445dd0062a2524c48b0dcd55bd8e38c24a793cf78b5e9b2be7e",
       "gate": {
         "release_mode": "life_cycle_target",
         "front_contract_ok": true,

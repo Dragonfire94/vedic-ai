@@ -430,22 +430,22 @@ def _flatten_antardasha_rows(
 
 def _build_next_three_years_action(concern_hint: str, slot_index: int) -> str:
     prompts = [
-        f"{concern_hint} 기준 1개를 이번 구간 시작 전에 먼저 적어두세요.",
-        f"{concern_hint} 메모 옆에, 다시 돌아올 문장 1개를 적어두세요.",
-        f"이 구간이 끝날 즈음 {concern_hint} 기준이 현실에서 맞았는지 짧게 점검해 보세요.",
-        f"이번 구간에서 지킬 {concern_hint} 보호선 1개를 먼저 정해두세요.",
-        f"다음 전환 전까지 {concern_hint} 기준 중 계속 가져갈 것과 버릴 것을 나눠 보세요.",
+        f"{concern_hint}에서 절대 놓치지 않을 기준 하나를 구간이 시작되기 전에 적어두세요.",
+        f"흔들릴 때마다 다시 읽을 한 문장을 {concern_hint} 메모 맨 위에 남겨두세요.",
+        f"구간이 끝날 무렵, {concern_hint} 기준이 실제 선택에 도움이 됐는지 짧게 적어보세요.",
+        f"이번 구간에서는 {concern_hint}에서 넘지 않을 선 하나만 먼저 정해두세요.",
+        f"다음 전환 전에 {concern_hint} 기준 가운데 계속 가져갈 것과 정리할 것을 나눠 보세요.",
     ]
     return prompts[slot_index % len(prompts)]
 
 
 def _build_next_three_years_summary(summary_target: str, bhukti_label: str, slot_index: int) -> str:
     prompts = [
-        f"{bhukti_label} 부크티가 시작되면서 {summary_target}에서 무엇부터 정리해야 할지가 또렷해지는 구간입니다.",
-        f"{bhukti_label} 부크티에서는 속도를 더 내기보다, {summary_target}의 기준이 흔들리는 지점을 점검해 보는 편이 좋습니다.",
-        f"{bhukti_label} 부크티는 앞서 세운 기준이 현실에서 맞는지 차분히 확인해 보는 구간입니다.",
-        f"{bhukti_label} 부크티에서는 {summary_target}의 우선순위를 다시 고르고 덜 중요한 것은 내려놓는 연습이 중요합니다.",
-        f"{bhukti_label} 부크티는 다음 전환 전에 {summary_target}의 중심축을 다시 묶어 두기 좋은 구간입니다.",
+        f"{bhukti_label} 부크티가 열리면 {summary_target}에서 무엇부터 손봐야 할지가 예상보다 빨리 선명해집니다.",
+        f"{bhukti_label} 부크티에서는 속도를 더 내기보다, {summary_target}에서 왜 기준이 흔들리는지부터 돌아보는 편이 낫습니다.",
+        f"{bhukti_label} 부크티에 들어서면 앞에서 세운 기준이 현실에서도 통하는지 차분히 확인하게 됩니다.",
+        f"{bhukti_label} 부크티에서는 {summary_target}에서 꼭 쥐고 갈 것과 잠시 내려놓을 것을 가르는 일이 더 중요해집니다.",
+        f"{bhukti_label} 부크티는 다음 전환 전에 {summary_target}의 중심을 다시 묶어 두기 좋은 마무리 구간입니다.",
     ]
     return prompts[slot_index % len(prompts)]
 
@@ -620,7 +620,7 @@ def build_life_cycle_payload(
         "occupation_context": occupation_context,
         "relationship_status": relationship_status,
         "summary_target": summary_target,
-        "summary_hook": f"{subject_name}님은 지금 {summary_target}에서 답을 더 넓히기보다, 먼저 자기 기준을 다시 세우는 쪽이 더 잘 맞는 구간에 들어와 있습니다.",
+        "summary_hook": f"{subject_name}님은 지금 {summary_target}을 바로 넓히기보다, 흔들리지 않을 자기 기준부터 다시 세워야 하는 때에 가까워 보입니다.",
         "stage_count": len(stages),
         "stages": stages,
         "current_stage": current_stage,

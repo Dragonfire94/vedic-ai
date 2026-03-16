@@ -35,7 +35,7 @@ def _render_high_low_lines(payload: dict[str, Any]) -> list[str]:
     transitions = high_low_map.get("transitions") if isinstance(high_low_map.get("transitions"), list) else []
 
     lines = [
-        "이 지도는 압력 점수와 전환 강도를 기준으로, 언제 밀고 언제 속도를 조절해야 하는지 보기 쉽게 정리한 섹션입니다.",
+        "여기서는 흐름이 붙는 때와 한 템포 늦추는 편이 나은 때를 한눈에 보실 수 있습니다.",
         "🔺 가장 상승 가능성 높은 3구간",
     ]
     if highs:
@@ -113,7 +113,7 @@ def _render_next_three_years_lines(payload: dict[str, Any]) -> list[str]:
         context_parts.append(relationship_status)
 
     lines = [
-        f"{subject_name}님에게 앞으로 3년은 {' / '.join(context_parts[:3])}에서 무엇을 밀고 무엇을 보류할지 기준을 다시 세우는 시간에 가깝습니다."
+        f"{subject_name}님에게 앞으로 3년은 {' / '.join(context_parts[:3])}을 둘러싼 선택에서, 무엇을 밀고 무엇은 잠시 미뤄야 할지 선명해지는 시간에 가깝습니다."
     ]
     if slots:
         for idx, slot in enumerate(slots[:5], start=1):
@@ -155,7 +155,7 @@ def _decorate_target_baseline_sections(payload: dict[str, Any], sections: list[t
     for heading, body_lines in sections:
         if heading == "## 현재 위치":
             intro_lines = [
-                f"- {subject_name}님은 지금 큰 결정을 늘리기보다, 무엇을 기준으로 움직일지부터 다시 잡는 편이 맞는 시즌에 있습니다."
+                f"- {subject_name}님은 요즘 선택지를 더 늘리기보다, 꼭 지킬 기준 몇 가지만 먼저 분명히 해두는 편이 더 잘 맞는 시즌에 있습니다."
             ]
             if context_line:
                 intro_lines.append(context_line)
