@@ -399,6 +399,26 @@ python scripts/check_life_cycle_target_cutover_ready.py
 - Human Spot Check를 수정한 뒤에는 `python scripts/refresh_life_cycle_target_manifest.py`를 한 번 실행해서 manifest 해시를 다시 맞춰야 합니다.
 - PASS가 나와야 마지막 cutover review에 들어갈 수 있습니다.
 
+### repo-wide frontend integration check (current follow-up)
+
+```powershell
+cd C:\dev\vedic-ai\frontend
+npm run type-check
+npm run test:e2e -- tests/e2e/btr-flow.spec.ts
+```
+
+현재 이 검증이 의미하는 것:
+
+1. `frontend/app/page.tsx`가 `product_type=life_cycle` + personalization query를 실제로 생성함
+2. exact birth time은 `/chart`로 바로 연결되고, approximate/unknown은 BTR 경로를 거쳐 같은 query를 유지함
+3. `frontend/app/chart/ChartClient.tsx`가 `life_cycle` 진입 시 리포트를 자동 로드하고, 같은 세션 재방문에서는 client cache를 재사용함
+4. `frontend/lib/api.ts`가 `subject_name`, `onboarding_goal`, `focus_tokens`, `concern_tokens`, `occupation_context`, `relationship_status`를 현재 backend contract대로 직렬화함
+
+주의:
+- 이 섹션은 repo-wide frontend follow-up 상태를 설명합니다.
+- backend release source of truth는 여전히 위 baseline gate와 `PRD/release_evidence/v1_4_0/`입니다.
+- `life_cycle_target_v1` cutover 여부는 여전히 target manual QA / manifest / readiness check가 결정합니다.
+
 ### legacy generic 유지 게이트
 
 ```powershell

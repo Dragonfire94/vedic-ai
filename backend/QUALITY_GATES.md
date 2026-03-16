@@ -115,6 +115,22 @@ Notes:
 - After editing `life_cycle_target_manual_qa.md`, run `python scripts/refresh_life_cycle_target_manifest.py` once before the final evidence commit so manifest hashes stay aligned.
 - A passing result means the target evidence pack, manifest hashes, gate summary, editorial case matrix, and human spot-check are all aligned for final cutover review.
 
+## Frontend Repo-Wide Integration Check (dev / repo-wide follow-up)
+
+Run:
+
+```bash
+cd frontend
+npm run type-check
+npm run test:e2e -- tests/e2e/btr-flow.spec.ts
+```
+
+Notes:
+- This verifies that the frontend entry path, `/ai_reading` client contract, chart consumer, and Playwright E2E actually consume the current `product_type=life_cycle` baseline contract.
+- The checked flow currently covers: home exact-time launch, BTR query pass-through, chart auto-load for `life_cycle`, and same-session client cache reuse.
+- This is a repo-wide integration check, not the backend release gate source of truth.
+- A passing result here does not imply `life_cycle_target_v1` cutover readiness; target cutover is still controlled by the target evidence pack and human spot-check.
+
 ## Environment Notes
 
 - `pytest` must be installed in the same interpreter used for backend commands.
