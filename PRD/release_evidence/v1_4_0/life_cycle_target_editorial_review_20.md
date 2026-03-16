@@ -3,7 +3,7 @@
 - contract_version: v1.4.0
 - release_evidence_dir: PRD/release_evidence/v1_4_0
 - render_profile: life_cycle_target_v1
-- generated_at_kst: 2026-03-16T13:47:36+09:00
+- generated_at_kst: 2026-03-16T14:14:31+09:00
 - reviewer: Codex (AI-assisted first pass)
 - rubric_path: PRD/release_evidence/v1_4_0/life_cycle_target_editorial_rubric.md
 

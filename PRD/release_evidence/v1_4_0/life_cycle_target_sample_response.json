@@ -35,7 +35,7 @@
     "release_evidence_dir": "PRD/release_evidence/v1_4_0",
     "request_fingerprint": "05d44aaccc79aedd",
     "evidence_case_id": "life_cycle_target_primary",
-    "commit_sha": "b59be91978b9450e01c16ecf60da3e329cc582ba"
+    "commit_sha": "da7bb72a53e2e673c06e1d9812f33d2c2f87e111"
   },
   "debug_info": {
     "product_type": "life_cycle",
