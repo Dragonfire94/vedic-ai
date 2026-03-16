@@ -1215,10 +1215,16 @@ def _is_actionable_bullet_text(text: str) -> bool:
 
 
 def _is_explanatory_bullet_text(text: str) -> bool:
+    raw = _normalize_newlines(str(text or "")).strip()
     token = _normalize_for_exact_dedupe(text)
     if not token:
         return False
-    return EXPLANATORY_BULLET_RE.search(token) is not None
+    sentence_ending_hits = len(re.findall(r"(?:합니다|됩니다|입니다|수\s*있(?:습니다|다)|좋습니다)", raw))
+    if len(token) >= 70:
+        return True
+    if len(token) >= 45 and sentence_ending_hits >= 1:
+        return True
+    return EXPLANATORY_BULLET_RE.search(raw) is not None
 
 
 def _normalize_action_bullet_fingerprint(text: str) -> str:

@@ -28,8 +28,8 @@ TERM_SPECS: dict[str, dict[str, str]] = {
     "bhukti": {
         "korean": "부크티",
         "roman": "Bhukti",
-        "first_mention": "세부 테마(포커스)를 쪼개는 부크티(Bhukti)",
-        "short_gloss": "세부 테마",
+        "first_mention": "큰 계절 안에서 몇 년간 특히 선명해지는 부크티(Bhukti)",
+        "short_gloss": "세부 흐름",
     },
     "lagna": {
         "korean": "라그나",
@@ -573,6 +573,7 @@ def enforce_subtle_vedic_lexicon(
     max_terms_total: int = 8,
     *,
     allow_zero_term_injection: bool = False,
+    preserve_calendar_dates: bool = False,
 ) -> str:
     if not isinstance(text, str):
         return ""
@@ -589,8 +590,9 @@ def enforce_subtle_vedic_lexicon(
     out = _enforce_chapter_budget(out, max_terms_per_chapter=max_terms_per_chapter)
     out = _enforce_doc_budget(out, max_terms_total=max_terms_total)
     out = _reduce_stacking_mentions(out)
-    out = _de_temporalize_outside_timing_map(out)
-    out = _cap_timing_map_calendar_lines(out, max_calendar_lines=3)
+    if not preserve_calendar_dates:
+        out = _de_temporalize_outside_timing_map(out)
+        out = _cap_timing_map_calendar_lines(out, max_calendar_lines=3)
     if allow_zero_term_injection:
         out = _inject_zero_term_identity(out)
     return out

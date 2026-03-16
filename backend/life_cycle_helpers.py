@@ -440,12 +440,13 @@ def _build_next_three_years_action(concern_hint: str, slot_index: int) -> str:
 
 
 def _build_next_three_years_summary(summary_target: str, bhukti_label: str, slot_index: int) -> str:
+    focus_label = f"{bhukti_label} 흐름"
     prompts = [
-        f"{bhukti_label} 부크티가 열리면 {summary_target}에서 무엇부터 손봐야 할지가 예상보다 빨리 선명해집니다.",
-        f"{bhukti_label} 부크티에서는 속도를 더 내기보다, {summary_target}에서 왜 기준이 흔들리는지부터 돌아보는 편이 낫습니다.",
-        f"{bhukti_label} 부크티에 들어서면 앞에서 세운 기준이 현실에서도 통하는지 차분히 확인하게 됩니다.",
-        f"{bhukti_label} 부크티에서는 {summary_target}에서 꼭 쥐고 갈 것과 잠시 내려놓을 것을 가르는 일이 더 중요해집니다.",
-        f"{bhukti_label} 부크티는 다음 전환 전에 {summary_target}의 중심을 다시 묶어 두기 좋은 마무리 구간입니다.",
+        f"{focus_label}이 열리면 {summary_target}에서 무엇부터 손봐야 할지가 예상보다 빨리 선명해집니다.",
+        f"{focus_label}에서는 속도를 더 내기보다, {summary_target}에서 왜 기준이 흔들리는지부터 돌아보는 편이 낫습니다.",
+        f"{focus_label}에 들어서면 앞에서 세운 기준이 현실에서도 통하는지 차분히 확인하게 됩니다.",
+        f"{focus_label}에서는 {summary_target}에서 꼭 쥐고 갈 것과 잠시 내려놓을 것을 가르는 일이 더 중요해집니다.",
+        f"{focus_label}은 다음 전환 전에 {summary_target}의 중심을 다시 묶어 두기 좋은 마무리 구간입니다.",
     ]
     return prompts[slot_index % len(prompts)]
 

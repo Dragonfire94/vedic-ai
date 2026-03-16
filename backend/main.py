@@ -58,6 +58,11 @@ from backend.life_cycle_helpers import (
     normalize_product_type,
     resolve_subject_name,
 )
+from backend.life_cycle_longform_adapter import (
+    LIFE_CYCLE_LONGFORM_GENERATION_MODE,
+    LIFE_CYCLE_LONGFORM_NARRATIVE_PROFILE,
+    build_life_cycle_longform_chapter_blocks,
+)
 from backend.life_cycle_lite_renderer import render_life_cycle_lite_markdown
 from backend.life_cycle_target_renderer import render_life_cycle_target_markdown
 from backend.report_pipeline import (
@@ -83,11 +88,13 @@ from backend.report_config import (
 from backend.vedic_lexicon import enforce_subtle_vedic_lexicon, scan_vedic_term_budget
 from backend.output_surface_postprocess import (
     commercial_dejargonize,
+    extract_h2_chapter_key,
     postprocess_commercial_quality,
     postprocess_reading_markdown_surface,
     sanitize_commercial_surface_with_front_protection,
     strip_internal_artifacts,
 )
+from backend.commercial_quality_constants import CORE_ACTION_TOOLKIT, DASHA_DEFINITION_CANONICAL_LINE
 from backend.commercial_signal_adapter import build_commercial_signal_card
 from backend.commercial_surface_renderer import (
     has_front_modules,
@@ -160,8 +167,10 @@ READING_PIPELINE_VERSION = "chapter_blocks_v2"
 AI_PROMPT_VERSION = "ko_only_v2"
 APPENDIX_CACHE_SCHEMA_VERSION = "v3"
 LIFE_CYCLE_CONTRACT_VERSION = "v1.4.0"
+LIFE_CYCLE_LONGFORM_CONTRACT_VERSION = "v1.5.0-draft"
 LIFE_CYCLE_RENDER_PROFILE = "life_cycle_lite_v1"
 LIFE_CYCLE_TARGET_RENDER_PROFILE = "life_cycle_target_v1"
+LIFE_CYCLE_LONGFORM_RENDER_PROFILE = "life_cycle_longform_v1"
 STRUCTURED_BLOCKS_BEGIN_TAG = "<BEGIN STRUCTURED BLOCKS>"
 STRUCTURED_BLOCKS_END_TAG = "<END STRUCTURED BLOCKS>"
 LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT = 7000
@@ -2656,6 +2665,280 @@ def _apply_ai_reading_debug_payload_policy(payload: dict[str, Any], debug_payloa
     return out
 
 
+_LONGFORM_CANONICAL_HEADING_RE = re.compile(
+    r"(?ms)^##\s+\[(?P<key>[^\]]+)\]\s+[^\n]+\n.*?(?=^##\s+\[|\Z)"
+)
+_LONGFORM_PLACEHOLDER_RANGE_RE = re.compile(r"중장기 구간-\d{2}-\d{2}\s*~\s*중장기 구간-\d{2}-\d{2}")
+_LONGFORM_PLACEHOLDER_DATE_RE = re.compile(r"중장기 구간-\d{2}-\d{2}")
+_LONGFORM_PLACEHOLDER_GENERIC_RANGE_RE = re.compile(r"중장기 구간\s*~\s*중장기 구간")
+_LONGFORM_BLOCKQUOTE_NOTE_RE = re.compile(r"(?m)^\s*>\s*.+?->.+\s*$")
+_LONGFORM_EXTRA_SUGGESTION_RE = re.compile(r"(?m)^\s*추가 제안:.*$")
+_LONGFORM_ORPHAN_FRAGMENT_RE = re.compile(r"(?m)^\s*시기 흐름\(인생의 큰 시즌\)을 보여주는\s*$")
+_LONGFORM_DASHA_DOUBLE_PERIOD_RE = re.compile(
+    r"다샤\(Dasha\)는 시기 흐름\(인생의 큰 시즌\)을 보여주는 장치입니다\.\."
+)
+_LONGFORM_PLANET_TOKEN_REPLACEMENTS: tuple[tuple[re.Pattern[str], str], ...] = (
+    (re.compile(r"(?<![A-Za-z])Sun(?=[^A-Za-z]|$)"), "태양"),
+    (re.compile(r"(?<![A-Za-z])Moon(?=[^A-Za-z]|$)"), "달"),
+    (re.compile(r"(?<![A-Za-z])Mars(?=[^A-Za-z]|$)"), "화성"),
+    (re.compile(r"(?<![A-Za-z])Mercury(?=[^A-Za-z]|$)"), "수성"),
+    (re.compile(r"(?<![A-Za-z])Jupiter(?=[^A-Za-z]|$)"), "목성"),
+    (re.compile(r"(?<![A-Za-z])Venus(?=[^A-Za-z]|$)"), "금성"),
+    (re.compile(r"(?<![A-Za-z])Saturn(?=[^A-Za-z]|$)"), "토성"),
+)
+_LONGFORM_NON_ACTIONABLE_KEYS = {
+    "Executive Diagnosis",
+    "Core Disposition",
+    "Recurring Patterns",
+    "Emotional Fault Lines",
+    "Final Integration",
+}
+_LONGFORM_ACTIONABLE_KEYS = set(CORE_ACTION_TOOLKIT.keys())
+_LONGFORM_ACTION_STEPS_H3_RE = re.compile(r"(?im)^###\s*Action Steps\s*$")
+_LONGFORM_BULLET_LINE_RE = re.compile(r"^\s*-\s+(?P<text>\S.*)$")
+_LONGFORM_ACTIONABLE_BULLET_RE = re.compile(
+    r"(?:적기|고정하기|보류하기|기록하기|확인하기|예약하기|문서화하기|실행하기|분해하기|공유하기|선택하기|"
+    r"보내기|점검하기|체크하기|\d+\s*(?:분|시간|개|줄|회))"
+)
+_LONGFORM_EXPLANATORY_BULLET_RE = re.compile(
+    r"(?:좋습니다|유리합니다|필요합니다|상태입니다|감각입니다|도움이\s*됩니다|이어질\s*수\s*있습니다)"
+)
+
+
+def _trim_life_cycle_longform_to_canonical_chapters(
+    text: str,
+    *,
+    chapter_keys: list[str],
+) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return str(text or "")
+    ordered_keys = [str(key).strip() for key in chapter_keys if isinstance(key, str) and str(key).strip()]
+    if not ordered_keys:
+        return text.strip()
+    allowed_keys = set(ordered_keys)
+    raw = text.strip()
+    sections_by_key: dict[str, str] = {}
+    for match in _LONGFORM_CANONICAL_HEADING_RE.finditer(raw):
+        key = str(match.group("key") or "").strip()
+        if key not in allowed_keys or key in sections_by_key:
+            continue
+        sections_by_key[key] = match.group(0).strip()
+    if not sections_by_key:
+        return raw
+    ordered_sections = [sections_by_key[key] for key in ordered_keys if key in sections_by_key]
+    if not ordered_sections:
+        return raw
+    return "\n\n".join(ordered_sections).strip()
+
+
+def _cleanup_life_cycle_longform_llm_artifacts(
+    text: str,
+    *,
+    valid_until: str = "",
+    next_transition: str = "",
+) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return str(text or "")
+
+    out = str(text).replace("\r\n", "\n").replace("\r", "\n").strip()
+    out = _LONGFORM_DASHA_DOUBLE_PERIOD_RE.sub(DASHA_DEFINITION_CANONICAL_LINE, out)
+    out = _LONGFORM_PLACEHOLDER_RANGE_RE.sub("다음 주요 전환 구간", out)
+    out = _LONGFORM_PLACEHOLDER_GENERIC_RANGE_RE.sub("다음 주요 전환 구간", out)
+    placeholder_replacement = next_transition or valid_until or "다음 전환 시점"
+    out = _LONGFORM_PLACEHOLDER_DATE_RE.sub(placeholder_replacement, out)
+    out = _LONGFORM_BLOCKQUOTE_NOTE_RE.sub("", out)
+    out = _LONGFORM_EXTRA_SUGGESTION_RE.sub("", out)
+    out = _LONGFORM_ORPHAN_FRAGMENT_RE.sub("", out)
+    for pattern, replacement in _LONGFORM_PLANET_TOKEN_REPLACEMENTS:
+        out = pattern.sub(replacement, out)
+
+    cleaned_sections: list[str] = []
+    for match in _LONGFORM_CANONICAL_HEADING_RE.finditer(out):
+        section_text = match.group(0).strip()
+        lines = section_text.splitlines()
+        if not lines:
+            continue
+        heading = lines[0].strip()
+        body = "\n".join(lines[1:]).strip()
+        chapter_key = extract_h2_chapter_key(heading) or ""
+
+        if chapter_key == "Final Integration":
+            body = re.sub(r"(?s)^.*?(?=이번 리포트의 핵심은)", "", body).strip() or body
+        elif chapter_key == "Health & Energy Rhythm":
+            body = re.sub(r"^\s*[^\n.!?]{0,50}(?:적기|보류하기|남기기)\s+", "", body).strip()
+            body = re.sub(r"^\s*(?:[가-힣]{1,4}\s+){1,3}(?=머리는)", "", body).strip()
+        elif chapter_key == "Risk Management Points":
+            body = re.sub(r"(?s)^.*?(?=안정을 원하면서도 변화가 두려운 역설)", "", body).strip() or body
+            body = re.sub(r"^\s*한다\s+규칙을\s+쓴다\s+", "", body).strip()
+            body = re.sub(r"^\s*규칙을\s+쓴다\s+절차가\s+빠지기\s+쉬워", "작은 절차가 빠지기 쉬워", body).strip()
+            body = re.sub(r"^\s*한다\s+(?=안정을|빠른|결정을|속도를)", "", body).strip()
+
+        paragraphs = [part.strip() for part in re.split(r"\n\s*\n", body) if part and part.strip()]
+        if chapter_key in _LONGFORM_NON_ACTIONABLE_KEYS:
+            while paragraphs and paragraphs[0].startswith(("-", ">")):
+                paragraphs.pop(0)
+        if chapter_key == "Final Integration":
+            while paragraphs and (
+                "중장기 구간" in paragraphs[0]
+                or paragraphs[0].startswith("야근 주간은")
+                or paragraphs[0].count("하기") >= 3
+            ):
+                paragraphs.pop(0)
+        body = "\n\n".join(paragraphs).strip()
+
+        body = re.sub(r"[ \t]+\n", "\n", body)
+        body = re.sub(r"\n{3,}", "\n\n", body).strip()
+        cleaned_sections.append(f"{heading}\n\n{body}" if body else heading)
+
+    if cleaned_sections:
+        out = "\n\n".join(cleaned_sections)
+
+    out = re.sub(r"[ \t]+\n", "\n", out)
+    out = re.sub(r"\n{3,}", "\n\n", out)
+    return out.strip()
+
+
+def _normalize_life_cycle_longform_action_fingerprint(text: str) -> str:
+    token = re.sub(r"\s+", " ", str(text or "")).strip().lower()
+    token = token.rstrip(".,;:!?")
+    return token
+
+
+def _is_stable_life_cycle_longform_action_bullet(text: str) -> bool:
+    raw = re.sub(r"\s+", " ", str(text or "")).strip()
+    if not raw:
+        return False
+    if "->" in raw:
+        return False
+    if len(raw) >= 72:
+        return False
+    if _LONGFORM_EXPLANATORY_BULLET_RE.search(raw):
+        return False
+    if len(re.findall(r"[.!?]", raw)) >= 2:
+        return False
+    return _LONGFORM_ACTIONABLE_BULLET_RE.search(raw) is not None
+
+
+def _iter_life_cycle_longform_action_templates(chapter_key: str, source_text: str = "") -> list[str]:
+    templates = list(CORE_ACTION_TOOLKIT.get(chapter_key, []))
+    token = str(source_text or "").strip()
+    if not token or len(templates) <= 1:
+        return templates
+
+    preference_keywords: list[str] = []
+    if any(keyword in token for keyword in ("대화", "메시지", "합의", "관계")):
+        preference_keywords = ["대화", "합의", "메시지", "관계"]
+    elif any(keyword in token for keyword in ("파일럿", "확장", "테마", "캘린더")):
+        preference_keywords = ["파일럿", "확장", "테마", "캘린더"]
+    elif any(keyword in token for keyword in ("계약", "조건", "결제", "기한")):
+        preference_keywords = ["계약", "조건", "기한", "문서화"]
+    if not preference_keywords:
+        return templates
+
+    prioritized: list[str] = []
+    deferred: list[str] = []
+    for template in templates:
+        if any(keyword in template for keyword in preference_keywords):
+            prioritized.append(template)
+        else:
+            deferred.append(template)
+    return prioritized + deferred
+
+
+def _stabilize_life_cycle_longform_action_steps(text: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return str(text or "")
+
+    changed = False
+    rebuilt_sections: list[str] = []
+    for match in _LONGFORM_CANONICAL_HEADING_RE.finditer(text):
+        section_text = match.group(0).strip()
+        lines = section_text.splitlines()
+        if not lines:
+            continue
+        heading = lines[0].strip()
+        body = "\n".join(lines[1:]).strip()
+        chapter_key = extract_h2_chapter_key(heading) or ""
+
+        if chapter_key == "Mid-Term Direction":
+            stabilized_body = re.sub(
+                r"^\s*하는 시즌인데,\s*",
+                "지금은 방향을 성급히 넓히기보다 기준을 먼저 세워야 하는 시즌인데, ",
+                body,
+                count=1,
+            )
+            if stabilized_body != body:
+                body = stabilized_body
+                changed = True
+
+        if chapter_key not in _LONGFORM_ACTIONABLE_KEYS:
+            rebuilt_sections.append(f"{heading}\n\n{body}" if body else heading)
+            continue
+
+        parts = _LONGFORM_ACTION_STEPS_H3_RE.split(body, maxsplit=1)
+        if len(parts) != 2:
+            rebuilt_sections.append(f"{heading}\n\n{body}" if body else heading)
+            continue
+
+        narrative_body = parts[0].strip()
+        action_tail = parts[1]
+        raw_bullets: list[str] = []
+        for line in action_tail.splitlines():
+            bullet_match = _LONGFORM_BULLET_LINE_RE.match(line.strip())
+            if bullet_match:
+                raw_bullets.append(str(bullet_match.group("text") or "").strip())
+
+        if not raw_bullets:
+            rebuilt_sections.append(f"{heading}\n\n{body}" if body else heading)
+            continue
+
+        used_fps: set[str] = set()
+        kept_bullets: list[str] = []
+        for bullet in raw_bullets:
+            if not _is_stable_life_cycle_longform_action_bullet(bullet):
+                replacement = None
+                for template in _iter_life_cycle_longform_action_templates(chapter_key, bullet):
+                    fingerprint = _normalize_life_cycle_longform_action_fingerprint(template)
+                    if not fingerprint or fingerprint in used_fps:
+                        continue
+                    replacement = template.strip()
+                    break
+                if replacement:
+                    kept_bullets.append(f"- {replacement}")
+                    used_fps.add(_normalize_life_cycle_longform_action_fingerprint(replacement))
+                changed = True
+                continue
+            fingerprint = _normalize_life_cycle_longform_action_fingerprint(bullet)
+            if not fingerprint or fingerprint in used_fps:
+                changed = True
+                continue
+            used_fps.add(fingerprint)
+            kept_bullets.append(f"- {bullet}")
+
+        target_count = min(3, max(2, len(raw_bullets)))
+        for template in CORE_ACTION_TOOLKIT.get(chapter_key, []):
+            if len(kept_bullets) >= target_count:
+                break
+            fingerprint = _normalize_life_cycle_longform_action_fingerprint(template)
+            if not fingerprint or fingerprint in used_fps:
+                continue
+            kept_bullets.append(f"- {template.strip()}")
+            used_fps.add(fingerprint)
+            changed = True
+
+        if kept_bullets:
+            rebuilt_body = narrative_body
+            rebuilt_block = "### Action Steps\n\n" + "\n".join(kept_bullets[:target_count])
+            rebuilt_body = f"{rebuilt_body}\n\n{rebuilt_block}".strip() if rebuilt_body else rebuilt_block
+            rebuilt_sections.append(f"{heading}\n\n{rebuilt_body}".strip())
+        else:
+            rebuilt_sections.append(f"{heading}\n\n{body}" if body else heading)
+
+    if changed and rebuilt_sections:
+        return "\n\n".join(rebuilt_sections).strip()
+    return str(text).strip()
+
+
 def _json_safe_clone(value: Any) -> Any:
     if isinstance(value, datetime):
         return value.replace(microsecond=0).isoformat()
@@ -2672,10 +2955,11 @@ def _serialize_csv_tokens(tokens: list[str]) -> str:
     return ",".join(str(token).strip() for token in tokens if isinstance(token, str) and token.strip())
 
 
-def _build_product_request_fingerprint(*, product_type: str, onboarding_goal: str, focus_tokens: list[str], concern_tokens: list[str], occupation_context: str, relationship_status: str, subject_name: str) -> str:
+def _build_product_request_fingerprint(*, product_type: str, onboarding_goal: str, focus_tokens: list[str], concern_tokens: list[str], occupation_context: str, relationship_status: str, subject_name: str, render_profile: str = "") -> str:
     return _sha256_hex(
         {
             "product_type": product_type,
+            "render_profile": render_profile or "",
             "onboarding_goal": onboarding_goal,
             "focus_tokens": focus_tokens,
             "concern_tokens": concern_tokens,
@@ -2686,8 +2970,20 @@ def _build_product_request_fingerprint(*, product_type: str, onboarding_goal: st
     )[:16]
 
 
-def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hours: float, onboarding_goal: str, payload: dict[str, Any], render_profile: str) -> dict[str, Any]:
-    return {
+def _build_life_cycle_response_meta(
+    *,
+    as_of_utc: datetime,
+    timezone_offset_hours: float,
+    onboarding_goal: str,
+    payload: dict[str, Any],
+    render_profile: str,
+    contract_version: str = LIFE_CYCLE_CONTRACT_VERSION,
+    generation_mode: Optional[str] = None,
+    source_render_profile: Optional[str] = None,
+    narrative_profile: Optional[str] = None,
+    longform_cutover_candidate: Optional[bool] = None,
+) -> dict[str, Any]:
+    meta = {
         "as_of_utc": as_of_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "as_of_local": payload.get("as_of_local_iso"),
         "timezone_offset": float(timezone_offset_hours),
@@ -2697,9 +2993,49 @@ def _build_life_cycle_response_meta(*, as_of_utc: datetime, timezone_offset_hour
         "current_mahadasha_planet": payload.get("current_mahadasha_planet"),
         "next_mahadasha_date": payload.get("next_mahadasha_date"),
         "product_type": "life_cycle",
-        "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
+        "contract_version": contract_version,
         "render_profile": render_profile,
     }
+    if generation_mode:
+        meta["generation_mode"] = generation_mode
+    if source_render_profile:
+        meta["source_render_profile"] = source_render_profile
+    if narrative_profile:
+        meta["narrative_profile"] = narrative_profile
+    if longform_cutover_candidate is not None:
+        meta["longform_cutover_candidate"] = bool(longform_cutover_candidate)
+    return meta
+
+
+def _normalize_life_cycle_render_profile(raw_value: Any) -> str:
+    text = str(raw_value or "").strip()
+    if not text:
+        return LIFE_CYCLE_RENDER_PROFILE
+    aliases = {
+        "baseline": LIFE_CYCLE_RENDER_PROFILE,
+        "target": LIFE_CYCLE_TARGET_RENDER_PROFILE,
+        "longform": LIFE_CYCLE_LONGFORM_RENDER_PROFILE,
+    }
+    normalized = aliases.get(text.lower(), text)
+    allowed = {
+        LIFE_CYCLE_RENDER_PROFILE,
+        LIFE_CYCLE_TARGET_RENDER_PROFILE,
+        LIFE_CYCLE_LONGFORM_RENDER_PROFILE,
+    }
+    if normalized not in allowed:
+        raise ValueError(
+            "render_profile must be one of "
+            f"{LIFE_CYCLE_RENDER_PROFILE}, {LIFE_CYCLE_TARGET_RENDER_PROFILE}, {LIFE_CYCLE_LONGFORM_RENDER_PROFILE}"
+        )
+    return normalized
+
+
+def _resolve_life_cycle_report_stage(render_profile: str) -> str:
+    if render_profile == LIFE_CYCLE_RENDER_PROFILE:
+        return "baseline"
+    if render_profile == LIFE_CYCLE_TARGET_RENDER_PROFILE:
+        return "target"
+    raise ValueError(f"unsupported deterministic life_cycle render_profile: {render_profile}")
 
 
 def _render_life_cycle_markdown(payload: dict[str, Any], *, report_stage: str) -> tuple[str, str]:
@@ -2742,6 +3078,7 @@ async def _build_life_cycle_ai_reading_result(
     occupation_context: str,
     relationship_status: str,
     llm_max_tokens_resolved: int,
+    render_profile_requested: str,
 ) -> dict[str, Any]:
     if use_cache:
         cached = cache.get(cache_key)
@@ -2794,14 +3131,7 @@ async def _build_life_cycle_ai_reading_result(
         occupation_context=occupation_context,
         relationship_status=relationship_status,
         subject_name=subject_name,
-    )
-    payload_hash = _sha256_hex({"product_type": "life_cycle", "payload": payload_public})
-    reading_text, render_profile = _render_life_cycle_markdown(payload, report_stage="baseline")
-    save_polished_reading_to_cache(
-        chapter_blocks_hash=payload_hash,
-        language=language,
-        polished_reading=reading_text,
-        product_type="life_cycle",
+        render_profile=render_profile_requested,
     )
     chart_hash = _sha256_hex(
         {
@@ -2821,19 +3151,141 @@ async def _build_life_cycle_ai_reading_result(
             "gender": gender,
             "product_type": "life_cycle",
             "product_fingerprint": product_fingerprint,
+            "render_profile": render_profile_requested,
         }
     )
+    structured_summary: dict[str, Any] = {}
+    chapter_blocks: dict[str, Any] | None = None
+    generation_mode = "deterministic.life_cycle_payload"
+    source_render_profile: Optional[str] = None
+    narrative_profile: Optional[str] = None
+    contract_version = LIFE_CYCLE_CONTRACT_VERSION
+    model_name = "deterministic/life_cycle_lite"
+
+    if render_profile_requested == LIFE_CYCLE_LONGFORM_RENDER_PROFILE:
+        structured_summary, _, _ = await _build_structural_summary_with_mode(chart, analysis_mode_norm)
+        chapter_blocks = build_life_cycle_longform_chapter_blocks(payload_public)
+        payload_hash = compute_chapter_blocks_hash(chapter_blocks)
+        polished_reading = (
+            load_polished_reading_from_cache(
+                chapter_blocks_hash=payload_hash,
+                language=language,
+                product_type="life_cycle",
+            )
+            if use_cache
+            else None
+        )
+        if polished_reading is None and async_client:
+            polished_reading = await refine_reading_with_llm(
+                async_client=async_client,
+                validate_blocks_fn=_validate_deterministic_llm_blocks,
+                build_ai_input_fn=build_ai_psychological_input,
+                candidate_models_fn=_candidate_openai_models,
+                build_payload_fn=_build_openai_payload,
+                emit_audit_fn=_emit_llm_audit_event,
+                normalize_paragraphs_fn=_normalize_long_paragraphs,
+                compute_hash_fn=compute_chapter_blocks_hash,
+                chapter_blocks=chapter_blocks,
+                structural_summary=structured_summary,
+                language=language,
+                request_id=request_id_value,
+                chart_hash=chart_hash,
+                endpoint=endpoint_name,
+                max_tokens=llm_max_tokens_resolved,
+                pre_llm_input_mode_override="json_only",
+                suppress_draft_narrative_blocks=True,
+                suppress_chapter_draft_text=True,
+                route_profile=LIFE_CYCLE_LONGFORM_RENDER_PROFILE,
+                conditional_regen_threshold_override=1,
+                conditional_regen_chapters_override=[
+                    "Current Phase",
+                    "Career & Money",
+                    "Love & Relationship Patterns",
+                    "Health & Energy Rhythm",
+                    "Final Integration",
+                ],
+                max_conditional_regen_override=2,
+            )
+            if use_cache and isinstance(polished_reading, str) and polished_reading.strip():
+                save_polished_reading_to_cache(
+                    chapter_blocks_hash=payload_hash,
+                    language=language,
+                    polished_reading=polished_reading,
+                    product_type="life_cycle",
+                )
+
+        reading_text = (
+            polished_reading
+            if isinstance(polished_reading, str) and polished_reading.strip()
+            else _render_chapter_blocks_deterministic(chapter_blocks, language=language)
+        )
+        if isinstance(reading_text, str) and reading_text.strip():
+            reading_text = _apply_recommendation_tone_normalization(reading_text, language)
+            reading_text = enforce_subtle_vedic_lexicon(
+                reading_text,
+                allow_zero_term_injection=False,
+                preserve_calendar_dates=True,
+            )
+            reading_text = postprocess_reading_markdown_surface(reading_text)
+            reading_text = sanitize_commercial_surface_with_front_protection(reading_text)
+            reading_text = _trim_life_cycle_longform_to_canonical_chapters(
+                reading_text,
+                chapter_keys=list(chapter_blocks.keys()) if isinstance(chapter_blocks, dict) else [],
+            )
+            reading_text = postprocess_reading_markdown_surface(reading_text)
+            reading_text = sanitize_commercial_surface_with_front_protection(reading_text)
+            reading_text = _cleanup_life_cycle_longform_llm_artifacts(
+                reading_text,
+                valid_until=str(payload_public.get("valid_until") or "").strip(),
+                next_transition=str(payload_public.get("next_mahadasha_date") or "").strip(),
+            )
+            reading_text = _stabilize_life_cycle_longform_action_steps(reading_text)
+
+        render_profile = LIFE_CYCLE_LONGFORM_RENDER_PROFILE
+        generation_mode = LIFE_CYCLE_LONGFORM_GENERATION_MODE
+        source_render_profile = LIFE_CYCLE_TARGET_RENDER_PROFILE
+        narrative_profile = LIFE_CYCLE_LONGFORM_NARRATIVE_PROFILE
+        contract_version = LIFE_CYCLE_LONGFORM_CONTRACT_VERSION
+        model_name = OPENAI_MODEL if async_client else "deterministic/life_cycle_longform_adapter"
+        polished_output = reading_text
+    else:
+        payload_hash = _sha256_hex(
+            {
+                "product_type": "life_cycle",
+                "render_profile": render_profile_requested,
+                "payload": payload_public,
+            }
+        )
+        reading_text, render_profile = _render_life_cycle_markdown(
+            payload,
+            report_stage=_resolve_life_cycle_report_stage(render_profile_requested),
+        )
+        save_polished_reading_to_cache(
+            chapter_blocks_hash=payload_hash,
+            language=language,
+            polished_reading=reading_text,
+            product_type="life_cycle",
+        )
+        polished_output = reading_text
+        if render_profile == LIFE_CYCLE_TARGET_RENDER_PROFILE:
+            model_name = "deterministic/life_cycle_target"
+
     meta = _build_life_cycle_response_meta(
         as_of_utc=as_of_utc,
         timezone_offset_hours=timezone_offset_resolved,
         onboarding_goal=onboarding_goal,
         payload=payload_public,
         render_profile=render_profile,
+        contract_version=contract_version,
+        generation_mode=generation_mode if render_profile == LIFE_CYCLE_LONGFORM_RENDER_PROFILE else None,
+        source_render_profile=source_render_profile,
+        narrative_profile=narrative_profile,
+        longform_cutover_candidate=(render_profile == LIFE_CYCLE_LONGFORM_RENDER_PROFILE),
     )
     result = {
         "cached": False,
         "fallback": False,
-        "model": "deterministic/life_cycle_lite",
+        "model": model_name,
         "summary": {
             "language": language,
             "analysis_mode": analysis_mode_norm,
@@ -2842,10 +3294,11 @@ async def _build_life_cycle_ai_reading_result(
                 "product_type": "life_cycle",
                 "onboarding_goal": onboarding_goal,
                 "subject_name": subject_name,
+                "render_profile": render_profile,
             },
         },
         "reading": reading_text,
-        "polished_reading": reading_text,
+        "polished_reading": polished_output,
         "detail_level": detail_level_norm,
         "ai_cache_key": cache_key,
         "request_id": request_id_value,
@@ -2857,9 +3310,9 @@ async def _build_life_cycle_ai_reading_result(
         "debug_info": {
             "product_type": "life_cycle",
             "render_profile": render_profile,
-            "contract_version": LIFE_CYCLE_CONTRACT_VERSION,
+            "contract_version": contract_version,
             "product_fingerprint": product_fingerprint,
-            "llm_input_source": "deterministic.life_cycle_payload",
+            "llm_input_source": generation_mode,
             "llm_max_tokens_resolved": llm_max_tokens_resolved,
             "llm_max_tokens_default": LIFE_CYCLE_AI_MAX_TOKENS_DEFAULT,
             "llm_max_tokens_soft_range": [LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MIN, LIFE_CYCLE_AI_MAX_TOKENS_SOFT_MAX],
@@ -2867,6 +3320,13 @@ async def _build_life_cycle_ai_reading_result(
             "client_initialized": async_client is not None,
         },
     }
+    if source_render_profile:
+        result["debug_info"]["source_render_profile"] = source_render_profile
+    if narrative_profile:
+        result["debug_info"]["narrative_profile"] = narrative_profile
+    if isinstance(chapter_blocks, dict):
+        result["chapter_blocks"] = chapter_blocks
+        result["structured_summary"] = structured_summary
     if include_audit_debug:
         result["audit"] = {
             "request_id": request_id_value,
@@ -3187,6 +3647,7 @@ async def get_ai_reading(
     concern_tokens: str = Query(""),
     occupation_context: Optional[str] = Query(None),
     relationship_status: Optional[str] = Query(None),
+    render_profile: Optional[str] = Query(None, include_in_schema=False),
     llm_max_tokens: int = Query(AI_MAX_TOKENS_AI_READING, include_in_schema=False),
     debug_payload: int = Query(0),
     audit_debug: int = Query(0),
@@ -3214,6 +3675,7 @@ async def get_ai_reading(
     concern_tokens = _unwrap_fastapi_param_default(concern_tokens)
     occupation_context = _unwrap_fastapi_param_default(occupation_context)
     relationship_status = _unwrap_fastapi_param_default(relationship_status)
+    render_profile = _unwrap_fastapi_param_default(render_profile)
     llm_max_tokens = _unwrap_fastapi_param_default(llm_max_tokens)
     debug_payload = _unwrap_fastapi_param_default(debug_payload)
     audit_debug = _unwrap_fastapi_param_default(audit_debug)
@@ -3224,6 +3686,15 @@ async def get_ai_reading(
         product_type_norm = normalize_product_type(product_type)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    if product_type_norm == "life_cycle":
+        try:
+            life_cycle_render_profile = _normalize_life_cycle_render_profile(render_profile)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    else:
+        if isinstance(render_profile, str) and render_profile.strip():
+            raise HTTPException(status_code=400, detail="render_profile is only supported for product_type=life_cycle")
+        life_cycle_render_profile = LIFE_CYCLE_RENDER_PROFILE
     subject_name_norm = resolve_subject_name(subject_name)
     onboarding_goal_norm = normalize_onboarding_goal(onboarding_goal)
     focus_tokens_norm = normalize_csv_tokens(focus_tokens, max_items=2)
@@ -3285,6 +3756,7 @@ async def get_ai_reading(
     product_cache_token = product_type_norm or "generic"
     product_cache_fingerprint = ""
     if product_type_norm == "life_cycle":
+        product_cache_token = f"{product_cache_token}_{life_cycle_render_profile}"
         product_cache_fingerprint = _build_product_request_fingerprint(
             product_type=product_type_norm,
             onboarding_goal=onboarding_goal_norm,
@@ -3293,6 +3765,7 @@ async def get_ai_reading(
             occupation_context=occupation_context_norm,
             relationship_status=relationship_status_norm,
             subject_name=subject_name_norm,
+            render_profile=life_cycle_render_profile,
         )
     cache_key = (
         f"{year}_{month}_{day}_{hour}_{lat}_{lon}_{house_system}_"
@@ -3350,6 +3823,7 @@ async def get_ai_reading(
             occupation_context=occupation_context_norm,
             relationship_status=relationship_status_norm,
             llm_max_tokens_resolved=llm_max_tokens_resolved,
+            render_profile_requested=life_cycle_render_profile,
         )
 
     async def _resolve_cached_appendix_context(cached_payload: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:

@@ -45,6 +45,7 @@ from backend.commercial_signal_adapter import (
 OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-5-mini")
 LLM_RELAX_MODE = os.getenv("LLM_RELAX_MODE", "phase15").strip().lower()
 logger = logging.getLogger("vedic_ai")
+LIFE_CYCLE_LONGFORM_ROUTE_PROFILE = "life_cycle_longform_v1"
 
 _SHORT_TITLE_BY_KEY = {
     "Executive Diagnosis": "핵심 진단",
@@ -1211,8 +1212,11 @@ def _is_truthy_env(value: str | None) -> bool:
     return True
 
 
-def _resolve_pre_llm_input_mode() -> str:
-    mode = (os.getenv("PRE_LLM_INPUT_MODE", "both") or "").strip().lower()
+def _resolve_pre_llm_input_mode(override: str | None = None) -> str:
+    if isinstance(override, str) and override.strip():
+        mode = override.strip().lower()
+    else:
+        mode = (os.getenv("PRE_LLM_INPUT_MODE", "both") or "").strip().lower()
     if mode not in _PRE_LLM_INPUT_MODES:
         return "both"
     return mode
@@ -2729,6 +2733,7 @@ def build_single_chapter_prompt(
     semantic_signals: dict[str, Any] | None,
     dasha_context: dict[str, Any] | None,
     chapter_blocks: dict[str, Any] | None,
+    route_profile: str | None = None,
 ) -> str:
     import json
 
@@ -2759,6 +2764,18 @@ def build_single_chapter_prompt(
     else:
         timing_rule = "- Use relative period phrasing only (no absolute year/quarter tokens)."
 
+    longform_route_guidance = ""
+    if str(route_profile or "").strip() == LIFE_CYCLE_LONGFORM_ROUTE_PROFILE:
+        longform_route_guidance = """
+- Start with a full paragraph, not a memo line or checklist fragment.
+- Do not output English planet names; use Korean names only.
+- Do not put `Action Steps` inline with other text.
+"""
+        if chapter_key == "Health & Energy Rhythm":
+            longform_route_guidance += "- Start from body signal / recovery rhythm, not from a question or tactical fragment.\n"
+        if chapter_key == "Final Integration":
+            longform_route_guidance += "- Start from synthesis, not timing memo or action fragment.\n"
+
     return f"""
 Write ONLY the body content for the chapter "{chapter_key}" in Korean.
 Do NOT output chapter heading (`## ...`).
@@ -2773,6 +2790,7 @@ Rules:
 - Avoid meta/report phrasing.
 - Limit advice to max 3 bullet points per chapter.
 {timing_rule}
+{longform_route_guidance}
 {_SUBTLE_VEDIC_PROMPT_RULES}
 
 Context (read-only):
@@ -2883,6 +2901,7 @@ async def generate_single_chapter(
     build_payload_fn: Any,
     normalize_paragraphs_fn: Any,
     max_tokens: int = 900,
+    route_profile: str | None = None,
 ) -> str | None:
     if async_client is None:
         return None
@@ -2892,6 +2911,7 @@ async def generate_single_chapter(
         semantic_signals=semantic_signals,
         dasha_context=dasha_context,
         chapter_blocks=chapter_blocks,
+        route_profile=route_profile,
     )
     prompt = sanitize_prompt_text_last_mile(prompt)
     _assert_or_warn_whole_prompt_hygiene(
@@ -2934,6 +2954,13 @@ async def refine_reading_with_llm(
     emit_audit_fn: Any = None,
     normalize_paragraphs_fn: Any = None,
     compute_hash_fn: Any = None,
+    pre_llm_input_mode_override: str | None = None,
+    suppress_draft_narrative_blocks: bool = False,
+    suppress_chapter_draft_text: bool = False,
+    route_profile: str | None = None,
+    conditional_regen_threshold_override: int | None = None,
+    conditional_regen_chapters_override: list[str] | None = None,
+    max_conditional_regen_override: int | None = None,
 ) -> str:
     if async_client is None:
         raise RuntimeError("OpenAI client not initialized")
@@ -3026,6 +3053,10 @@ async def refine_reading_with_llm(
         dasha_context=dasha_context,
         global_evidence_items=global_evidence_items_sanitized if isinstance(global_evidence_items_sanitized, list) else None,
         global_evidence_injected_count=global_evidence_injected_count,
+        pre_llm_input_mode_override=pre_llm_input_mode_override,
+        suppress_draft_narrative_blocks=suppress_draft_narrative_blocks,
+        suppress_chapter_draft_text=suppress_chapter_draft_text,
+        route_profile=route_profile,
     )
     final_prompt_text = sanitize_prompt_text_last_mile(raw_prompt_text)
     prompt_hygiene_failfast = _resolve_pre_llm_failfast()
@@ -3285,16 +3316,29 @@ async def refine_reading_with_llm(
                     )
             # Conditional regen for additional chapters based on accumulated evidence.
             try:
-                evidence_threshold = int(os.getenv("LLM_REGEN_EVIDENCE_THRESHOLD", "3"))
+                evidence_threshold = int(
+                    conditional_regen_threshold_override
+                    if isinstance(conditional_regen_threshold_override, int) and conditional_regen_threshold_override > 0
+                    else os.getenv("LLM_REGEN_EVIDENCE_THRESHOLD", "3")
+                )
             except Exception:
                 evidence_threshold = 3
-            regen_env = os.getenv("LLM_REGEN_CHAPTERS", "")
-            if regen_env.strip():
-                allowlist = {c.strip() for c in regen_env.split(",") if c.strip()}
+            if isinstance(conditional_regen_chapters_override, list) and conditional_regen_chapters_override:
+                allowlist = {str(c).strip() for c in conditional_regen_chapters_override if str(c).strip()}
             else:
-                allowlist = set(_CONDITIONAL_REGEN_CHAPTERS_DEFAULT)
+                regen_env = os.getenv("LLM_REGEN_CHAPTERS", "")
+                if regen_env.strip():
+                    allowlist = {c.strip() for c in regen_env.split(",") if c.strip()}
+                else:
+                    allowlist = set(_CONDITIONAL_REGEN_CHAPTERS_DEFAULT)
 
-            if below_min and conditional_regen_count < _MAX_CONDITIONAL_REGEN_PER_REQUEST:
+            max_conditional_regen = (
+                int(max_conditional_regen_override)
+                if isinstance(max_conditional_regen_override, int) and max_conditional_regen_override > 0
+                else _MAX_CONDITIONAL_REGEN_PER_REQUEST
+            )
+            regenerated_keys: set[str] = set()
+            while below_min and conditional_regen_count < max_conditional_regen:
                 for key in below_min:
                     if key not in allowlist:
                         continue
@@ -3309,34 +3353,44 @@ async def refine_reading_with_llm(
                 eligible = [
                     key
                     for key in below_min
-                    if key in allowlist and _CHAPTER_REGEN_EVIDENCE_COUNTS.get(key, 0) >= evidence_threshold
+                    if key in allowlist
+                    and key not in regenerated_keys
+                    and _CHAPTER_REGEN_EVIDENCE_COUNTS.get(key, 0) >= evidence_threshold
                 ]
-                if eligible:
-                    candidate_key = min(
-                        eligible,
-                        key=lambda k: prose_length_map.get(k, length_map.get(k, 0)),
-                    )
-                    new_block = await generate_single_chapter(
-                        chapter_key=candidate_key,
-                        structural_summary=structural_summary,
-                        semantic_signals=semantic_signals,
-                        dasha_context=dasha_context,
-                        chapter_blocks=chapter_blocks,
-                        selected_model=candidate_model,
-                        async_client=async_client,
-                        build_payload_fn=build_payload_fn,
-                        normalize_paragraphs_fn=normalize_paragraphs_fn,
-                    )
-                    if isinstance(new_block, str) and new_block.strip():
-                        conditional_regen_count += 1
-                        conditional_regen_chapter = candidate_key
-                        final_text = replace_chapter_block(final_text, candidate_key, new_block)
-                        final_text = _sanitize_percent_phrasing_ko(final_text)
-                        final_text = _sanitize_meta_report_phrasing_ko(final_text)
-                        final_text = normalize_llm_layout_strict(final_text)
-                        if hybrid_render_mode and not use_evidence_pipeline_v2:
-                            final_text = apply_bridge_to_all_chapters(final_text)
-                        audit_report = audit_llm_output(final_text, structural_summary)
+                if not eligible:
+                    break
+                candidate_key = min(
+                    eligible,
+                    key=lambda k: prose_length_map.get(k, length_map.get(k, 0)),
+                )
+                new_block = await generate_single_chapter(
+                    chapter_key=candidate_key,
+                    structural_summary=structural_summary,
+                    semantic_signals=semantic_signals,
+                    dasha_context=dasha_context,
+                    chapter_blocks=chapter_blocks,
+                    selected_model=candidate_model,
+                    async_client=async_client,
+                    build_payload_fn=build_payload_fn,
+                    normalize_paragraphs_fn=normalize_paragraphs_fn,
+                    route_profile=route_profile,
+                )
+                if not (isinstance(new_block, str) and new_block.strip()):
+                    regenerated_keys.add(candidate_key)
+                    break
+                conditional_regen_count += 1
+                conditional_regen_chapter = candidate_key
+                regenerated_keys.add(candidate_key)
+                final_text = replace_chapter_block(final_text, candidate_key, new_block)
+                final_text = _sanitize_percent_phrasing_ko(final_text)
+                final_text = _sanitize_meta_report_phrasing_ko(final_text)
+                final_text = normalize_llm_layout_strict(final_text)
+                if hybrid_render_mode and not use_evidence_pipeline_v2:
+                    final_text = apply_bridge_to_all_chapters(final_text)
+                length_map = _chapter_nonspace_lengths(final_text)
+                prose_length_map = _chapter_prose_nonspace_lengths(final_text)
+                below_min = _length_violation_keys(final_text, min_chars)
+                audit_report = audit_llm_output(final_text, structural_summary)
             if conditional_regen_count:
                 logger.info(
                     "[LLM REGEN EXTRA] chapter=%s count=%s request_id=%s selected_model=%s",
@@ -3421,6 +3475,10 @@ def build_llm_structural_prompt(
     dasha_context: dict[str, Any] | None = None,
     global_evidence_items: list[dict[str, Any]] | None = None,
     global_evidence_injected_count: int = 0,
+    pre_llm_input_mode_override: str | None = None,
+    suppress_draft_narrative_blocks: bool = False,
+    suppress_chapter_draft_text: bool = False,
+    route_profile: str | None = None,
 ) -> str:
     import json
 
@@ -3428,6 +3486,7 @@ def build_llm_structural_prompt(
     signals = dict(semantic_signals) if isinstance(semantic_signals, dict) else {}
     timing = dict(dasha_context) if isinstance(dasha_context, dict) else {}
     source = structural_summary if isinstance(structural_summary, dict) else {}
+    route_profile_token = str(route_profile or "").strip()
     mode = str(narrative_mode).strip() if isinstance(narrative_mode, str) and narrative_mode.strip() else "measured_growth"
     prompt_style = (os.getenv("PROMPT_STYLE", "") or "").strip().lower()
     style_run151158 = prompt_style == "run151158_like"
@@ -3452,7 +3511,7 @@ def build_llm_structural_prompt(
     compact_context_json = json.dumps(compact_context, indent=2, ensure_ascii=False)
     compact_mode = os.getenv("LLM_GATE_COMPACT", "0").strip() == "1"
     source_blocks = _select_chapter_blocks_source(chapter_blocks if isinstance(chapter_blocks, dict) else {})
-    pre_llm_mode = _resolve_pre_llm_input_mode()
+    pre_llm_mode = _resolve_pre_llm_input_mode(pre_llm_input_mode_override)
     pre_llm_failfast = _resolve_pre_llm_failfast()
     pre_llm_sections, blocks_json, draft_reading_pre_llm, pre_llm_meta = _compose_pre_llm_sections(
         source_blocks,
@@ -3468,9 +3527,12 @@ def build_llm_structural_prompt(
         vedic_meta_as_of_utc=str((source.get("vedic_technical_data", {}) if isinstance(source.get("vedic_technical_data"), dict) else {}).get("meta", {}).get("as_of_utc") if isinstance((source.get("vedic_technical_data", {}) if isinstance(source.get("vedic_technical_data"), dict) else {}).get("meta"), dict) else "").strip() or None,
     )
     commercial_signal_card_text = render_signal_card_ko_for_prompt(card_ko)
-    commercial_chapter_draft_text = render_chapter_blocks_draft_md(draft_reading_pre_llm)
-    if not commercial_chapter_draft_text:
-        commercial_chapter_draft_text = "(콘텐츠 초안 없음)"
+    if suppress_chapter_draft_text:
+        commercial_chapter_draft_text = "(omitted by render_profile override)"
+    else:
+        commercial_chapter_draft_text = render_chapter_blocks_draft_md(draft_reading_pre_llm)
+        if not commercial_chapter_draft_text:
+            commercial_chapter_draft_text = "(콘텐츠 초안 없음)"
     legacy_blocks_section = "(serialized content mode; raw JSON blocks omitted)"
     active_chapters = _active_report_chapters()
     evidence_global_chars_max = int(os.getenv("LLM_EVIDENCE_GLOBAL_CHARS_MAX", "1500"))
@@ -3664,6 +3726,18 @@ STYLE OVERRIDE (run151158_like)
   {actionable_keys_csv}
 - Do not repeat the same paragraph across chapters. If a base trait is already stated, add a new angle or implication instead of restating it.
 """
+    longform_route_contract = ""
+    if route_profile_token == LIFE_CYCLE_LONGFORM_ROUTE_PROFILE:
+        longform_route_contract = """
+[life_cycle_longform_v1 전용 규칙]
+- 각 챕터는 메모/체크리스트/짧은 구호가 아니라, 완전한 문단으로 시작한다.
+- 첫 문단 시작부에 짧은 조각문("먼저 한다", "질문 1개" 같은 메모형 문장) 금지.
+- 영어 행성명(Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn) 직접 노출 금지. 반드시 한국어로 쓴다.
+- `### Action Steps`는 챕터 끝에 1회만 허용한다. `Action Steps - ...` 같은 inline heading 금지.
+- `Health & Energy Rhythm`는 몸 신호/회복 리듬 문단으로 시작한다.
+- `Final Integration`는 통합 요약 문단으로 시작한다. 타이밍 메모/작업 조각/화살표 메모로 열지 않는다.
+- `Current Phase`, `Career & Money`, `Love & Relationship Patterns`, `Final Integration`는 최소 3문단을 목표로 더 충분히 풀어쓴다.
+"""
     explanation_mode_ban = """
 [설명 모드 금지 — 반드시 준수]
 - Evidence 내용을 다시 정의하거나 이론 설명하지 않는다.
@@ -3722,7 +3796,9 @@ HYBRID RENDER OUTPUT CONTRACT
         bullet_exempt_line = "- Bullet-exempt 챕터는 HYBRID RENDER OUTPUT CONTRACT의 불릿 금지 규칙을 따른다."
 
     pre_llm_sections_block = pre_llm_sections if pre_llm_sections else "- (none)"
-    if pre_llm_meta.get("draft_included") and draft_reading_pre_llm.strip():
+    if suppress_draft_narrative_blocks:
+        draft_reading_block = "(omitted by render_profile override)"
+    elif pre_llm_meta.get("draft_included") and draft_reading_pre_llm.strip():
         draft_reading_block = "See `### SANITIZED_DRAFT_READING` section."
     else:
         draft_reading_block = "(omitted by PRE_LLM_INPUT_MODE)"
@@ -3767,6 +3843,7 @@ ANALYSIS RULES
 {action_steps_repeat_nudge}
 {explanation_mode_ban}
 {bullet_compaction_rules}
+{longform_route_contract}
 
 SAFETY RULES
 - 내부 메타 용어를 출력하지 말 것:

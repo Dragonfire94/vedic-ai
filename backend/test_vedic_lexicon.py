@@ -17,6 +17,13 @@ def test_first_mention_rewrite_for_single_token() -> None:
     assert "확장 욕구를 관장하는 라후(Rahu)가 단기적 성취를 유혹하고 있습니다." in out
 
 
+def test_bhukti_first_mention_uses_reader_friendly_gloss() -> None:
+    text = "## [Mid-Term Direction] 중기 흐름\n\n지금은 부크티를 먼저 봐야 합니다."
+    out = enforce_subtle_vedic_lexicon(text)
+    assert "큰 계절 안에서 몇 년간 특히 선명해지는 부크티(Bhukti)" in out
+    assert "세부 테마(포커스)를 쪼개는 부크티(Bhukti)" not in out
+
+
 def test_wrapped_first_mention_kept_and_later_trimmed_when_budget_forces() -> None:
     text = "## [Current Phase] 현재 흐름\n\n확장 욕구를 관장하는 라후(Rahu)가 이미 있을 때 라후 재등장"
     out = enforce_subtle_vedic_lexicon(text, max_terms_per_chapter=1, max_terms_total=8)
@@ -104,6 +111,13 @@ def test_body_other_year_rewrites_to_mid_long_term_bucket() -> None:
     out = enforce_subtle_vedic_lexicon(text)
     assert "2029" not in out
     assert "중장기 구간" in out
+
+
+def test_preserve_calendar_dates_keeps_explicit_dates_when_requested() -> None:
+    text = "## [Current Phase] 현재 흐름\n\n2029-03-16까지 기준을 다시 세웁니다."
+    out = enforce_subtle_vedic_lexicon(text, preserve_calendar_dates=True)
+    assert "2029-03-16" in out
+    assert "중장기 구간-03-16" not in out
 
 
 def test_timing_map_keeps_first_three_calendar_lines_and_rewrites_after() -> None:
