@@ -65,6 +65,21 @@ export default function BTRResultsPage() {
       gender: searchParams.get('gender') || 'female',
       house_system: 'W',
     })
+    ;[
+      'timezone',
+      'product_type',
+      'subject_name',
+      'onboarding_goal',
+      'focus_tokens',
+      'concern_tokens',
+      'occupation_context',
+      'relationship_status',
+    ].forEach((key) => {
+      const value = searchParams.get(key)
+      if (value) {
+        params.set(key, value)
+      }
+    })
     router.push(`/chart?${params}`)
   }
 

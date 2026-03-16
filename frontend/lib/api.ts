@@ -157,10 +157,79 @@ export interface ChartResponse {
   chart_hash?: string
 }
 
+export type ProductType = 'life_cycle' | 'yearly_forecast' | 'compatibility'
+
+export type LifeCycleOnboardingGoal =
+  | 'career_money'
+  | 'relationship'
+  | 'condition'
+  | 'life_direction'
+
+export interface LifeCycleMeta {
+  as_of_utc?: string
+  as_of_local?: string
+  timezone_offset?: number
+  valid_until?: string | null
+  valid_until_fallback?: boolean
+  onboarding_goal?: LifeCycleOnboardingGoal | string
+  current_mahadasha_planet?: string | null
+  next_mahadasha_date?: string | null
+  product_type?: ProductType | string
+  contract_version?: string
+  render_profile?: string
+  release_evidence_dir?: string
+  request_fingerprint?: string
+  evidence_case_id?: string
+  commit_sha?: string
+}
+
+export interface AIReadingSummary {
+  language?: string
+  analysis_mode?: string
+  product_type?: ProductType | string
+  structured_summary?: {
+    product_type?: ProductType | string
+    onboarding_goal?: LifeCycleOnboardingGoal | string
+    subject_name?: string
+  }
+}
+
+export interface AIReadingDebugInfo {
+  product_type?: ProductType | string
+  render_profile?: string
+  contract_version?: string
+  product_fingerprint?: string
+  llm_input_source?: string
+  client_initialized?: boolean
+}
+
 export interface AIReadingResponse {
   polished_reading: string
+  reading?: string
   chart_hash?: string
   language?: string
+  detail_level?: string
+  ai_cache_key?: string
+  request_id?: string
+  chapter_blocks_hash?: string
+  product_type?: ProductType | string
+  meta?: LifeCycleMeta
+  summary?: AIReadingSummary
+  debug_info?: AIReadingDebugInfo
+  cached?: boolean
+  fallback?: boolean
+  model?: string
+}
+
+export interface AIReadingRequest extends ChartRequest {
+  language?: string
+  product_type?: ProductType
+  subject_name?: string
+  onboarding_goal?: LifeCycleOnboardingGoal
+  focus_tokens?: string[] | string
+  concern_tokens?: string[] | string
+  occupation_context?: string
+  relationship_status?: string
 }
 
 function applyVargaParams(params: URLSearchParams, data: ChartRequest): void {
@@ -235,6 +304,50 @@ function buildChartParams(
   return params
 }
 
+function normalizeCsvValues(
+  value: string[] | string | undefined,
+  maxItems: number
+): string[] {
+  const rawValues = Array.isArray(value) ? value : (value || '').split(',')
+  return rawValues
+    .map((item) => item.trim())
+    .filter((item, index, items) => item.length > 0 && items.indexOf(item) === index)
+    .slice(0, maxItems)
+}
+
+function buildAIReadingParams(data: AIReadingRequest): URLSearchParams {
+  const params = buildChartParams({ ...data, language: data.language ?? 'ko' })
+  if (data.product_type) {
+    params.set('product_type', data.product_type)
+  }
+  if (data.product_type === 'life_cycle') {
+    const subjectName = data.subject_name?.trim()
+    if (subjectName) {
+      params.set('subject_name', subjectName)
+    }
+    if (data.onboarding_goal) {
+      params.set('onboarding_goal', data.onboarding_goal)
+    }
+    const focusTokens = normalizeCsvValues(data.focus_tokens, 2)
+    if (focusTokens.length > 0) {
+      params.set('focus_tokens', focusTokens.join(','))
+    }
+    const concernTokens = normalizeCsvValues(data.concern_tokens, 3)
+    if (concernTokens.length > 0) {
+      params.set('concern_tokens', concernTokens.join(','))
+    }
+    const occupationContext = data.occupation_context?.trim()
+    if (occupationContext) {
+      params.set('occupation_context', occupationContext)
+    }
+    const relationshipStatus = data.relationship_status?.trim()
+    if (relationshipStatus) {
+      params.set('relationship_status', relationshipStatus)
+    }
+  }
+  return params
+}
+
 export async function getBTRQuestions(
   age: number,
   language: string = 'ko'
@@ -272,9 +385,9 @@ export async function getChart(data: ChartRequest): Promise<ChartResponse> {
 }
 
 export async function getAIReading(
-  data: ChartRequest & { language?: string }
+  data: AIReadingRequest
 ): Promise<AIReadingResponse> {
-  const params = buildChartParams({ ...data, language: data.language ?? 'ko' })
+  const params = buildAIReadingParams(data)
   if (!params.has('analysis_mode')) {
     params.set('analysis_mode', 'pro')
   }
@@ -289,9 +402,9 @@ export async function getAIReading(
 }
 
 export async function getPDF(
-  data: ChartRequest & { language?: string }
+  data: AIReadingRequest
 ): Promise<Blob> {
-  const params = buildChartParams({ ...data, language: data.language ?? 'ko' })
+  const params = buildAIReadingParams(data)
   if (!params.has('analysis_mode')) {
     params.set('analysis_mode', 'pro')
   }

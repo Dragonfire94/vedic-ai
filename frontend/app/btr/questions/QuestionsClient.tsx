@@ -193,6 +193,21 @@ export default function BTRQuestionsPage() {
         lon: String(birthData.lon),
         gender: searchParams.get('gender') || 'female',
       })
+      ;[
+        'timezone',
+        'product_type',
+        'subject_name',
+        'onboarding_goal',
+        'focus_tokens',
+        'concern_tokens',
+        'occupation_context',
+        'relationship_status',
+      ].forEach((key) => {
+        const value = searchParams.get(key)
+        if (value) {
+          params.set(key, value)
+        }
+      })
       setResult(result)
       router.push(`/btr/results?${params}`)
     } catch (error) {

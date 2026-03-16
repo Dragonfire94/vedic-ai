@@ -12,6 +12,15 @@ import { Sparkles, Calendar, Clock, MapPin } from 'lucide-react'
 import { CitySearch } from '@/components/CitySearch'
 
 type TimeKnown = 'exact' | 'approximate' | 'unknown'
+type ReportType = 'signature' | 'life_cycle'
+
+function normalizeCsvInput(value: string, maxItems: number): string[] {
+  return value
+    .split(',')
+    .map((item) => item.trim())
+    .filter((item, index, items) => item.length > 0 && items.indexOf(item) === index)
+    .slice(0, maxItems)
+}
 
 export default function HomePage() {
   const router = useRouter()
@@ -25,12 +34,49 @@ export default function HomePage() {
     lat: 0,
     lon: 0,
     gender: 'female',
+    reportType: 'signature' as ReportType,
+    subjectName: '',
+    onboardingGoal: 'life_direction',
+    occupationContext: '',
+    relationshipStatus: '',
+    focusTokens: '',
+    concernTokens: '',
     timeKnown: 'unknown' as TimeKnown,
     hour: 12,
     minute: 0,
     ampm: 'PM' as 'AM' | 'PM',
     timeBracket: '',
   })
+
+  const applyLifeCycleParams = (params: URLSearchParams) => {
+    if (formData.reportType !== 'life_cycle') {
+      return
+    }
+    params.set('product_type', 'life_cycle')
+    const subjectName = formData.subjectName.trim()
+    if (subjectName) {
+      params.set('subject_name', subjectName)
+    }
+    if (formData.onboardingGoal) {
+      params.set('onboarding_goal', formData.onboardingGoal)
+    }
+    const focusTokens = normalizeCsvInput(formData.focusTokens, 2)
+    if (focusTokens.length > 0) {
+      params.set('focus_tokens', focusTokens.join(','))
+    }
+    const concernTokens = normalizeCsvInput(formData.concernTokens, 3)
+    if (concernTokens.length > 0) {
+      params.set('concern_tokens', concernTokens.join(','))
+    }
+    const occupationContext = formData.occupationContext.trim()
+    if (occupationContext) {
+      params.set('occupation_context', occupationContext)
+    }
+    const relationshipStatus = formData.relationshipStatus.trim()
+    if (relationshipStatus) {
+      params.set('relationship_status', relationshipStatus)
+    }
+  }
 
   const handleNext = () => {
     if (step === 1) {
@@ -50,6 +96,7 @@ export default function HomePage() {
       lon: String(formData.lon),
       gender: formData.gender,
     })
+    applyLifeCycleParams(params)
 
     if (formData.timeKnown === 'exact') {
       const hour24 = (() => {
@@ -79,6 +126,13 @@ export default function HomePage() {
     router.push(`/btr/questions?${params.toString()}`)
   }
 
+  const finalStepCta = (() => {
+    if (formData.timeKnown === 'exact') {
+      return formData.reportType === 'life_cycle' ? '리포트 보기' : '차트 보기'
+    }
+    return '생시보정 시작하기'
+  })()
+
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#f7f6f3_0%,#fff_36%)]">
       <div className="container mx-auto px-4 py-12 max-w-3xl">
@@ -87,7 +141,7 @@ export default function HomePage() {
             <Sparkles className="w-6 h-6 text-[#8d3d56]" />
             <h1 className="text-4xl font-semibold text-[#2b2731]">Vedic AI</h1>
           </div>
-          <p className="text-[#5f5a64]">출생 정보와 시간 기억 수준으로 리포트를 시작합니다.</p>
+          <p className="text-[#5f5a64]">출생 정보와 시간 기억 수준에 맞춰 리포트 진입 경로를 선택합니다.</p>
         </div>
 
         <div className="flex items-center justify-center gap-3 text-sm mb-8">
@@ -103,9 +157,35 @@ export default function HomePage() {
                 <Calendar className="w-5 h-5 text-[#8d3d56]" />
                 출생 기본 정보
               </CardTitle>
-              <CardDescription>정확한 출생 도시를 선택하면 타임존이 자동 설정됩니다.</CardDescription>
+              <CardDescription>정확한 출생 도시를 선택하면 차트와 리포트 흐름이 더 안정적으로 이어집니다.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
+            <CardContent className="space-y-6">
+              <div className="space-y-3 rounded-xl border border-[#efe4e8] bg-[#fff9fb] p-4">
+                <div>
+                  <Label>리포트 선택</Label>
+                  <p className="text-sm text-[#726a75] mt-1">지금은 legacy 성향 리포트와 Vedic Life Cycle Report 두 경로를 모두 열어둡니다.</p>
+                </div>
+                <RadioGroup
+                  value={formData.reportType}
+                  onValueChange={(value) => setFormData((prev) => ({ ...prev, reportType: value as ReportType }))}
+                >
+                  <div className="flex items-start space-x-3 rounded-lg border bg-white p-4">
+                    <RadioGroupItem value="signature" id="report-signature" className="mt-1" />
+                    <div>
+                      <Label htmlFor="report-signature">빠른 성향 리포트</Label>
+                      <p className="text-sm text-[#726a75] mt-1">현재 차트 요약과 AI 해석을 바로 보는 legacy 진입입니다.</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start space-x-3 rounded-lg border bg-white p-4">
+                    <RadioGroupItem value="life_cycle" id="report-life-cycle" className="mt-1" />
+                    <div>
+                      <Label htmlFor="report-life-cycle">Vedic Life Cycle Report</Label>
+                      <p className="text-sm text-[#726a75] mt-1">현재 시즌, 다음 전환일, 개인화 질문을 함께 읽는 life_cycle 경로입니다.</p>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <Label>연도</Label>
@@ -163,6 +243,79 @@ export default function HomePage() {
                 </RadioGroup>
               </div>
 
+              {formData.reportType === 'life_cycle' && (
+                <div className="space-y-4 rounded-xl border border-[#efe4e8] bg-[#fff9fb] p-4">
+                  <div>
+                    <Label>추가 개인화</Label>
+                    <p className="text-sm text-[#726a75] mt-1">이 값들은 `/chart`와 `/ai_reading?product_type=life_cycle` query로 그대로 전달됩니다.</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label htmlFor="subject-name">이름</Label>
+                      <Input
+                        id="subject-name"
+                        value={formData.subjectName}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, subjectName: e.target.value }))}
+                        placeholder="예: 민서"
+                      />
+                    </div>
+                    <div>
+                      <Label>핵심 질문</Label>
+                      <Select
+                        value={formData.onboardingGoal}
+                        onValueChange={(value) => setFormData((prev) => ({ ...prev, onboardingGoal: value }))}
+                      >
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="life_direction">삶의 큰 방향</SelectItem>
+                          <SelectItem value="career_money">일과 돈의 방향</SelectItem>
+                          <SelectItem value="relationship">관계와 친밀감</SelectItem>
+                          <SelectItem value="condition">컨디션과 회복 리듬</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label htmlFor="occupation-context">현재 맥락</Label>
+                      <Input
+                        id="occupation-context"
+                        value={formData.occupationContext}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, occupationContext: e.target.value }))}
+                        placeholder="예: 브랜드 전략 업무"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="relationship-status">관계 상태</Label>
+                      <Input
+                        id="relationship-status"
+                        value={formData.relationshipStatus}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, relationshipStatus: e.target.value }))}
+                        placeholder="예: 싱글"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="focus-tokens">집중 토큰</Label>
+                      <Input
+                        id="focus-tokens"
+                        value={formData.focusTokens}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, focusTokens: e.target.value }))}
+                        placeholder="예: 우선순위, 전환"
+                      />
+                      <p className="text-xs text-[#726a75] mt-1">쉼표로 구분, 최대 2개</p>
+                    </div>
+                    <div>
+                      <Label htmlFor="concern-tokens">걱정 토큰</Label>
+                      <Input
+                        id="concern-tokens"
+                        value={formData.concernTokens}
+                        onChange={(e) => setFormData((prev) => ({ ...prev, concernTokens: e.target.value }))}
+                        placeholder="예: 이직 타이밍, 수입 안정"
+                      />
+                      <p className="text-xs text-[#726a75] mt-1">쉼표로 구분, 최대 3개</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <Button onClick={handleNext} className="w-full bg-[#8d3d56] hover:bg-[#7a344a]">다음</Button>
             </CardContent>
           </Card>
@@ -175,7 +328,11 @@ export default function HomePage() {
                 <Clock className="w-5 h-5 text-[#8d3d56]" />
                 출생 시간 정보
               </CardTitle>
-              <CardDescription>출생 시간을 얼마나 기억하시나요?</CardDescription>
+              <CardDescription>
+                {formData.reportType === 'life_cycle'
+                  ? '정확한 시간이 있으면 life_cycle query를 그대로 붙여 차트와 리포트로 연결합니다.'
+                  : '출생 시간을 얼마나 기억하시나요?'}
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-5">
               <RadioGroup value={formData.timeKnown} onValueChange={(v) => setFormData({ ...formData, timeKnown: v as TimeKnown })}>
@@ -261,7 +418,7 @@ export default function HomePage() {
               <div className="flex gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>이전</Button>
                 <Button className="flex-1 bg-[#8d3d56] hover:bg-[#7a344a]" onClick={handleNext}>
-                  {formData.timeKnown === 'exact' ? '차트 보기' : '생시보정 시작하기'}
+                  {finalStepCta}
                 </Button>
               </div>
             </CardContent>
