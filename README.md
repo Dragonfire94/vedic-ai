@@ -201,6 +201,18 @@ python -m backend.main
 
 기본 포트: `8000`
 
+#### 1-a) Backend test / CI
+
+```powershell
+cd C:\dev\vedic-ai
+python -m pip install -r backend\requirements-dev.txt
+python -m pytest backend -q
+```
+
+주의:
+- 런타임 실행만 필요하면 `backend\requirements.txt`로 충분합니다.
+- clean-environment / CI에서 backend 테스트를 재현할 때는 `backend\requirements-dev.txt`를 기준으로 설치합니다.
+
 #### 2) Frontend
 
 ```powershell
@@ -357,6 +369,17 @@ python -m pytest backend/test_life_cycle_gate_metrics.py backend/test_cheap_vali
 2. `PRD/release_evidence/v1_4_0/life_cycle_lite_sample_response.json`
 3. `PRD/release_evidence/v1_4_0/life_cycle_lite_gate_summary.json`
 4. `PRD/release_evidence/v1_4_0/life_cycle_lite_release_manifest.json`
+
+### clean-environment / CI backend setup
+
+```powershell
+python -m pip install -r backend\requirements-dev.txt
+python -m pytest backend -q
+```
+
+주의:
+- `backend\requirements-dev.txt`는 `backend\requirements.txt` + `pytest`를 함께 잠근 테스트/CI 설치 기준입니다.
+- release 판정은 아래 개별 gate 명령과 evidence pack을 기준으로 하고, 위 명령은 clean-environment 재현성 기준입니다.
 
 ### baseline fast contract check (dev loop only)
 

@@ -131,8 +131,22 @@ Notes:
 - This is a repo-wide integration check, not the backend release gate source of truth.
 - A passing result here does not imply `life_cycle_target_v1` cutover readiness; target cutover is still controlled by the target evidence pack and human spot-check.
 
+## Clean Environment / CI Backend Setup
+
+Run:
+
+```bash
+python -m pip install -r backend/requirements-dev.txt
+python -m pytest backend -q
+```
+
+Notes:
+- `backend/requirements-dev.txt` is the clean-environment / CI install source of truth for backend tests.
+- Runtime-only local app launch may still use `backend/requirements.txt`.
+- Release decisions still use the gate commands and evidence pack documented above; the commands here are for reproducible backend test setup.
+
 ## Environment Notes
 
-- `pytest` must be installed in the same interpreter used for backend commands.
+- `pytest` is included in `backend/requirements-dev.txt`; use the same interpreter for install and test commands.
 - On the current Windows runner, `-p no:cacheprovider` is recommended to avoid `.pytest_cache` permission noise from the shared temp root.
 - PDF scanning is not part of the current `life_cycle` baseline release decision.

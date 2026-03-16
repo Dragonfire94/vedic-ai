@@ -186,6 +186,55 @@ test('Home page builds a life_cycle chart URL from exact birth input', async ({ 
   expect(currentUrl.searchParams.get('relationship_status')).toBe('싱글')
 })
 
+test('Home page keeps life_cycle query through BTR and into chart', async ({ page }) => {
+  await page.goto('/')
+
+  await page.locator('#report-life-cycle').click()
+  await expect(page.getByLabel('이름')).toBeVisible({ timeout: 10000 })
+  await page.getByLabel('출생 도시').fill('Seoul')
+  await expect(page.getByRole('button', { name: 'Seoul' })).toBeVisible({ timeout: 10000 })
+  await page.getByRole('button', { name: 'Seoul' }).click()
+
+  await page.getByLabel('이름').fill('민서')
+  await page.getByLabel('현재 맥락').fill('브랜드 전략 업무')
+  await page.getByLabel('관계 상태').fill('싱글')
+  await page.getByLabel('집중 토큰').fill('우선순위, 전환')
+  await page.getByLabel('걱정 토큰').fill('이직 타이밍, 수입 안정')
+
+  await page.getByRole('button', { name: '다음' }).click()
+  await page.getByLabel('잘 모르겠음 (생시보정 필요)').click()
+
+  const questionsResponse = page.waitForResponse(/127\.0\.0\.1:8000\/btr\/questions/)
+  await page.getByRole('button', { name: '생시보정 시작하기' }).click()
+  await questionsResponse
+  await expect(page).toHaveURL(/\/btr\/questions\?/, { timeout: 10000 })
+
+  await page.getByLabel('예').click()
+  await page.getByLabel('정확한 연도 기억').click()
+  await page.getByPlaceholder('예: 2018').fill('2018')
+
+  const analyzeResponse = page.waitForResponse(/127\.0\.0\.1:8000\/btr\/analyze/)
+  await page.getByRole('button', { name: '분석 시작' }).click()
+  await analyzeResponse
+  await expect(page).toHaveURL(/\/btr\/results\?/, { timeout: 10000 })
+
+  const chartResponse = page.waitForResponse(/127\.0\.0\.1:8000\/chart/)
+  const aiReadingResponse = page.waitForResponse(/127\.0\.0\.1:8000\/ai_reading/)
+  await page.locator('button:has(svg.lucide-compass)').first().click()
+  await chartResponse
+  await aiReadingResponse
+  await expect(page).toHaveURL(/\/chart\?/, { timeout: 10000 })
+
+  const currentUrl = new URL(page.url())
+  expect(currentUrl.searchParams.get('product_type')).toBe('life_cycle')
+  expect(currentUrl.searchParams.get('subject_name')).toBe('민서')
+  expect(currentUrl.searchParams.get('onboarding_goal')).toBe('life_direction')
+  expect(currentUrl.searchParams.get('focus_tokens')).toBe('우선순위,전환')
+  expect(currentUrl.searchParams.get('concern_tokens')).toBe('이직 타이밍,수입 안정')
+  expect(currentUrl.searchParams.get('occupation_context')).toBe('브랜드 전략 업무')
+  expect(currentUrl.searchParams.get('relationship_status')).toBe('싱글')
+})
+
 test('Chart page forwards life_cycle params to ai_reading and renders contract metadata', async ({ page }) => {
   let aiReadingUrl = ''
   await page.route(/127\.0\.0\.1:8000\/ai_reading/, (route) => {
@@ -239,6 +288,39 @@ test('Chart page forwards life_cycle params to ai_reading and renders contract m
   await expect(page.getByText('리포트 설정')).toBeVisible({ timeout: 10000 })
   await expect(page.getByText('contract_version')).toBeVisible({ timeout: 10000 })
   await expect(page.getByText('민서님은 지금 기준을 좁혀야 하는 시즌입니다.')).toBeVisible({ timeout: 10000 })
+})
+
+test('Chart page forwards life_cycle params to pdf download request', async ({ page }) => {
+  let pdfUrl = ''
+  await page.route(/127\.0\.0\.1:8000\/pdf/, (route) => {
+    pdfUrl = route.request().url()
+    route.fulfill({
+      status: 200,
+      contentType: 'application/pdf',
+      body: '%PDF-1.4 test pdf',
+    })
+  })
+
+  const chartResponse = page.waitForResponse(/127\.0\.0\.1:8000\/chart/)
+  const aiReadingResponse = page.waitForResponse(/127\.0\.0\.1:8000\/ai_reading/)
+  await page.goto(
+    '/chart?year=1994&month=12&day=18&hour=14.5&lat=37.5665&lon=126.978&timezone=9&gender=female&house_system=W&product_type=life_cycle&subject_name=민서&onboarding_goal=career_money&focus_tokens=우선순위,전환&concern_tokens=이직 타이밍,수입 안정&occupation_context=브랜드 전략 업무&relationship_status=싱글'
+  )
+  await chartResponse
+  await aiReadingResponse
+
+  const pdfResponse = page.waitForResponse(/127\.0\.0\.1:8000\/pdf/)
+  await page.getByRole('button', { name: '리포트 PDF 다운로드' }).click()
+  await pdfResponse
+
+  const requestUrl = new URL(pdfUrl)
+  expect(requestUrl.searchParams.get('product_type')).toBe('life_cycle')
+  expect(requestUrl.searchParams.get('subject_name')).toBe('민서')
+  expect(requestUrl.searchParams.get('onboarding_goal')).toBe('career_money')
+  expect(requestUrl.searchParams.get('focus_tokens')).toBe('우선순위,전환')
+  expect(requestUrl.searchParams.get('concern_tokens')).toBe('이직 타이밍,수입 안정')
+  expect(requestUrl.searchParams.get('occupation_context')).toBe('브랜드 전략 업무')
+  expect(requestUrl.searchParams.get('relationship_status')).toBe('싱글')
 })
 
 test('Chart page reuses session cached life_cycle reading on revisit', async ({ page }) => {

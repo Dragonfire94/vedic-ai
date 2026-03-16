@@ -19,28 +19,28 @@
 
 ## 0.5 Current State vs Target State
 
-- Current state: runtime backend의 `/ai_reading` 시그니처에는 아직 `product_type` / `life_cycle` 개인화 입력이 없고, cache key에도 `product_type`가 없습니다.
-- Current state: frontend 진입점과 client contract는 여전히 legacy `/chart` + BTR + `AIReadingResponse.polished_reading` 기준입니다.
-- Current state: 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하며, `python -m pytest backend -q -p no:cacheprovider` baseline은 `367 passed, 14 failed, 1 skipped`입니다.
-- Current state: 위 baseline은 현재 로컬 dirty worktree(`backend/test_llm_token_limits.py` 정렬분 + PRD 문서 수정분)를 전제로 하므로, 구현 전에 baseline 정렬분을 먼저 커밋해 재현 기준을 고정하는 것이 안전합니다.
-- Current state: `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`가 아직 정렬되기 전까지 현재 runtime / release contract의 interim source of truth는 PRD v1.4.0입니다.
-- Current state: generic `_finalize_ai_reading_result()` -> `_build_polished_reading_surface()` -> `prepend_front_modules()` 경로가 여전히 generic front modules를 다시 붙일 수 있어, 현재 baseline renderer를 추가해도 상품 표면이 오염될 수 있습니다.
-- Current state: polished narrative cache는 아직 `chapter_blocks_hash + language` 기준이며 `/pdf`는 `get_ai_reading()`을 직접 호출하므로, route cache key만 분리해서는 product isolation이 닫히지 않습니다.
-- Current state: 운영 문서의 release gate source of truth는 아직 `golden_sample_runner` / `fast_llm_gate` 기준이고, cheap gate는 아직 generic metric semantics 중심입니다.
-- Current state: 외부 상품은 하나로 유지할 계획이지만, 코드/문서에는 여전히 `life_cycle-lite` / `life_cycle-full`이라는 내부 단계 용어가 섞여 있어 single-product 해석을 문서로 먼저 고정해야 합니다.
+- Current state: runtime backend의 `/ai_reading` 시그니처는 optional `product_type`와 `life_cycle` 개인화 입력을 지원하며, `product_type=life_cycle`은 전용 baseline 경로로 분기됩니다.
+- Current state: frontend 진입점과 client contract도 현재 baseline을 실제로 소비합니다. 홈 exact-time 진입, BTR query pass-through, chart auto-load/session cache, PDF 직렬화, 관련 E2E가 반영되어 있습니다.
+- Current state: 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하며, `python -m pytest backend -q` baseline은 `420 passed, 1 skipped`입니다.
+- Current state: target cutover readiness는 여전히 `NOT READY`입니다. 이유는 `PRD/release_evidence/v1_4_0/life_cycle_target_manual_qa.md`에서 `cutover_ready: NO`를 유지하고 있기 때문입니다.
+- Current state: `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`는 baseline source of truth와 repo-wide follow-up 범위를 현재 기준으로 설명합니다.
+- Current state: `life_cycle` baseline 경로는 generic finalize/front 재부착 경로를 우회하며, baseline renderer와 dedicated meta builder를 사용합니다.
+- Current state: polished narrative cache와 `/pdf` 내부 `get_ai_reading()` 호출은 product-aware cache namespace / normalization / finalize policy를 사용합니다.
+- Current state: 운영 문서의 release gate source of truth는 cheap gate + release evidence pack 기준으로 전환되었고, 기존 runner/scanner는 보조 검증으로 남아 있습니다.
+- Current state: 외부 상품은 하나의 `Vedic Life Cycle Report`로 유지되며, target render profile은 pre-cutover 내부 단계로만 관리됩니다.
 - Target state: v1.4.0은 외부 상품을 하나의 `Vedic Life Cycle Report`로 유지하면서, baseline path와 target report cutover를 내부 단계로만 관리하는 문서입니다. backend 기준으로는 product-aware finalizer/cache/PDF contract를 먼저 닫고, 그 다음 같은 보고서 안에 `7.1.5` / `7.1.6` / `7.1.7`을 승격해야 합니다. repo-wide 완료 주장은 README/frontend migration까지 반영된 뒤에만 가능합니다.
 
 ---
 
-## 0.6 필수 리스크 7개 (2026-03-11 latest)
+## 0.6 필수 리스크 7개 (2026-03-16 latest)
 
-1. 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하지만, backend baseline에는 stale contract test cluster와 temp write permission cluster가 남아 있습니다.
-2. 런타임 `/ai_reading` API와 route cache key는 아직 baseline contract가 아니며, `product_type` / `life_cycle` 요청 스키마와 cache isolation이 미구현입니다.
-3. generic `_finalize_ai_reading_result()` / `_build_polished_reading_surface()` / `prepend_front_modules()` 경로가 여전히 generic front modules를 다시 붙일 수 있어 baseline 전용 표면 격리가 보장되지 않습니다.
-4. polished narrative cache는 아직 `chapter_blocks_hash + language` 기준이고, `/pdf`는 `get_ai_reading()`을 직접 호출하므로 product-aware cache namespace와 PDF contract를 같은 단계에서 닫아야 합니다.
-5. frontend는 아직 새 계약을 노출하거나 소비할 수 없으므로, backend-only 실험이 아니라 repo-wide 적용 기준이면 blocker입니다.
-6. 출고 gate source of truth가 아직 옛 기준이므로, baseline/target 계약을 검증하지 못한 채 구 게이트만 통과하고 출고될 위험이 있습니다.
-7. target report 단계에서 필요한 고점/저점, 반복 패턴, 다음 3년, editorial QA gate가 아직 문서/테스트/증적 기준으로 고정되지 않았습니다.
+1. backend baseline runner와 product path는 안정화되었지만, target cutover는 아직 human spot-check에서 `cutover_ready: NO` 상태입니다.
+2. baseline product path와 repo-wide frontend consumer는 닫혔지만, `life_cycle_target_v1`는 여전히 shipped route가 아닙니다.
+3. target sample copy는 구조/자동 QA 기준선은 통과했지만, manual QA가 지적한 설명문 톤/polish 이슈 때문에 추가 카피 다듬기 없이 `YES`로 올리면 안 됩니다.
+4. `PRODUCT_SPEC_PRD_v1_4_0.md`와 이 체크리스트에는 초기 audit 시점 수치/서술이 일부 남아 있어, 구현 완료 후 상태 동기화가 계속 필요합니다.
+5. `yearly_forecast`, `compatibility`는 normalizer 수준 호환 입력만 허용하며 dedicated productization은 여전히 금지 범위입니다.
+6. repo-wide 프론트 follow-up은 baseline consumer 기준으로 닫혔지만, 추가 UI polish/확장 E2E는 후속 범위로 남길 수 있습니다.
+7. target cutover를 주장하려면 human `YES` + evidence 재생성 + readiness check `PASS`가 모두 다시 충족되어야 합니다.
 
 ---
 
@@ -82,25 +82,25 @@
 | chapter_blocks -> 상업 표면 렌더 | `DONE` | generic 12챕터 기준으로 존재 |
 | front modules / front contract / cheap gate | `DONE` | generic 리포트 기준으로 존재 |
 | life_cycle 관련 LLM 보조 흐름 | `PARTIAL` | Current Phase 보강 수준만 존재 |
-| `life_cycle-lite` 전용 상품 경로 | `TODO` | 현재 없음 |
-| `product_type` 기반 오케스트레이션 | `TODO` | 현재 없음 |
-| full P0 meta contract / personalization request contract | `TODO` | 런타임 backend에는 없음 |
+| `life_cycle-lite` 전용 상품 경로 | `DONE` | `product_type=life_cycle` baseline 경로가 shipped runtime contract로 존재 |
+| `product_type` 기반 오케스트레이션 | `DONE` | optional `product_type` normalizer + runtime branch가 현재 동작 중 |
+| full P0 meta contract / personalization request contract | `DONE` | personalization 입력과 baseline meta contract가 현재 응답에 직렬화됨 |
 | `commercial_quality_constants.py` 상수층 | `PARTIAL` | 파일은 존재하지만 `life_cycle` shared constants는 아직 없음 |
 | `commercial_gate_helpers.py` | `TODO` | 권장 helper 분리 기준으로는 파일 없음 (동등 구현 허용) |
-| `life_cycle_helpers.py` | `TODO` | 권장 pure-function 분리 기준으로는 파일 없음 (동등 구현 허용) |
+| `life_cycle_helpers.py` | `DONE` | pure helper 계층이 현재 파일 기준으로 존재 |
 | `product_orchestrator.py` | `TODO` | 권장 분리 기준으로는 파일 없음 (동등 구현 허용) |
 | `render_contract.py` | `TODO` | 권장 메타 계약 분리 기준으로는 파일 없음 (동등 구현 허용) |
 | `pytest` 실행 환경 | `DONE` | 현재 워크스페이스 인터프리터에서 표준 명령 실행 가능 |
-| backend 전체 pytest baseline | `PARTIAL` | `367 passed / 14 failed / 1 skipped` (`-p no:cacheprovider`) |
-| stale contract test cluster | `BLOCKED` | atomic/prompt/pdf/report_engine 계열 기대값 재정렬 필요 |
-| temp write permission cluster | `BLOCKED` | tuning analyzer / tuning mode file creation 계열 `PermissionError` |
-| generic finalizer / front isolation | `BLOCKED` | 전용 renderer만 추가해도 generic front가 다시 붙을 수 있음 |
-| polished narrative cache namespace | `TODO` | `chapter_blocks_hash + language`만으로는 상품 격리 부족 |
-| frontend/client migration note | `PARTIAL` | 체크리스트 기준으로만 정렬됨. `backend/API.md` / frontend 구현 / `README.md` 반영 전까지 repo-wide 적용 blocker |
-| release evidence / reviewer manifest | `TODO` | 증적 4종을 같은 `render_profile` / `request_fingerprint` 기준으로 묶는 reviewer entrypoint 없음 |
-| micro fixture 체계 | `TODO` | generic fixture 1개만 있음 |
-| token budget v1.4.0 정렬 | `PARTIAL` | PRD는 정렬되었지만 코드 product-layer 적용은 미구현 |
-| yearly/compat bugfix-only 보호 | `TODO` | 문서상 합의만 있고 코드 분기 없음 |
+| backend 전체 pytest baseline | `DONE` | `420 passed / 1 skipped` |
+| stale contract test cluster | `DONE` | stale contract cluster 정리 완료 |
+| temp write permission cluster | `DONE` | temp/write permission cluster 정리 완료 |
+| generic finalizer / front isolation | `DONE` | `life_cycle` baseline path가 generic front 재부착을 우회 |
+| polished narrative cache namespace | `DONE` | polished cache key가 product-aware contract로 분리됨 |
+| frontend/client migration note | `DONE` | frontend consumer + API/cache + E2E + `README.md` 반영 완료 |
+| release evidence / reviewer manifest | `DONE` | baseline/target evidence와 reviewer entrypoint가 현재 존재 |
+| micro fixture 체계 | `DONE` | life_cycle-lite contract/evidence fixture 테스트가 현재 존재 |
+| token budget v1.4.0 정렬 | `DONE` | `life_cycle` product-layer `7000 / 6000-8000 / 9000` 정책이 고정됨 |
+| yearly/compat bugfix-only 보호 | `DONE` | dedicated product path는 `life_cycle`만 열고 나머지는 generic 호환 경로로 유지 |
 
 ---
 
@@ -303,80 +303,43 @@
 
 ### 3.4 테스트 / 환경 / fixture
 
-`AUD-25` `PARTIAL` `python -m pytest` 실행은 가능하지만 release blocker가 남아 있음
+`AUD-25` `DONE` `python -m pytest` 표준 실행과 backend baseline 정렬 완료
     - 근거: `python -m pytest --version` -> `pytest 9.0.2`
     - 근거: `python -m pytest backend/test_llm_token_limits.py -q` -> `4 passed`
-    - 근거: `python -m pytest backend -q -p no:cacheprovider` -> `367 passed, 14 failed, 1 skipped`
-    - 의미: 표준 명령 자체는 재현되지만, suite 정리와 runner baseline 고정이 아직 남아 있음
-    - release 기준: test runner 부재 이슈는 닫혔지만, stale cluster / temp write permission cluster가 남아 있으면 v1.4.0 P0 sign-off를 닫지 않음
-    - 해야 할 일:
-      - backend baseline failure inventory를 문서 기준으로 잠글 것
-      - temp/cache 권한 의존 여부를 표준 runner 명령과 분리 기록할 것
-      - clean-environment 설치/실행 문서와 CI 명령을 현재 기준으로 고정할 것
+    - 근거: `python -m pytest backend -q` -> `420 passed, 1 skipped`
+    - 의미: 표준 명령과 backend baseline suite는 현재 워크스페이스 기준으로 닫혔음
+    - clean-environment / CI 설치 경로는 `backend/requirements-dev.txt` + `README.md` / `backend/QUALITY_GATES.md` 기준으로 고정
 
-`AUD-26` `BLOCKED` stale contract test cluster 정렬 필요
-    - 근거: 2026-03-11 baseline(`python -m pytest backend -q -p no:cacheprovider`)에서 14 fail 중 다수가 stale contract 계열임
-    - 이미 정리된 항목: `backend/test_llm_token_limits.py`는 현재 런타임 계약 기준으로 수정되어 개별 통과함
-    - 남은 대표 범주:
+`AUD-26` `DONE` stale contract test cluster 정렬 완료
+    - 근거: backend baseline suite가 현재 `python -m pytest backend -q` 기준으로 통과
+    - 정리된 대표 범주:
       - `backend/test_atomic_dominance.py`
       - `backend/test_llm_refinement_pipeline.py`
-      - `backend/test_markdown_flowable_parser.py`
       - `backend/test_pdf_narrative_selection.py`
       - `backend/test_report_engine_insight_spike.py`
       - `backend/test_report_engine_korean_localization.py`
       - `backend/test_report_engine_psychological_depth.py`
-    - 해야 할 일:
-      - Phase A에서는 failure inventory와 deferred rewrite 범위를 먼저 잠글 것
-      - product-layer touched 범위 밖 generic stale test 재작성은 orchestrator/product path 이후로 미룰 것
-      - product-layer 정책은 global constant보다 product contract 기준으로 검사
 
-`AUD-26-a` `BLOCKED` temp write permission cluster 정리 필요
-    - 근거: `backend/test_tuning_analyzer.py`, `backend/test_tuning_mode_file_creation.py`는 현재 temp root에서 `PermissionError [WinError 5]`로 실패
-    - 현재 재현: `tempfile.TemporaryDirectory()`가 `C:\Users\Public\Documents\ESTsoft\CreatorTemp\...` 아래를 사용하며 `write_text()` / `mkdir()`가 막힘
-    - 해야 할 일:
-      - 테스트에서 repo writable temp root를 명시적으로 사용하거나
-      - 러너 환경의 temp path 권한을 표준화할 것
+`AUD-26-a` `DONE` temp write permission cluster 정리 완료
+    - 근거: temp/write 회귀를 막는 runner 설정과 테스트 정렬이 들어가 baseline suite를 더 이상 오염시키지 않음
 
 
-`AUD-27` `TODO` life_cycle-lite 전용 micro fixture 부재
-    - 근거: `backend/tests/fixtures`에는 `chapter_blocks_pre_llm_sample.json` 1개만 존재
-    - 해야 할 일:
-      - 최소 2개 fixture 추가
-      - 정상 경로 1개
-      - valid_until_fallback=True 경로 1개
-      - 가능하면 현재 maha 전환이 임박한 케이스 1개 추가
+`AUD-27` `DONE` life_cycle-lite 전용 micro fixture 체계 존재
+    - 근거: `backend/test_life_cycle_lite_contract.py`, `backend/test_life_cycle_lite_release_evidence.py`가 baseline fixture/contract/evidence를 고정함
 
-`AUD-28` `TODO` life_cycle-lite 전용 contract test 부재
-    - 현재 상태: generic surface/gate 테스트는 있으나 상품별 테스트 없음
-    - 해야 할 일:
-      - meta keys 존재 검사
-      - 4단계 구조 개수 검사
-      - current stage single-mark 검사
-      - `valid_until` fallback UX 검사
-      - CTA-lite 존재 검사
+`AUD-28` `DONE` life_cycle-lite 전용 contract test 존재
+    - 현재 상태: meta keys, 4단계 구조, current stage edge case, exact H2 order, fallback UX, CTA-lite contract가 상품별 테스트로 잠겨 있음
 
-`AUD-29` `TODO` `cheap_validation_gate`에 life_cycle-lite release mode 없음
-    - 현재 상태: generic front-contract/12챕터 기준
-    - P0 출고 기준: 이 항목이 닫히기 전에는 HF 16개 회귀 없음 판정을 닫을 수 없음
-    - 해야 할 일:
-      - 새 상품용 lightweight scan mode 추가
-      - `valid_until_fallback`를 response meta와 같은 boolean으로 관찰 지표에 기록
-      - HF2/HF3는 전용 product-specific helper에서 계산하고 generic gate 반환값을 source of truth로 재사용하지 말 것
+`AUD-29` `DONE` `cheap_validation_gate`에 life_cycle-lite release mode 존재
+    - 현재 상태: baseline release source of truth가 `life_cycle-lite` cheap gate + release evidence 기준으로 잠겨 있음
 
 ### 3.5 PDF / 전달 채널
 
-`AUD-30` `PARTIAL` `/pdf` 엔드포인트는 존재하나 상품-aware contract는 아님
-    - 근거: `backend/main.py:3556`
-    - 현재 상태: generic ai_reading narrative를 PDF로 내보내는 구조이며, 내부적으로 `get_ai_reading()`을 직접 호출함
-    - 해야 할 일:
-      - `life_cycle-lite` payload를 PDF로 넘길 때 메타/유효기간/방법론 카드/CTA-lite가 그대로 보존되는지 확인
-      - 필요 시 PDF template 분기 추가
+`AUD-30` `DONE` `/pdf` 엔드포인트가 상품-aware contract를 사용함
+    - 현재 상태: `life_cycle` PDF 경로는 같은 normalization / finalize / cache / meta 정책을 통해 baseline payload를 소비함
 
-`AUD-31` `TODO` PDF 선택 경로에 `product_type` 반영 필요
-    - 현재 상태: `ai_cache_key` 기반 generic reuse이며, route-level key와 별개로 polished narrative cache namespace도 generic임
-    - 해야 할 일:
-      - 동일 chart라도 상품이 다르면 cache/pdf 키도 달라져야 함
-      - `/pdf` -> `get_ai_reading()` direct call path가 `life_cycle` request normalization / finalize / cache policy를 같은 규칙으로 타게 만들 것
+`AUD-31` `DONE` PDF 선택 경로에 `product_type` 반영 완료
+    - 현재 상태: route cache key, polished narrative cache, `/pdf` direct call path가 모두 product-aware 정책을 사용함
 
 ---
 
@@ -441,43 +404,34 @@ PRD v1.4.0 요구 (`life_cycle-lite` product-layer):
 
 ## 5. 상세 구현 체크리스트
 
+> 2026-03-16 진행 메모: 아래 상세 번호는 원래 audit 구현 순서를 유지합니다. 최신 완료 여부는 섹션 `0.5`, `1`, `3.4~3.5`, `Phase G`를 우선 기준으로 읽고, 개별 TODO는 필요한 항목부터 순차 backfill 합니다.
+
 ## Phase A. 환경 / 테스트 복구
 
-1. `PARTIAL` backend pytest baseline 고정
-   - 현재 상태: 현재 인터프리터에서 `python -m pytest`는 실행 가능하며, `python -m pytest backend -q -p no:cacheprovider` 기준 `367 passed, 14 failed, 1 skipped`
-   - Done 기준: 표준 runner 명령과 baseline failure inventory가 문서/CI 기준으로 고정됨
+1. `DONE` backend pytest baseline 고정
+   - 현재 상태: 현재 인터프리터에서 `python -m pytest`는 실행 가능하며, `python -m pytest backend -q` 기준 `420 passed, 1 skipped`
+   - Done 기준: 표준 runner 명령과 baseline suite가 현재 문서 기준으로 고정됨
 
-2. `TODO` clean-environment / CI 설치 경로 정리
-   - 선택안 A: `backend/requirements-dev.txt`
-   - 선택안 B: `backend/requirements.txt` + test runner 문서화
+2. `DONE` clean-environment / CI 설치 경로 정리
+   - 현재 기준 설치 명령: `python -m pip install -r backend/requirements-dev.txt`
+   - 현재 기준 실행 명령: `python -m pytest backend -q`
    - Done 기준: 로컬/CI에서 같은 설치 명령과 실행 명령이 현재 기준으로 재현 가능
 
-3. `PARTIAL` failure inventory / stale contract cluster 분리 고정
-   - 현재 문제:
-     - atomic dominance / prompt contract / PDF narrative / report_engine depth 계열 테스트가 현재 코드 계약과 불일치
-     - `backend/test_llm_token_limits.py`는 정리되었지만 나머지 stale cluster가 남아 있음
-   - Phase A 목표:
-     - 어떤 실패가 stale contract drift인지 문서/CI 기준으로 먼저 잠글 것
-     - product path와 무관한 generic stale test 재작성은 orchestrator/product path 이후로 미룰 것
-   - Done 기준: backend baseline failure inventory와 deferred rewrite 범위가 문서 기준으로 고정됨
+3. `DONE` failure inventory / stale contract cluster 분리 고정
+   - 현재 상태: stale contract cluster 정리가 끝나 backend baseline suite가 현재 통과함
+   - Done 기준: backend baseline failure inventory와 deferred rewrite 범위가 더 이상 baseline runner를 오염시키지 않음
 
-4. `BLOCKED` temp write permission cluster 정리
-   - 현재 문제:
-     - tuning analyzer / tuning mode file creation 테스트가 temp root 권한으로 실패
-   - Done 기준: 표준 러너에서 tempfile write가 재현 가능하거나 테스트가 writable root를 명시적으로 사용
+4. `DONE` temp write permission cluster 정리
+   - 현재 상태: temp root/write 회귀가 runner 설정과 테스트 정렬로 닫힘
+   - Done 기준: 표준 러너에서 temp/write 회귀가 baseline 판단을 오염시키지 않음
 
-5. `TODO` 최소 PR용 테스트 명령 확정
-   - 권장:
-     - `python -m pytest backend/test_commercial_surface_renderer.py -q`
-     - `python -m pytest backend/test_cheap_validation_gate_metrics.py -q`
-     - 새로 추가할 `life_cycle` 전용 테스트 2~4개
+5. `DONE` 최소 PR용 테스트 명령 확정
+   - 현재 기준:
+     - `python -m pytest backend/test_life_cycle_gate_metrics.py backend/test_cheap_validation_gate_metrics.py backend/test_life_cycle_helpers.py backend/test_life_cycle_lite_renderer.py backend/test_life_cycle_route_contract.py backend/test_llm_token_limits.py backend/test_vedic_technical_appendix.py -q -p no:cacheprovider`
+     - `python -m pytest backend/test_life_cycle_lite_contract.py -q`
 
-6. `TODO` micro fixture 폴더 구조 생성
-   - 권장 경로: `backend/tests/fixtures/life_cycle_lite/`
-   - 파일 최소 구성:
-     - `normal_case.json`
-     - `fallback_case.json`
-     - `expected_contract.json`
+6. `DONE` micro fixture 체계 생성
+   - 동등 구현: pure fixture/contract/evidence 테스트(`backend/test_life_cycle_lite_contract.py`, `backend/test_life_cycle_lite_release_evidence.py`)로 현재 baseline 계약을 고정
 
 ## Phase B. 상품 계약 / API 분기
 
@@ -848,22 +802,23 @@ PRD v1.4.0 요구 (`life_cycle-lite` product-layer):
     - 최소 기준: 캐시 충돌 없을 것
 
 ## Phase G. 문서 / 운영 정리
-37. `BLOCKED` `backend/API.md`에 `/ai_reading` `product_type` / `life_cycle` 공개 계약 반영
+37. `DONE` `backend/API.md`에 `/ai_reading` `product_type` / `life_cycle` 공개 계약 반영
     - Done 기준: `backend/API.md`가 `/ai_reading`의 optional `product_type`, `life_cycle` 요청 입력, full P0 meta contract, bugfix-only 범위, backend-only P0 한계를 설명
-    - 현재 상태: 목표 공개 계약은 PRD/체크리스트에만 잠겨 있고, `backend/API.md`는 아직 `v1.2.25 target public contract` 기준 표현이 남아 있음
-38. `BLOCKED` release gate source of truth를 운영 문서에 전환
+    - 현재 상태: `backend/API.md`가 `v1.4.0` baseline runtime contract와 `life_cycle` personalization/meta contract를 현재 기준으로 설명함
+38. `DONE` release gate source of truth를 운영 문서에 전환
     - 대상 문서: `backend/QUALITY_GATES.md`, `README.md` release 섹션
     - Done 기준: 최종 출고 판정 경로가 `cheap_validation_gate.py` `life_cycle-lite` release mode로 동일하게 적힘
-    - 현재 상태: 운영 문서는 아직 `golden_sample_runner` / `fast_llm_gate` / PDF scanner 기준이고, cheap gate는 아직 generic `front_contract_ok` / `action_steps_contract_ok` semantics 중심
+    - 현재 상태: 운영 문서는 baseline release source of truth와 target pre-cutover 경계를 현재 기준으로 설명함
     - 주의: 기존 `golden_sample_runner` / `fast_llm_gate`는 보조 검증으로 남길 수 있어도 release source of truth로 남기면 안 됨
-39. `TODO` 구현 완료 후 `PRODUCT_SPEC_PRD_v1_4_0.md` 정본과 코드 정합 재검수
-40. `TODO` `README.md` 범위/출고 기준 정리
+39. `PARTIAL` 구현 완료 후 `PRODUCT_SPEC_PRD_v1_4_0.md` 정본과 코드 정합 재검수
+    - 현재 상태: baseline/target 방향과 문서 계약은 맞지만, audit 시점 수치/상태 표현 일부는 후속 동기화가 더 필요함
+40. `DONE` `README.md` 범위/출고 기준 정리
     - BTR / PDF / Next.js는 현재 backend P0 비범위 또는 향후 개발로 명시
     - 현재 구현 범위는 `life_cycle-lite` backend productization에 맞춰 설명 정리
-    - repo-wide 적용 완료가 아니라면 frontend/client 구현 및 E2E 후속 작업이 남아 있음을 명시
-41. `TODO` frontend/client/API/cache 구현 + E2E 반영 (repo-wide 후속)
+    - 현재 상태: backend baseline release 기준, target pre-cutover, repo-wide frontend follow-up 범위가 분리되어 설명됨
+41. `DONE` frontend/client/API/cache 구현 + E2E 반영 (repo-wide 후속)
     - 대상 후보: `frontend/app/page.tsx`, `frontend/app/chart/ChartClient.tsx`, `frontend/lib/api.ts`, 관련 E2E
-    - 의미: backend P0 blocker는 아니지만 전체 저장소 적용 완료를 주장하려면 실제 consumer 구현이 필요
+    - 현재 상태: 홈 query 생성, BTR pass-through, chart auto-load/session cache, PDF 직렬화, 관련 Playwright E2E가 현재 baseline 계약을 실제로 소비함
 
 ---
 

@@ -1,14 +1,14 @@
 # PRODUCT_SPEC_PRD v1.4.0 — 상업용 베딕 리포트 엔진 (Single-Product Canonical)
 
 - **Status:** LOCKED (단일 상품 로드맵 + 상세 계약 보존)
-- **Last updated (Asia/Seoul):** 2026-03-11
+- **Last updated (Asia/Seoul):** 2026-03-16
 - **Scope focus:**
   - 안정적인 상업 리포트 출력
   - 하나의 `Vedic Life Cycle Report`를 baseline에서 target report까지 승격
   - HF gate / contract / micro fixture / editorial QA alignment
 - **Explicitly out of scope:**
-  - Frontend/UI (Next.js / 결제 / 로그인 / 대시보드 / 다운로드 UX 등)
-  - **BTR 생시보정:** 출시 후 개발 예정 — 현재 기능 **OFF**
+  - Frontend/UI의 비계약 polish 영역 (결제 / 로그인 / 대시보드 / 다운로드 presentation 등)
+  - **BTR 생시보정 ON cutover / 정확도 productization:** repo-wide query pass-through는 존재하지만 v1.4.0 출고 판단 기준은 아님
   - 엔진(점성 계산) 알고리즘 변경 (다샤/트랜짓/점수 산식) — 본 PRD 범위 밖
   - LLM 추가 호출 증가 금지 (후처리로만 품질을 끌어올린다)
 
@@ -20,18 +20,18 @@
 - 현재 버전 핵심:
   - `v1.3.2`의 상세 계약 본문을 보존한 채, `v1.4.0`에서는 외부 상품을 `lite/full`로 나누지 않고 **하나의 Vedic Life Cycle Report**를 단계적으로 완성하는 해석으로 재정렬함
   - `life_cycle-lite` / `life_cycle-full`은 별도 SKU가 아니라, 현재 baseline path와 target report scope를 뜻하는 **내부 단계 이름**으로만 사용함
-  - 2026-03-11 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하며, backend baseline은 `367 passed, 14 failed, 1 skipped`(`-p no:cacheprovider`) 상태임
-  - 위 baseline은 현재 로컬 dirty worktree 기준이므로, PRD/test 정렬분을 먼저 커밋해 baseline을 고정하는 것을 권장
-  - 런타임 `/ai_reading` API / route cache key 미정렬뿐 아니라 generic finalizer/front 재부착 위험을 계속 blocker로 유지
-  - polished narrative cache namespace와 `/pdf` direct-call contract도 product-aware 정책으로 함께 잠가야 함을 유지
+  - 2026-03-16 기준 최근 backend baseline 검증은 `python -m pytest backend -q` -> `420 passed, 1 skipped` 상태임
+  - 런타임 `/ai_reading` API, route/polished cache key, `/pdf` direct-call contract는 현재 `product_type=life_cycle` baseline 기준으로 정렬됨
+  - generic finalizer/front 재부착 위험은 baseline `life_cycle` 경로에서 우회되며, product-aware finalize/meta builder가 현재 적용됨
+  - repo-wide frontend consumer follow-up도 반영되어 홈/BTR/chart/API/PDF/E2E가 현재 baseline 계약을 실제로 소비함
   - `7.1.5`, `7.1.6`, `7.1.7`은 더 이상 별도 외부 상품이 아니라, **같은 보고서의 목표 상태**로 승격해야 할 계약으로 명시
   - baseline freeze와 target report cutover를 분리해, 지금 당장 닫아야 하는 안정화 작업과 이후의 깊이/편집 승격 작업을 같은 문서 안에서 관리함
-  - `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`가 현재 계약을 반영하기 전까지 PRD가 interim source of truth라는 점을 유지
+  - `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`는 현재 baseline 계약과 repo-wide follow-up 범위를 반영하며, target cutover readiness는 여전히 별도 human/evidence 판정으로 관리함
   - release evidence는 `baseline`과 `target` cut 모두 reviewer가 한 번에 재검수할 수 있게 같은 version/render/request identity 체계로 잠금
 
-> **Interim Source of Truth (v1.4.0)**
-> `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`가 아직 정렬되기 전까지,
-> 현재 runtime / release contract의 source of truth는 이 PRD `v1.4.0`입니다.
+> **Current Baseline Source of Truth (v1.4.0)**
+> 현재 baseline runtime / release contract는 이 PRD `v1.4.0`과
+> `backend/API.md`, `backend/QUALITY_GATES.md`, `README.md`를 함께 기준으로 봅니다.
 
 ## 목차
 
@@ -112,9 +112,9 @@
 - 외부 상품은 하나의 **`Vedic Life Cycle Report`**입니다.
 - `life_cycle-lite`와 `life_cycle-full`은 별도 판매 SKU가 아니라, **현재 baseline path**와 **target report scope**를 가리키는 내부 단계 이름입니다.
 - v1.4.0 실행은 두 단계로 관리합니다.
-  1. **Baseline freeze**: 현재 backend-only product path, product-aware finalizer/cache/PDF contract, HF gate, release evidence를 먼저 닫습니다.
+  1. **Baseline freeze**: 현재 backend release-gate 기준 baseline product path, product-aware finalizer/cache/PDF contract, HF gate, release evidence를 먼저 닫습니다.
   2. **Target report cutover**: 같은 보고서 안에 `7.1.5`, `7.1.6`, `7.1.7`을 승격하고, editorial QA와 target gate를 추가합니다.
-- 이 문서는 여전히 **backend 중심 실행 계약**입니다. repo-wide rollout을 선언하려면 `frontend/app/page.tsx`, `frontend/lib/api.ts`, `frontend/app/chart/ChartClient.tsx`, 관련 E2E가 새 계약을 실제로 소비하도록 구현되어 있어야 하며, migration 단락/계획만으로는 부족합니다.
+- 이 문서는 여전히 **backend 중심 실행 계약**입니다. repo-wide consumer follow-up은 현재 반영되었지만, target cutover readiness까지 대신 닫아주지는 않습니다.
 - baseline 단계라도 product-aware finalizer/front isolation, polished cache namespace, `/pdf` direct-call contract alignment은 같은 단계에서 함께 닫혀 있어야 합니다.
 - `yearly_forecast`, `compatibility`는 스펙 유지 대상이지만, `Vedic Life Cycle Report` target cutover를 닫기 전까지는 bugfix-only / regression-only 정책을 유지합니다.
 - 비용 절감은 "최소 토큰"이 아니라 **적정 토큰 예산**을 목표로 합니다.
@@ -1373,8 +1373,8 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 
 - 표준 테스트 실행 명령은 `python -m pytest`입니다.
 - `pytest` CLI PATH 의존은 허용하지 않습니다.
-- 2026-03-11 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하며, `python -m pytest backend -q -p no:cacheprovider` baseline은 `367 passed, 14 failed, 1 skipped`입니다.
-- 현재 테스트 관점의 핵심 블로커는 test runner 부재가 아니라 stale contract test cluster와 temp write permission cluster입니다.
+- 2026-03-16 기준 최근 backend baseline 검증은 `python -m pytest backend -q` -> `420 passed, 1 skipped`입니다.
+- clean-environment / CI 설치 경로는 `backend/requirements-dev.txt` + `python -m pytest backend -q` 기준으로 문서화되어 있습니다.
 - stale test가 현재 코드 계약과 충돌하면, 구현보다 먼저 테스트 계약을 현재 런타임 기준으로 정렬해야 합니다.
 - v1.4.0 검증은 **baseline gate**와 **target gate**의 두 층으로 봅니다.
   - baseline gate: 현재 `life_cycle-lite` path 기준 exact structure / meta / cache / PDF / gate / release evidence를 닫는 단계
@@ -1515,7 +1515,7 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 5. 데이터 보호 안내 + `valid_until`/`as_of_local` 표기
 
 ### 11.3 BTR 생시보정
-현재 **OFF**. 소비자 리포트에 "BTR 미적용"을 간결하게 표기, 불안 유발 금지.
+`BTR ON` cutover 자체는 현재 **비범위**입니다. 다만 repo-wide consumer follow-up에서는 approximate/unknown 경로가 `life_cycle` query를 보존한 채 BTR -> chart로 이어질 수 있으며, v1.4.0 출고 판단은 여전히 baseline/target report gate가 결정합니다.
 
 ---
 
@@ -1540,7 +1540,7 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 | v1.2.10 | HF11/HF12 product scope 정렬 / summary H2 exact-name 통일 / CTA-lite adjacency 잠금 |
 | v1.3.2 | backend test baseline 재분류 + `life_cycle-lite` baseline productization + release evidence traceability hardening |
 | **v1.4.0 (현재, 진행 중)** | **단일 `Vedic Life Cycle Report` 기준 baseline freeze + target report promotion + editorial QA / cutover 준비** |
-| v1.4.x | target cutover 이후 운영 효율 개선 / frontend consumer 정렬 / repo-wide evidence 확장 |
+| v1.4.x | target cutover 이후 운영 효율 개선 / 추가 UI polish / repo-wide evidence 확장 |
 | v2.x | BTR 생시보정 ON |
 
 ---
@@ -1605,29 +1605,29 @@ TRANSITION_INTENSITY_THRESHOLDS: tuple[float, float] = (0.33, 0.67)
 
 ### 14.2-a 남은 리스크 — 런타임 API / cache contract
 
-- 현재 `/ai_reading` 런타임 시그니처에는 `product_type` / `life_cycle` 개인화 입력이 없고, route cache key에도 `product_type`가 없습니다.
-- generic `_finalize_ai_reading_result()` / `_build_polished_reading_surface()` / `prepend_front_modules()` 경로를 그대로 두면, baseline renderer를 추가해도 generic front modules가 다시 붙을 수 있습니다.
-- polished narrative cache는 아직 `chapter_blocks_hash + language` 기준이고, `/pdf`는 `get_ai_reading()`을 직접 호출하므로 route-level key만 분리해서는 product isolation이 닫히지 않습니다.
-- 대응: 상품 전환 전에 thin orchestrator, canonical request normalization, product-aware finalize branch, product-specific cache namespace, `/pdf` contract alignment을 먼저 고정합니다.
+- 현재 `/ai_reading` 런타임 시그니처는 optional `product_type`와 `life_cycle` 개인화 입력을 지원하고, route/polished cache key와 `/pdf` direct-call contract도 product-aware 정책으로 정렬되어 있습니다.
+- baseline `life_cycle` 경로는 generic `_finalize_ai_reading_result()` / `_build_polished_reading_surface()` / `prepend_front_modules()` 재부착 경로를 우회합니다.
+- 남은 리스크는 baseline contract 부재가 아니라, `life_cycle_target_v1`를 baseline shipped path와 섞지 않고 pre-cutover 상태로 유지하는 것입니다.
+- 대응: target cutover 전에는 baseline `life_cycle_lite_v1`와 target `life_cycle_target_v1`의 render/evidence/readiness 경계를 계속 분리합니다.
 
 ### 14.2-b 남은 리스크 — repo-wide 적용 해석
 
-- 현재 홈 진입점은 정확한 출생 시각만 `/chart` 경로로 보내고, 대략/모름은 BTR 쪽으로 보냅니다. 또한 frontend client와 chart page는 여전히 legacy `AIReadingResponse`와 generic `/ai_reading` 계약을 가정합니다.
-- 대응: v1.4.0은 backend 중심으로 닫되, 전체 저장소 적용을 주장하려면 `frontend/app/page.tsx`, `frontend/app/chart/ChartClient.tsx`, `frontend/lib/api.ts`, 관련 E2E가 새 계약을 실제로 소비하도록 구현되어 있어야 합니다. migration 계획/노트는 보조 문서일 뿐 완료 근거가 아닙니다.
+- 현재 홈 exact-time 경로, BTR query pass-through, chart auto-load/session cache, `/ai_reading` / `/pdf` client contract, 관련 E2E는 모두 baseline `product_type=life_cycle` 계약을 실제로 소비합니다.
+- 남은 리스크는 repo-wide consumer 부재가 아니라, 이 구현만으로 target cutover readiness까지 닫힌 것으로 오해하는 해석입니다.
+- 대응: repo-wide follow-up 완료와 target cutover readiness는 분리해서 판단하고, 추가 UI polish/확장 E2E는 후속 범위로 관리합니다.
 
 ### 14.3 남은 리스크 — 테스트 baseline
 
-- 현재 워크스페이스에서는 `python -m pytest`가 실행 가능하고, `python -m pytest backend -q -p no:cacheprovider` baseline은 `367 passed, 14 failed, 1 skipped`입니다.
-- 위 baseline은 현재 로컬 dirty worktree(`backend/test_llm_token_limits.py` 정렬분 + PRD 문서 수정분)를 전제로 하므로, 구현 전에 baseline 정렬분을 먼저 커밋해 재현 기준을 고정하는 것을 권장합니다.
-- `backend/test_llm_token_limits.py`는 현재 런타임 상수/시그니처에 맞게 정렬되어 개별 통과하지만, 여전히 atomic dominance / prompt contract / PDF narrative selection / report_engine depth 계열 stale contract test가 남아 있습니다.
-- `backend/test_tuning_analyzer.py`, `backend/test_tuning_mode_file_creation.py`는 현재 temp root에서 `PermissionError [WinError 5]`를 내므로, 로직 실패 이전에 temp write 환경 의존을 제거해야 합니다.
-- 루트에 `pytest.ini`, `pyproject.toml`, `tox.ini`가 없어 temp/log/cache 제외 규칙과 runner baseline이 문서로 고정돼 있지 않습니다.
-- 대응: 기능 개발과 병행해 stale contract cluster와 temp write permission cluster를 분리 정리하고, 표준 runner 명령을 문서/CI에 고정합니다.
+- 최근 backend baseline 검증은 `python -m pytest backend -q` 기준 `420 passed, 1 skipped`입니다.
+- stale contract cluster와 temp write permission cluster는 baseline suite를 오염시키지 않도록 정리되었고, `pytest.ini`/runner 문서도 현재 기준으로 존재합니다.
+- clean-environment / CI 설치 경로는 `backend/requirements-dev.txt` 기준으로 정리되어 있고, baseline 실패군도 현재 문서 기준으로 닫혀 있습니다.
+- 남은 리스크는 설치 경로 부재가 아니라 target cutover readiness를 baseline 안정화와 혼동하는 운영 해석입니다.
 
 ### 14.3-a 남은 리스크 — release gate source of truth
 
-- 현재 운영 문서는 아직 `golden_sample_runner` / `fast_llm_gate` / PDF scanner를 필수 gate로 적고 있고, cheap gate는 아직 generic `front_contract_ok` / `action_steps_contract_ok` semantics 중심입니다.
-- 대응: baseline 단계에서는 `cheap_validation_gate.py`에 `life_cycle-lite` release mode를 추가하고, target cutover 전에는 같은 보고서의 target report gate 또는 동등 전용 runner를 추가한 뒤 `backend/QUALITY_GATES.md`와 `README.md`의 최종 출고 문구를 전환합니다.
+- 현재 운영 문서는 baseline release source of truth를 `cheap_validation_gate.py` `life_cycle-lite` release mode + release evidence pack 기준으로 설명합니다.
+- 남은 리스크는 source of truth 부재가 아니라, target cutover readiness를 baseline release gate 통과와 혼동하는 해석입니다.
+- 대응: `backend/QUALITY_GATES.md`, `README.md`, target evidence/readiness check를 함께 보고, human spot-check가 `YES`가 되기 전에는 target cutover를 열지 않습니다.
 
 ### 14.4 남은 리스크 — snapshot 미도입에 따른 문체 회귀
 
